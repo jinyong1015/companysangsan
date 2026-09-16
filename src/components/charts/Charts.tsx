@@ -32,19 +32,29 @@ const REASON_COLORS = [
 export function ProductionUtilizationTrend({
   data,
   height = 360,
+  showTableToggle = true,
 }: {
   data: TrendPoint[];
   height?: number;
+  /** false면 차트만 표시 (표로 보기 숨김) */
+  showTableToggle?: boolean;
 }) {
   const [showTable, setShowTable] = useState(false);
+  const tableVisible = showTableToggle && showTable;
   return (
     <div>
-      <div className="mb-2 flex justify-end">
-        <button type="button" className="btn btn-ghost text-xs" onClick={() => setShowTable((v) => !v)}>
-          {showTable ? "차트로 보기" : "표로 보기"}
-        </button>
-      </div>
-      {showTable ? (
+      {showTableToggle ? (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            className="btn btn-ghost text-xs"
+            onClick={() => setShowTable((v) => !v)}
+          >
+            {showTable ? "차트로 보기" : "표로 보기"}
+          </button>
+        </div>
+      ) : null}
+      {tableVisible ? (
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -208,7 +218,7 @@ export function HorizontalRankBars({
         <button
           key={row.id}
           type="button"
-          className="block w-full text-left"
+          className="rank-bar-btn"
           onClick={() => onClick?.(row.id)}
         >
           <div className="mb-1 flex items-center justify-between gap-2 text-sm">

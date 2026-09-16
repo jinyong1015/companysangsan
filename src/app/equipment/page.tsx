@@ -19,6 +19,8 @@ import {
   formatUph,
 } from "@/lib/format";
 import { paginate, sortBy } from "@/lib/metrics";
+import { withFromParam } from "@/lib/navigation";
+import { downloadExcel } from "@/lib/excelParse";
 
 export default function EquipmentListPage() {
   const { filters, resetGlobal } = useFilters();
@@ -73,6 +75,27 @@ export default function EquipmentListPage() {
           { value: "uph", label: "UPH" },
           { value: "defect", label: "불량수량" },
         ]}
+        onExcel={() =>
+          downloadExcel(
+            "설비분석.xlsx",
+            rows.map((e) => ({
+              설비명: e.name,
+              공장: e.factory,
+              GROMMET비중: e.productMix.grommetPercent,
+              SEAL비중: e.productMix.sealPercent,
+              생산품번수: e.partCount,
+              생산량: e.kpi.productionQuantity,
+              불량수량: e.kpi.defectQuantity,
+              작업시간분: e.kpi.elapsedMinutes,
+              비가동시간분: e.kpi.downtimeMinutes,
+              가동률: e.kpi.utilizationRatePercent,
+              UPH: e.kpi.uph,
+              고장건수: e.kpi.failureCount,
+              MTTR분: e.kpi.mttrMinutes,
+              참고MTBF시간: e.kpi.referenceMtbfHours,
+            })),
+          )
+        }
       />
 
       {rows.length === 0 ? (
@@ -108,7 +131,10 @@ export default function EquipmentListPage() {
                 {paged.items.map((e) => (
                   <tr key={e.id}>
                     <td>
-                      <Link href={`/equipment/${e.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/equipment/${e.id}`, "equipment")}
+                        className="linkish"
+                      >
                         {e.name}
                       </Link>
                     </td>
@@ -139,7 +165,10 @@ export default function EquipmentListPage() {
                     </td>
                     <td className="num">{formatHours(e.kpi.referenceMtbfHours)}</td>
                     <td>
-                      <Link href={`/equipment/${e.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/equipment/${e.id}`, "equipment")}
+                        className="linkish"
+                      >
                         →
                       </Link>
                     </td>

@@ -4,6 +4,7 @@ import type {
   MoldRow,
   OperatorRow,
   PartRow,
+  ProductPerformanceRow,
   ProductionRecord,
 } from "@/types";
 import { computeKpi, filterRecords } from "@/lib/metrics";
@@ -63,6 +64,58 @@ export function aggregateParts(
       equipmentCount: new Set(rows.map((r) => r.equipmentId)).size,
       moldCount: new Set(rows.map((r) => r.moldId)).size,
       kpi: computeKpi(rows),
+    };
+  });
+}
+
+/**
+ * PROD-01 제품별 생산 종합 실적.
+ * filterRecords가 정상 데이터만 넘기므로 추가 제외 없이 품번 집계한다.
+ * UPH·평균 SHOT은 화면설계서 기준(가동시간)으로 산출한다.
+ */
+export function aggregateProductPerformance(
+  records: ProductionRecord[],
+  filters: GlobalFilters,
+): ProductPerformanceRow[] {
+  const filtered = filterRecords(records, filters);
+  const map = new Map<string, ProductionRecord[]>();
+  for (const r of filtered) {
+    if (!r.partId || !r.partNumber || !r.productType) continue;
+    const list = map.get(r.partId) ?? [];
+    list.push(r);
+    map.set(r.partId, list);
+  }
+
+  return [...map.entries()].map(([id, rows]) => {
+    const first = rows[0]!;
+    const downtimeMinutes = rows.reduce((s, r) => s + r.downtimeMinutes, 0);
+    const elapsedMinutes = rows.reduce((s, r) => s + r.elapsedMinutes, 0);
+    const operatingMinutes = rows.reduce((s, r) => s + r.operatingMinutes, 0);
+    const shotCount = rows.reduce((s, r) => s + r.shotCount, 0);
+    const productionQuantity = rows.reduce((s, r) => s + r.productionQuantity, 0);
+    const defectQuantity = rows.reduce((s, r) => s + r.defectQuantity, 0);
+    const workDays = new Set(rows.map((r) => r.workDate)).size;
+
+    const operatingHours = operatingMinutes / 60;
+    const elapsedHours = elapsedMinutes / 60;
+
+    return {
+      id,
+      partNumber: first.partNumber,
+      productType: first.productType,
+      downtimeMinutes,
+      elapsedMinutes,
+      operatingMinutes,
+      shotCount,
+      avgShotByOperating:
+        operatingHours > 0 ? shotCount / operatingHours : null,
+      avgShotByElapsed: elapsedHours > 0 ? shotCount / elapsedHours : null,
+      workDays,
+      dailyAvgShots: workDays > 0 ? shotCount / workDays : null,
+      productionQuantity,
+      defectQuantity,
+      goodQuantity: productionQuantity - defectQuantity,
+      uph: operatingHours > 0 ? productionQuantity / operatingHours : null,
     };
   });
 }

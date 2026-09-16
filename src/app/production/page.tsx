@@ -1,140 +1,107 @@
 ﻿"use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ProductionUtilizationTrend, SimpleBarChart } from "@/components/charts/Charts";
-import { DetailFilterCard } from "@/components/filters/FilterCards";
-import { KpiCard } from "@/components/ui/KpiCard";
-import { NumberPagination } from "@/components/ui/SearchSortBar";
-import { EmptyState, PageHeader, ResponsiveGrid, SectionCard } from "@/components/ui/PageBits";
+import { useMemo } from "react";
+import {
+  ProductPerformanceSummary,
+  type ProductTab,
+} from "@/components/production/ProductPerformanceSummary";
+import { ProductTypeTabs } from "@/components/production/ProductTypeTabs";
+import { ProductShotTopWorst } from "@/components/production/ProductShotTopWorst";
+import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
+import { usePageState } from "@/hooks/usePageState";
+import { aggregateProductPerformance } from "@/lib/aggregates";
+import { downloadExcel } from "@/lib/excelParse";
+import type { GlobalFilters, ProductPerformanceRow } from "@/types";
 
-import { autoGrain } from "@/lib/dates";
-import {
-  formatMinutes,
-  formatNumber,
-  formatPercent,
-  formatQuantity,
-  formatUph,
-} from "@/lib/format";
-import { buildTrends, computeKpi, filterRecords, paginate } from "@/lib/metrics";
-import type { Grain } from "@/types";
+function parseProductTab(value: unknown): ProductTab {
+  if (value === "GROMMET" || value === "SEAL" || value === "전체") return value;
+  return "전체";
+}
+
+function parseHiddenColumns(value: unknown): string[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  return value.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function byProductTab(
+  rows: ProductPerformanceRow[],
+  tab: ProductTab,
+): ProductPerformanceRow[] {
+  if (tab === "전체") return rows;
+  return rows.filter((r) => r.productType === tab);
+}
 
 export default function ProductionPage() {
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
-  const [metric, setMetric] = useState<"production" | "defect" | "uph" | "util">(
-    "production",
-  );
-  const [grain, setGrain] = useState<Grain>(
-    autoGrain(filters.startDate, filters.endDate),
-  );
-  const [page, setPage] = useState(1);
+  const { state, patch } = usePageState("production", "productionQuantity", "desc");
 
-  const filtered = useMemo(() => filterRecords(records, filters), [filters, records]);
-  const kpi = useMemo(() => computeKpi(filtered), [filtered]);
-  const trends = useMemo(
-    () => buildTrends(filtered, filters.startDate, filters.endDate, grain),
-    [filtered, filters, grain],
+  /** TOP & WORST 전용 (종합 실적과 독립) */
+  const topProductTab = parseProductTab(
+    state.extra?.topProductTab ?? state.extra?.productTab,
   );
+  /** 제품별 생산 종합 실적 전용 */
+  const summaryProductTab = parseProductTab(state.extra?.summaryProductTab);
+  const hiddenColumns = parseHiddenColumns(state.extra?.hiddenColumns);
 
-  const factoryCompare = useMemo(() => {
-    const combos = [
-      { factory: "본사" as const, productType: "GROMMET" as const },
-      { factory: "본사" as const, productType: "SEAL" as const },
-      { factory: "2공장" as const, productType: "GROMMET" as const },
-      { factory: "2공장" as const, productType: "SEAL" as const },
-    ];
-    return combos.map((c) => {
-      const rows = filterRecords(records, {
-        ...filters,
-        factory: c.factory,
-        productType: c.productType,
-      });
-      const k = computeKpi(rows);
-      return {
-        label: `${c.factory}\n${c.productType}`,
-        value:
-          metric === "production"
-            ? k.productionQuantity
-            : metric === "defect"
-              ? k.defectQuantity
-              : metric === "uph"
-                ? k.uph ?? 0
-                : k.utilizationRatePercent ?? 0,
-      };
+  const setTopProductTab = (tab: ProductTab) => {
+    patch({ extra: { topProductTab: tab } });
+  };
+
+  const setSummaryProductTab = (tab: ProductTab) => {
+    patch({
+      extra: { summaryProductTab: tab },
+      page: 1,
     });
-  }, [filters, metric, records]);
+  };
 
-  const tableRows = useMemo(() => {
-    const factories = filters.factory === "전체" ? (["본사", "2공장"] as const) : [filters.factory];
-    const types =
-      filters.productType === "전체"
-        ? (["GROMMET", "SEAL"] as const)
-        : [filters.productType];
-    const rows = [];
-    for (const t of trends) {
-      for (const factory of factories) {
-        for (const productType of types) {
-          const subset = filtered.filter(
-            (r) =>
-              r.workDate >= t.period &&
-              r.workDate <= (grain === "day" ? t.period : filters.endDate) &&
-              r.factory === factory &&
-              r.productType === productType,
-          );
-          // Better: use period from trends by filtering workDate in label range via rebuild
-          const periodRows = records.filter((r) => {
-            if (!r.isAnalysisEligible) return false;
-            if (r.factory !== factory || r.productType !== productType) return false;
-            if (filters.shiftType !== "전체" && r.shiftType !== filters.shiftType)
-              return false;
-            // match trend bucket by scanning - use production from trend build approach
-            return true;
-          });
-          void periodRows;
-          const dayRows = filtered.filter(
-            (r) =>
-              r.factory === factory &&
-              r.productType === productType &&
-              r.workDate.replace(/-/g, "").startsWith(
-                grain === "month" ? t.period.replace("-", "") : "",
-              ),
-          );
-          void dayRows;
-          void subset;
-        }
-      }
-    }
+  const setHiddenColumns = (keys: string[]) => {
+    patch({ extra: { hiddenColumns: keys.join(",") } });
+  };
 
-    // Simpler reliable table: one row per trend period (total)
-    return trends.map((t) => {
-      const k = {
-        productionQuantity: t.productionQuantity,
-        defectQuantity: t.defectQuantity,
-        defectRatePercent:
-          t.productionQuantity + t.defectQuantity > 0
-            ? (t.defectQuantity / (t.productionQuantity + t.defectQuantity)) * 100
-            : null,
-        elapsedMinutes: t.elapsedMinutes,
-        downtimeMinutes: t.downtimeMinutes,
-        operatingMinutes: t.operatingMinutes,
-        utilizationRatePercent: t.utilizationRatePercent,
-        uph: t.uph,
-        failureCount: t.failureCount,
-      };
-      return { period: t.period, label: t.label, ...k };
-    });
-  }, [trends, filtered, filters, grain, records]);
+  const baseFilters: GlobalFilters = useMemo(
+    () => ({
+      ...filters,
+      productType: "전체",
+      equipmentIds: [],
+      partIds: [],
+      operatorIds: [],
+      moldIds: [],
+      shiftType: "전체",
+    }),
+    [filters],
+  );
 
-  const paged = paginate(tableRows, page, 20);
+  const allRows = useMemo(
+    () => aggregateProductPerformance(records, baseFilters),
+    [records, baseFilters],
+  );
 
-  if (kpi.validRows === 0) {
+  const topRows = useMemo(
+    () => byProductTab(allRows, topProductTab),
+    [allRows, topProductTab],
+  );
+
+  const summaryRows = useMemo(
+    () => byProductTab(allRows, summaryProductTab),
+    [allRows, summaryProductTab],
+  );
+
+  const tabCounts = useMemo(
+    () => ({
+      전체: allRows.length,
+      GROMMET: allRows.filter((r) => r.productType === "GROMMET").length,
+      SEAL: allRows.filter((r) => r.productType === "SEAL").length,
+    }),
+    [allRows],
+  );
+
+  if (allRows.length === 0) {
     return (
       <>
-        <PageHeader title="생산 분석" description="기간별 생산량과 생산성 변화를 확인합니다." />
-        <DetailFilterCard showMolds />
+        <PageHeader title="생산 분석" description="품번별 생산 종합 실적을 확인합니다." />
         <EmptyState
           title="분석 가능한 DATA가 없습니다."
           description="선택한 조건에 정상 생산 DATA가 없습니다."
@@ -145,150 +112,64 @@ export default function ProductionPage() {
     );
   }
 
-  const chartData = trends.map((t) => ({
-    ...t,
-    chartValue:
-      metric === "production"
-        ? t.productionQuantity
-        : metric === "defect"
-          ? t.defectQuantity
-          : metric === "uph"
-            ? t.uph
-            : t.utilizationRatePercent,
-  }));
-
   return (
     <>
-      <PageHeader title="생산 분석" description="기간별 생산량과 생산성 변화를 확인합니다." />
-      <DetailFilterCard showMolds />
+      <PageHeader
+        title="생산 분석"
+        description="품번별 생산 종합 실적을 확인합니다."
+        onExcel={() =>
+          downloadExcel(
+            "제품별_생산_종합_실적.xlsx",
+            summaryRows.map((r, i) => ({
+              NO: i + 1,
+              제품유형: r.productType,
+              품번: r.partNumber,
+              "비가동시간(분)": r.downtimeMinutes,
+              "작업시간(분)": r.elapsedMinutes,
+              "가동시간(분)": r.operatingMinutes,
+              "총 SHOT": r.shotCount,
+              "가동시간 기준 평균 SHOT": r.avgShotByOperating,
+              "전체 작업시간 기준 평균 SHOT": r.avgShotByElapsed,
+              작업일수: r.workDays,
+              "일 평균 판수":
+                r.dailyAvgShots == null ? null : Math.round(r.dailyAvgShots),
+              "생산수량(EA)": r.productionQuantity,
+              "불량수량(EA)": r.defectQuantity,
+              "양품수량(EA)": r.goodQuantity,
+              UPH: r.uph,
+            })),
+          )
+        }
+      />
 
-      <ResponsiveGrid variant="kpi" className="mb-4">
-        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} accent="var(--metric-production)" />
-        <KpiCard title="불량수량" value={formatQuantity(kpi.defectQuantity)} accent="var(--metric-defect)" />
-        <KpiCard title="생산불량률" value={formatPercent(kpi.defectRatePercent, 2)} />
-        <KpiCard title="UPH" value={formatUph(kpi.uph)} accent="var(--metric-uph)" />
-        <KpiCard title="가동률" value={formatPercent(kpi.utilizationRatePercent)} accent="var(--metric-util)" />
-      </ResponsiveGrid>
+      <ProductTypeTabs
+        value={topProductTab}
+        onChange={setTopProductTab}
+        counts={tabCounts}
+        ariaLabel="TOP & WORST 제품유형"
+      />
 
-      <SectionCard title="지표 추이" className="mb-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["production", "생산량"],
-                ["defect", "불량수량"],
-                ["uph", "UPH"],
-                ["util", "가동률"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className="pill"
-                data-active={metric === key}
-                onClick={() => setMetric(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            {(["day", "week", "month"] as const).map((g) => (
-              <button
-                key={g}
-                type="button"
-                className="pill"
-                data-active={grain === g}
-                onClick={() => setGrain(g)}
-              >
-                {g === "day" ? "일" : g === "week" ? "주" : "월"}
-              </button>
-            ))}
-          </div>
-        </div>
-        {metric === "production" || metric === "util" ? (
-          <ProductionUtilizationTrend data={trends} height={320} />
-        ) : (
-          <SimpleBarChart
-            data={chartData.map((d) => ({
-              label: d.label,
-              value: Number(d.chartValue ?? 0),
-            }))}
-            dataKey="value"
-            name={metric === "defect" ? "불량수량" : "UPH"}
-            color={metric === "defect" ? "var(--metric-defect)" : "var(--metric-uph)"}
-          />
-        )}
-      </SectionCard>
+      <ProductShotTopWorst rows={topRows} productTab={topProductTab} />
 
-      <SectionCard title="공장 × 제품유형 비교" className="mb-4">
-        <SimpleBarChart
-          data={factoryCompare}
-          dataKey="value"
-          name="지표"
-          color="var(--accent)"
-        />
-      </SectionCard>
-
-      <SectionCard title="집계 테이블">
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>기간</th>
-                <th className="num">생산량</th>
-                <th className="num">불량수량</th>
-                <th className="num">생산불량률</th>
-                <th className="num">작업시간</th>
-                <th className="num">비가동시간</th>
-                <th className="num">가동시간</th>
-                <th className="num">가동률</th>
-                <th className="num">UPH</th>
-                <th className="num">고장 건수</th>
-                <th>원본 DATA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.items.map((row) => (
-                <tr key={row.period}>
-                  <td>
-                    <Link
-                      href={`/production-data?startDate=${row.period}&endDate=${row.period}`}
-                      className="linkish"
-                    >
-                      {row.label}
-                    </Link>
-                  </td>
-                  <td className="num">{formatQuantity(row.productionQuantity)}</td>
-                  <td className="num">{formatQuantity(row.defectQuantity)}</td>
-                  <td className="num">{formatPercent(row.defectRatePercent, 2)}</td>
-                  <td className="num">{formatMinutes(row.elapsedMinutes)}</td>
-                  <td className="num">{formatMinutes(row.downtimeMinutes)}</td>
-                  <td className="num">{formatMinutes(row.operatingMinutes)}</td>
-                  <td className="num">{formatPercent(row.utilizationRatePercent)}</td>
-                  <td className="num">{formatUph(row.uph)}</td>
-                  <td className="num">
-                    <Link href="/downtime" className="linkish">
-                      {formatNumber(row.failureCount)}
-                    </Link>
-                  </td>
-                  <td>
-                    <Link href="/production-data" className="linkish">
-                      →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <NumberPagination
-          page={paged.page}
-          totalPages={paged.totalPages}
-          total={paged.total}
-          onPage={setPage}
-        />
-      </SectionCard>
+      <ProductPerformanceSummary
+        rows={summaryRows}
+        productTab={summaryProductTab}
+        onProductTab={setSummaryProductTab}
+        tabCounts={tabCounts}
+        search={state.search}
+        onSearch={(search) => patch({ search })}
+        sort={state.sort}
+        onSort={(sort) => patch({ sort })}
+        order={state.order}
+        onOrder={(order) => patch({ order })}
+        page={state.page}
+        onPage={(page) => patch({ page })}
+        pageSize={state.pageSize}
+        onPageSize={(pageSize) => patch({ pageSize })}
+        hiddenColumns={hiddenColumns}
+        onHiddenColumns={setHiddenColumns}
+        onResetFilters={resetGlobal}
+      />
     </>
   );
 }

@@ -9,6 +9,7 @@ import { usePageState } from "@/hooks/usePageState";
 import { ERROR_MESSAGES, type ErrorCode } from "@/types";
 import { formatMinutes, formatNumber, formatQuantity } from "@/lib/format";
 import { paginate, sortBy } from "@/lib/metrics";
+import { downloadExcel } from "@/lib/excelParse";
 
 export default function DataErrorsPage() {
   const { filters } = useFilters();
@@ -125,6 +126,26 @@ export default function DataErrorsPage() {
           { value: "production", label: "실적수량" },
         ]}
         excelLabel="오류 DATA Excel"
+        onExcel={() =>
+          downloadExcel(
+            "오류DATA.xlsx",
+            errorRows.map((r) => ({
+              원본행: r.sourceRowNumber,
+              오류사유: r.errorCodes.map((c) => ERROR_MESSAGES[c]).join(", "),
+              작업일자: r.workDate,
+              공장: r.factory,
+              설비명: r.equipmentName,
+              제품유형: r.productType,
+              품번: r.partNumber,
+              실적수량: r.productionQuantity,
+              불량수량: r.defectQuantity,
+              작업시간분: r.elapsedMinutes,
+              비가동시간분: r.downtimeMinutes,
+              계산가동시간분: r.operatingMinutes,
+              비가동내역: r.downtimeReasonRaw ?? "",
+            })),
+          )
+        }
       />
 
       {errorRows.length === 0 ? (

@@ -31,6 +31,8 @@ import {
   downtimeReasonShares,
   filterRecords,
 } from "@/lib/metrics";
+import { withFromParam } from "@/lib/navigation";
+import { downloadExcel } from "@/lib/excelParse";
 import type { DowntimeReason } from "@/types";
 
 export default function DashboardPage() {
@@ -118,6 +120,28 @@ export default function DashboardPage() {
         title="대시보드"
         description="핵심 생산·설비 KPI와 주요 문제 요약"
         excelName="생산현황_대시보드"
+        onExcel={() =>
+          downloadExcel(
+            "생산현황_대시보드.xlsx",
+            equipment.map((e) => ({
+              설비명: e.name,
+              공장: e.factory,
+              주요제품유형:
+                e.productMix.grommetPercent >= e.productMix.sealPercent
+                  ? "GROMMET"
+                  : "SEAL",
+              생산량: e.kpi.productionQuantity,
+              불량수량: e.kpi.defectQuantity,
+              작업시간분: e.kpi.elapsedMinutes,
+              비가동시간분: e.kpi.downtimeMinutes,
+              가동률: e.kpi.utilizationRatePercent,
+              UPH: e.kpi.uph,
+              고장건수: e.kpi.failureCount,
+              MTTR분: e.kpi.mttrMinutes,
+              참고MTBF시간: e.kpi.referenceMtbfHours,
+            })),
+          )
+        }
       />
       <DataQualityBanner />
 
@@ -156,7 +180,7 @@ export default function DashboardPage() {
           value={kpi.mttrMinutes == null ? "-" : `${formatNumber(kpi.mttrMinutes, 1)}분`}
           hint={
             kpi.failureCount === 0
-              ? "산출 가능한 단일 설비이상 이력이 없습니다."
+              ? "산출 가능한 설비이상 이력이 없습니다."
               : `고장 ${kpi.failureCount}건 · 산출 ${kpi.mttrEligibleCount}건`
           }
           comparePositiveIsGood={false}
@@ -204,7 +228,9 @@ export default function DashboardPage() {
               secondary: formatQuantity(e.kpi.productionQuantity),
             }))}
             valueFormatter={(v) => formatPercent(v)}
-            onClick={(id) => router.push(`/equipment/${id}`)}
+            onClick={(id) =>
+              router.push(withFromParam(`/equipment/${id}`, "home"))
+            }
           />
         </SectionCard>
         <SectionCard title="비가동시간 TOP 설비">
@@ -216,7 +242,9 @@ export default function DashboardPage() {
               secondary: `고장 ${e.kpi.failureCount}건`,
             }))}
             valueFormatter={(v) => formatMinutes(v)}
-            onClick={(id) => router.push(`/equipment/${id}`)}
+            onClick={(id) =>
+              router.push(withFromParam(`/equipment/${id}`, "home"))
+            }
           />
         </SectionCard>
       </ResponsiveGrid>
@@ -251,7 +279,10 @@ export default function DashboardPage() {
               {utilBottom.map((e) => (
                 <tr key={e.id}>
                   <td>
-                    <Link href={`/equipment/${e.id}`} className="linkish">
+                    <Link
+                      href={withFromParam(`/equipment/${e.id}`, "home")}
+                      className="linkish"
+                    >
                       {e.name}
                     </Link>
                   </td>

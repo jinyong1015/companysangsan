@@ -188,6 +188,29 @@ export interface PartRow {
   kpi: KpiSummary;
 }
 
+/** PROD-01 제품별 생산 종합 실적 행 */
+export interface ProductPerformanceRow {
+  id: string;
+  partNumber: string;
+  productType: ProductType;
+  downtimeMinutes: number;
+  elapsedMinutes: number;
+  operatingMinutes: number;
+  shotCount: number;
+  /** 총 SHOT ÷ 가동시간(hr) */
+  avgShotByOperating: number | null;
+  /** 총 SHOT ÷ 작업시간(hr) */
+  avgShotByElapsed: number | null;
+  workDays: number;
+  /** 총 SHOT ÷ 작업일수 */
+  dailyAvgShots: number | null;
+  productionQuantity: number;
+  defectQuantity: number;
+  goodQuantity: number;
+  /** 생산수량 ÷ 가동시간(hr) */
+  uph: number | null;
+}
+
 export interface OperatorRow {
   id: string;
   name: string;

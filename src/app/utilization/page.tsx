@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
+import { UtilizationOverviewPanel } from "@/components/utilization/UtilizationOverviewPanel";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useFilters } from "@/context/FilterContext";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/format";
 import {
   buildUtilizationMatrix,
+  buildUtilizationOverviewBundle,
   cellDisplay,
   DEFAULT_TARGET_MINUTES,
   DEFAULT_TARGET_SHOT_COUNTS,
@@ -32,6 +34,7 @@ import {
   saveTargetShotCounts,
   type UtilizationCell,
 } from "@/lib/utilization";
+import { withFromParam } from "@/lib/navigation";
 import type {
   EquipmentType,
   PerformanceShiftPattern,
@@ -255,6 +258,31 @@ function SummaryCell({
   );
 }
 
+function FamilyAverageCell({
+  label,
+  cell,
+  metric,
+  colSpan,
+}: {
+  label: string;
+  cell: UtilizationCell | null | undefined;
+  metric: UtilizationMetric;
+  colSpan: number;
+}) {
+  const display = cellDisplay(cell ?? undefined, metric);
+  return (
+    <td
+      className={`util-cell util-family-cell util-tone-${display.tone}`}
+      colSpan={colSpan}
+    >
+      <div className="util-family-cell-inner">
+        <span className="util-family-cell-name">{label}</span>
+        <strong className="util-family-cell-rate">{display.label}</strong>
+      </div>
+    </td>
+  );
+}
+
 function DetailModal({
   cell,
   metric,
@@ -376,7 +404,10 @@ function DetailModal({
           ))}
         </dl>
         <div className="mt-5 flex flex-wrap gap-2">
-          <Link href={`/equipment/${cell.equipmentId}`} className="btn btn-primary">
+          <Link
+            href={withFromParam(`/equipment/${cell.equipmentId}`, "utilization")}
+            className="btn btn-primary"
+          >
             설비 상세 이동
           </Link>
           <button type="button" className="btn" onClick={openProductionData}>
@@ -431,6 +462,9 @@ export default function UtilizationPage() {
         ? rawWorkPattern
         : "전체";
 
+  /** 종합 현황·히트맵은 조회월 전체 기간으로 집계 */
+  const monthRange = useMemo(() => monthDateRange(yearMonth), [yearMonth]);
+
   useEffect(() => {
     if (!ready) return;
     const y = state.scrollY ?? 0;
@@ -450,11 +484,54 @@ export default function UtilizationPage() {
         metric,
         targetSettings,
         targetShotTable: shotSettings,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
+        startDate: monthRange.startDate,
+        endDate: monthRange.endDate,
       }),
-    [records, filters, equipmentType, workPattern, metric, targetSettings, shotSettings],
+    [
+      records,
+      filters,
+      equipmentType,
+      workPattern,
+      metric,
+      targetSettings,
+      shotSettings,
+      monthRange.startDate,
+      monthRange.endDate,
+    ],
   );
+
+  const overviewOptions = useMemo(
+    () => ({
+      workPattern,
+      metric,
+      targetSettings,
+      targetShotTable: shotSettings,
+      startDate: monthRange.startDate,
+      endDate: monthRange.endDate,
+    }),
+    [
+      workPattern,
+      metric,
+      targetSettings,
+      shotSettings,
+      monthRange.startDate,
+      monthRange.endDate,
+    ],
+  );
+
+  const { overview, trends: dailyTrends } = useMemo(
+    () => buildUtilizationOverviewBundle(records, filters, overviewOptions),
+    [records, filters, overviewOptions],
+  );
+
+  const productFilter = filters.productType;
+  const grommetEmphasized =
+    productFilter === "전체" || productFilter === "GROMMET";
+  const sealEmphasized = productFilter === "전체" || productFilter === "SEAL";
+  const injectionEmphasized =
+    equipmentType === "전체" || equipmentType === "INJECTION";
+  const pressEmphasized =
+    equipmentType === "전체" || equipmentType === "PRESS";
 
   // 스크롤만 저장. metric 등을 cleanup에서 다시 patch하면 탭 전환 시 이전 값으로 덮어써 루프가 난다.
   useEffect(() => {
@@ -580,13 +657,11 @@ export default function UtilizationPage() {
     saveTargetShotCounts(next);
   };
 
-  const periodLabel =
-    filters.startDate && filters.endDate
-      ? `${format(parseISO(filters.startDate), "yyyy.MM.dd")} ~ ${format(
-          parseISO(filters.endDate),
-          "yyyy.MM.dd",
-        )}`
-      : "-";
+  const periodLabel = `${format(parseISO(monthRange.startDate), "yyyy.MM.dd")} ~ ${format(
+    parseISO(monthRange.endDate),
+    "yyyy.MM.dd",
+  )}`;
+  const monthLabel = format(parseISO(`${yearMonth}-01`), "yyyy년 M월");
 
   const footerEquipmentLabel =
     metric === "time" ? "설비별 시간가동률" : "설비별 성능가동률";
@@ -599,39 +674,13 @@ export default function UtilizationPage() {
     <>
       <PageHeader
         title="가동률 현황"
-        description="날짜 × 설비 히트맵 · 시간가동률 / 성능가동률 탭 분리 · 합계 기준 집계"
-        showExcel={false}
+        description="전체 종합 현황·제품·설비 요약 → 날짜 × 설비 히트맵"
         actions={
           <button type="button" className="btn" onClick={handleExcel}>
             Excel 다운로드
           </button>
         }
       />
-
-      <div className="util-metric-tabs mb-4" role="tablist" aria-label="가동률 구분">
-        <button
-          type="button"
-          role="tab"
-          className="util-metric-tab"
-          aria-selected={metric === "time"}
-          data-active={metric === "time"}
-          onClick={() => setMetric("time")}
-        >
-          <span className="util-metric-tab-label">시간가동률</span>
-          <span className="util-metric-tab-desc">유효 가동시간 ÷ 목표 가동시간</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className="util-metric-tab"
-          aria-selected={metric === "performance"}
-          data-active={metric === "performance"}
-          onClick={() => setMetric("performance")}
-        >
-          <span className="util-metric-tab-label">성능가동률</span>
-          <span className="util-metric-tab-desc">작업판수 ÷ 목표 작업판수</span>
-        </button>
-      </div>
 
       <section className="card mb-4 p-4 md:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -657,9 +706,7 @@ export default function UtilizationPage() {
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <div>
-            <p className="mb-1 text-xs text-[var(--text-secondary)]">
-              조회월 (기간 빠른 설정)
-            </p>
+            <p className="mb-1 text-xs text-[var(--text-secondary)]">조회월</p>
             <input
               type="month"
               className="w-full rounded-[10px] border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
@@ -667,7 +714,7 @@ export default function UtilizationPage() {
               onChange={(e) => applyYearMonth(e.target.value)}
             />
             <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
-              현재 조회기간: {periodLabel}
+              {monthLabel} ({periodLabel}) 기준 종합 현황 · 히트맵
             </p>
           </div>
           <div>
@@ -717,12 +764,42 @@ export default function UtilizationPage() {
             </div>
           </div>
         </div>
-        <p className="mt-3 text-xs text-[var(--text-secondary)]">
-          {metric === "time"
-            ? "시간가동률 = 유효 가동시간(작업시간 − 비가동시간) 합계 ÷ 목표 가동시간 × 100. 오류 행은 분자·분모에서 제외하며, 행별 % 평균을 사용하지 않습니다. 연장(620분)은 원천에 연장 여부가 없어 자동 적용하지 않습니다."
-            : "성능가동률 = 작업판수 합계 ÷ 목표 작업판수 × 100. 같은 날짜·설비의 품번별 판수를 합산한 뒤 목표로 나눕니다. 설비명 앞이 IN이면 INJECTION, 그 외는 PRESS입니다. SEAL에는 INJECTION이 없습니다."}
-        </p>
       </section>
+
+      <UtilizationOverviewPanel
+        monthLabel={monthLabel}
+        overview={overview}
+        trends={dailyTrends}
+        grommetEmphasized={grommetEmphasized}
+        sealEmphasized={sealEmphasized}
+        injectionEmphasized={injectionEmphasized}
+        pressEmphasized={pressEmphasized}
+      />
+
+      <div className="util-metric-tabs mb-4" role="tablist" aria-label="가동률 구분">
+        <button
+          type="button"
+          role="tab"
+          className="util-metric-tab"
+          aria-selected={metric === "time"}
+          data-active={metric === "time"}
+          onClick={() => setMetric("time")}
+        >
+          <span className="util-metric-tab-label">시간가동률</span>
+          <span className="util-metric-tab-desc">유효 가동시간 ÷ 목표 가동시간</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className="util-metric-tab"
+          aria-selected={metric === "performance"}
+          data-active={metric === "performance"}
+          onClick={() => setMetric("performance")}
+        >
+          <span className="util-metric-tab-label">성능가동률</span>
+          <span className="util-metric-tab-desc">작업판수 ÷ 목표 작업판수</span>
+        </button>
+      </div>
 
       <section className="card mb-4 p-4 md:p-5">
         {metric === "time" ? (
@@ -912,7 +989,15 @@ export default function UtilizationPage() {
           }}
         />
       ) : (
-        <div className="util-matrix-wrap" ref={scrollRef}>
+        <section aria-label="날짜 × 설비 가동률 히트맵">
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-base font-bold">날짜 × 설비 가동률 히트맵</h2>
+            <p className="text-xs text-[var(--text-secondary)]">
+              {metric === "time" ? "시간가동률 상세" : "성능가동률 상세"} ·{" "}
+              {equipmentType === "전체" ? "전체 설비" : equipmentType}
+            </p>
+          </div>
+          <div className="util-matrix-wrap" ref={scrollRef}>
           <table className="util-matrix">
             <thead>
               <tr>
@@ -939,7 +1024,10 @@ export default function UtilizationPage() {
               <tr>
                 {matrix.equipment.map((eq) => (
                   <th key={eq.id} className="util-eq-head">
-                    <Link href={`/equipment/${eq.id}`} className="linkish">
+                    <Link
+                      href={withFromParam(`/equipment/${eq.id}`, "utilization")}
+                      className="linkish"
+                    >
                       {eq.name}
                     </Link>
                   </th>
@@ -980,6 +1068,28 @@ export default function UtilizationPage() {
                     metric={metric}
                   />
                 ))}
+              </tr>
+              <tr className="util-family-row">
+                <th className="util-date-cell">호기 평균</th>
+                {matrix.familyGroups.map((group) =>
+                  group.isFamily ? (
+                    <FamilyAverageCell
+                      key={group.key}
+                      label={group.label}
+                      cell={group.total}
+                      metric={metric}
+                      colSpan={group.colSpan}
+                    />
+                  ) : (
+                    <td
+                      key={group.key}
+                      className="util-cell util-tone-empty util-family-cell-empty"
+                      colSpan={group.colSpan}
+                    >
+                      -
+                    </td>
+                  ),
+                )}
               </tr>
               {matrix.injection.length > 0 ? (
                 <tr>
@@ -1026,7 +1136,8 @@ export default function UtilizationPage() {
               </tr>
             </tfoot>
           </table>
-        </div>
+          </div>
+        </section>
       )}
 
       {selected ? (

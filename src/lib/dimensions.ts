@@ -72,7 +72,11 @@ export function resolveOperator(
   fallback?: { id: string; name: string } | null,
 ) {
   if (fallback) return fallback;
-  const r = records.find((x) => x.operatorId === id);
+  const target = resolveRouteParamId(id);
+  if (!target) return null;
+  const r = records.find(
+    (x) => resolveRouteParamId(x.operatorId) === target,
+  );
   if (!r) return null;
   return { id: r.operatorId, name: r.operatorName };
 }
@@ -94,14 +98,45 @@ export function dateRangeFromRecords(records: ProductionRecord[]) {
   return { startDate: dates[0]!, endDate: dates[dates.length - 1]! };
 }
 
+/** 동적 라우트 param → 비교용 ID (배열/인코딩/유니코드 정규화 처리) */
+export function resolveRouteParamId(
+  raw: string | string[] | undefined | null,
+): string {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value == null || value === "") return "";
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    decoded = value;
+  }
+  return decoded.normalize("NFC");
+}
+
+function stableShortHash(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * 라우트·필터용 ID.
+ * ASCII면 가독성 있는 slug, 한글 등 비ASCII는 URL 깨짐을 피하기 위해 해시 사용.
+ */
 export function slugId(prefix: string, value: string) {
-  const slug = value
-    .trim()
+  const normalized = value.trim().normalize("NFC");
+  const ascii = normalized
     .toLowerCase()
     .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9가-힣_-]/gi, "")
+    .replace(/[^a-z0-9_-]/gi, "")
     .slice(0, 48);
-  return `${prefix}-${slug || "unknown"}`;
+  if (ascii.length > 0) {
+    return `${prefix}-${ascii}`;
+  }
+  return `${prefix}-${stableShortHash(normalized || "unknown")}`;
 }
 
 export function normalizeFactory(raw: string): Factory {

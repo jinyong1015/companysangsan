@@ -15,6 +15,7 @@ import {
   formatUph,
 } from "@/lib/format";
 import { computeKpi, filterRecords } from "@/lib/metrics";
+import { downloadExcel } from "@/lib/excelParse";
 import type { KpiSummary } from "@/types";
 
 type CompareMode = "period" | "equipment" | "parts";
@@ -183,9 +184,44 @@ export default function ComparePage() {
 
   const options = mode === "equipment" ? filterOptions.equipment : filterOptions.parts;
 
+  const handleExcel = () => {
+    if (mode === "period") {
+      downloadExcel(
+        "스마트비교_기간.xlsx",
+        periodCompare.map((r) => ({
+          지표: r.label,
+          기간A: r.a,
+          기간B: r.b,
+          차이: r.diff,
+          증감률: r.rate,
+        })),
+      );
+      return;
+    }
+    downloadExcel(
+      mode === "equipment" ? "스마트비교_설비.xlsx" : "스마트비교_품번.xlsx",
+      entityCompare.map((e) => ({
+        대상: e.label,
+        생산량: e.kpi.productionQuantity,
+        불량수량: e.kpi.defectQuantity,
+        생산불량률: e.kpi.defectRatePercent,
+        가동률: e.kpi.utilizationRatePercent,
+        UPH: e.kpi.uph,
+        비가동시간분: e.kpi.downtimeMinutes,
+        고장건수: e.kpi.failureCount,
+        MTTR분: e.kpi.mttrMinutes,
+        참고MTBF시간: e.kpi.referenceMtbfHours,
+      })),
+    );
+  };
+
   return (
     <>
-      <PageHeader title="스마트 비교" description="기간·설비·품번 비교" />
+      <PageHeader
+        title="스마트 비교"
+        description="기간·설비·품번 비교"
+        onExcel={handleExcel}
+      />
       <div className="mb-4 flex flex-wrap gap-2">
         {(
           [

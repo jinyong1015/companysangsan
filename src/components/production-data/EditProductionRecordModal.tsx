@@ -1,0 +1,411 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { ProductionRecord } from "@/types";
+import { useDataSource } from "@/context/DataSourceContext";
+import { useToast } from "@/context/ToastContext";
+import { ERROR_MESSAGES } from "@/types";
+import {
+  combineDateAndTime,
+  elapsedMinutesFromRange,
+  timeHmFromIso,
+  type ProductionRecordDraft,
+} from "@/lib/recordValidate";
+
+type FormState = {
+  factory: string;
+  workDate: string;
+  equipmentName: string;
+  productType: string;
+  partNumber: string;
+  cavity: string;
+  shotCount: string;
+  defectQuantity: string;
+  productionQuantity: string;
+  operatorName: string;
+  shiftType: string;
+  moldNumber: string;
+  startedAt: string;
+  endedAt: string;
+  elapsedMinutes: string;
+  downtimeMinutes: string;
+  downtimeReasonRaw: string;
+  averageShot: string;
+};
+
+function recordToForm(record: ProductionRecord): FormState {
+  return {
+    factory: record.factory,
+    workDate: record.workDate,
+    equipmentName: record.equipmentName,
+    productType: record.productType,
+    partNumber: record.partNumber,
+    cavity: String(record.cavity),
+    shotCount: String(record.shotCount),
+    defectQuantity: String(record.defectQuantity),
+    productionQuantity: String(record.productionQuantity),
+    operatorName: record.operatorName,
+    shiftType: record.shiftType,
+    moldNumber: record.moldNumber,
+    startedAt: timeHmFromIso(record.startedAt),
+    endedAt: timeHmFromIso(record.endedAt),
+    elapsedMinutes: String(record.elapsedMinutes),
+    downtimeMinutes: String(record.downtimeMinutes),
+    downtimeReasonRaw: record.downtimeReasonRaw ?? "",
+    averageShot:
+      record.averageShot == null ? "" : String(Number(record.averageShot.toFixed(4))),
+  };
+}
+
+function parseOptionalNumber(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number(t.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function formToDraft(
+  form: FormState,
+  averageShotManual: boolean,
+): ProductionRecordDraft {
+  const productionQuantity = parseOptionalNumber(form.productionQuantity) ?? 0;
+  const shotCount = parseOptionalNumber(form.shotCount) ?? 0;
+  let averageShot = parseOptionalNumber(form.averageShot);
+  if (!averageShotManual) {
+    averageShot =
+      shotCount > 0 ? productionQuantity / shotCount : null;
+  }
+
+  return {
+    factory: form.factory,
+    workDate: form.workDate,
+    equipmentName: form.equipmentName,
+    productType: form.productType,
+    partNumber: form.partNumber,
+    cavity: parseOptionalNumber(form.cavity) ?? 0,
+    shotCount,
+    defectQuantity: parseOptionalNumber(form.defectQuantity) ?? 0,
+    productionQuantity,
+    operatorName: form.operatorName,
+    shiftType: form.shiftType,
+    moldNumber: form.moldNumber,
+    startedAt: form.startedAt.trim() || null,
+    endedAt: form.endedAt.trim() || null,
+    elapsedMinutes: parseOptionalNumber(form.elapsedMinutes) ?? 0,
+    downtimeMinutes: parseOptionalNumber(form.downtimeMinutes) ?? 0,
+    downtimeReasonRaw: form.downtimeReasonRaw.trim() || null,
+    averageShot,
+  };
+}
+
+export function EditProductionRecordModal({
+  record,
+  onClose,
+}: {
+  record: ProductionRecord;
+  onClose: () => void;
+}) {
+  const { updateRecord } = useDataSource();
+  const { pushToast } = useToast();
+  const [form, setForm] = useState<FormState>(() => recordToForm(record));
+  const [averageShotManual, setAverageShotManual] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm(recordToForm(record));
+    setAverageShotManual(false);
+  }, [record]);
+
+  const patch = (partial: Partial<FormState>) => {
+    setForm((prev) => ({ ...prev, ...partial }));
+  };
+
+  const applyElapsedFromTimes = (
+    next: FormState,
+    startedAt: string,
+    endedAt: string,
+    workDate: string,
+  ) => {
+    const startIso = combineDateAndTime(workDate, startedAt);
+    const endIso = combineDateAndTime(workDate, endedAt);
+    const mins = elapsedMinutesFromRange(startIso, endIso);
+    if (mins == null || mins < 0) return next;
+    return { ...next, elapsedMinutes: String(mins) };
+  };
+
+  const applyAverageShot = (
+    next: FormState,
+    manual: boolean,
+  ): FormState => {
+    if (manual) return next;
+    const production = parseOptionalNumber(next.productionQuantity);
+    const shots = parseOptionalNumber(next.shotCount);
+    if (production == null || shots == null || shots <= 0) {
+      return { ...next, averageShot: "" };
+    }
+    return {
+      ...next,
+      averageShot: String(Number((production / shots).toFixed(4))),
+    };
+  };
+
+  const onStartOrEndChange = (field: "startedAt" | "endedAt", value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      return applyElapsedFromTimes(
+        next,
+        field === "startedAt" ? value : next.startedAt,
+        field === "endedAt" ? value : next.endedAt,
+        next.workDate,
+      );
+    });
+  };
+
+  const onWorkDateChange = (value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, workDate: value };
+      return applyElapsedFromTimes(
+        next,
+        next.startedAt,
+        next.endedAt,
+        value,
+      );
+    });
+  };
+
+  const onQuantityChange = (
+    field: "productionQuantity" | "shotCount",
+    value: string,
+  ) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      return applyAverageShot(next, averageShotManual);
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const draft = formToDraft(form, averageShotManual);
+      const updated = await updateRecord(record.id, draft);
+      if (!updated.isAnalysisEligible) {
+        const reasons = updated.errorCodes
+          .map((c) => ERROR_MESSAGES[c] ?? c)
+          .join(" · ");
+        pushToast(
+          `저장했습니다. 검증 오류로 분석에서 제외됩니다.${reasons ? ` (${reasons})` : ""} 데이터 오류 메뉴에서 확인하세요.`,
+          "error",
+        );
+      } else {
+        pushToast("생산 DATA를 저장했습니다. 전체 메뉴에 반영됩니다.", "success");
+      }
+      onClose();
+    } catch (err) {
+      pushToast(
+        err instanceof Error ? err.message : "저장에 실패했습니다.",
+        "error",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="util-modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="util-modal util-modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label="생산 DATA 수정"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">생산 DATA 수정</h2>
+            <p className="text-sm text-[var(--text-secondary)]">
+              원본 행 {record.sourceRowNumber} · 저장 시 재검증 후 전체 메뉴에 반영
+            </p>
+          </div>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+
+        <div className="pd-edit-grid">
+          <label className="pd-edit-field">
+            <span>공장</span>
+            <select
+              value={form.factory}
+              onChange={(e) => patch({ factory: e.target.value })}
+            >
+              <option value="본사">본사</option>
+              <option value="2공장">2공장</option>
+            </select>
+          </label>
+          <label className="pd-edit-field">
+            <span>작업일자</span>
+            <input
+              type="date"
+              value={form.workDate}
+              onChange={(e) => onWorkDateChange(e.target.value)}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>설비명</span>
+            <input
+              value={form.equipmentName}
+              onChange={(e) => patch({ equipmentName: e.target.value })}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>제품유형</span>
+            <select
+              value={form.productType}
+              onChange={(e) => patch({ productType: e.target.value })}
+            >
+              <option value="GROMMET">GROMMET</option>
+              <option value="SEAL">SEAL</option>
+            </select>
+          </label>
+          <label className="pd-edit-field">
+            <span>품번</span>
+            <input
+              value={form.partNumber}
+              onChange={(e) => patch({ partNumber: e.target.value })}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>작업자</span>
+            <input
+              value={form.operatorName}
+              onChange={(e) => patch({ operatorName: e.target.value })}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>근무 구분</span>
+            <select
+              value={form.shiftType}
+              onChange={(e) => patch({ shiftType: e.target.value })}
+            >
+              <option value="주간">주간</option>
+              <option value="야간">야간</option>
+            </select>
+          </label>
+          <label className="pd-edit-field">
+            <span>금형번호</span>
+            <input
+              value={form.moldNumber}
+              onChange={(e) => patch({ moldNumber: e.target.value })}
+            />
+          </label>
+
+          <label className="pd-edit-field">
+            <span>Cavity</span>
+            <input
+              inputMode="numeric"
+              value={form.cavity}
+              onChange={(e) => patch({ cavity: e.target.value })}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>작업판수</span>
+            <input
+              inputMode="numeric"
+              value={form.shotCount}
+              onChange={(e) => onQuantityChange("shotCount", e.target.value)}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>불량수량</span>
+            <input
+              inputMode="numeric"
+              value={form.defectQuantity}
+              onChange={(e) => patch({ defectQuantity: e.target.value })}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>실적수량</span>
+            <input
+              inputMode="numeric"
+              value={form.productionQuantity}
+              onChange={(e) =>
+                onQuantityChange("productionQuantity", e.target.value)
+              }
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>평균 SHOT</span>
+            <input
+              inputMode="decimal"
+              value={form.averageShot}
+              onChange={(e) => {
+                setAverageShotManual(true);
+                patch({ averageShot: e.target.value });
+              }}
+            />
+          </label>
+
+          <label className="pd-edit-field">
+            <span>시작시간</span>
+            <input
+              type="time"
+              value={form.startedAt}
+              onChange={(e) => onStartOrEndChange("startedAt", e.target.value)}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>종료시간</span>
+            <input
+              type="time"
+              value={form.endedAt}
+              onChange={(e) => onStartOrEndChange("endedAt", e.target.value)}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>작업시간(분)</span>
+            <input
+              inputMode="numeric"
+              value={form.elapsedMinutes}
+              onChange={(e) => patch({ elapsedMinutes: e.target.value })}
+            />
+          </label>
+          <label className="pd-edit-field">
+            <span>비가동시간(분)</span>
+            <input
+              inputMode="numeric"
+              value={form.downtimeMinutes}
+              onChange={(e) => patch({ downtimeMinutes: e.target.value })}
+            />
+          </label>
+          <label className="pd-edit-field pd-edit-field-span">
+            <span>비가동내역</span>
+            <input
+              value={form.downtimeReasonRaw}
+              onChange={(e) => patch({ downtimeReasonRaw: e.target.value })}
+              placeholder="예: 금형교체, 설비이상"
+            />
+          </label>
+        </div>
+
+        <p className="mt-3 text-xs text-[var(--text-secondary)]">
+          시작·종료 시간을 바꾸면 작업시간이 자동 계산됩니다. 종료가 시작보다
+          이르면 익일 종료(야간)로 처리합니다.
+        </p>
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+            취소
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void handleSave()}
+            disabled={saving}
+          >
+            {saving ? "저장 중…" : "저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

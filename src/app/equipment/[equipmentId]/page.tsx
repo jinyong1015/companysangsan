@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   DowntimeReasonDonut,
   ProductionUtilizationTrend,
@@ -33,9 +33,13 @@ import {
   downtimeReasonShares,
   filterRecords,
 } from "@/lib/metrics";
+import { detailBackNav, detailHref } from "@/lib/navigation";
 
 export default function EquipmentDetailPage() {
   const params = useParams<{ equipmentId: string }>();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const back = detailBackNav(from, "equipment");
   const { filters } = useFilters();
   const { records } = useDataSource();
   const equipment =
@@ -108,7 +112,7 @@ export default function EquipmentDetailPage() {
 
   return (
     <>
-      <BackBanner href="/equipment" label="설비 분석으로 돌아가기" />
+      <BackBanner href={back.href} label={back.label} icon={back.icon} />
       <PageHeader
         title={equipment.name}
         description={`${equipment.factory} · 조회기간 ${filters.startDate} ~ ${filters.endDate}`}
@@ -156,7 +160,10 @@ export default function EquipmentDetailPage() {
                 {partRows.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      <Link href={`/parts/${p.id}`} className="linkish">
+                      <Link
+                        href={detailHref(`/parts/${p.id}`, from, "equipment")}
+                        className="linkish"
+                      >
                         {p.partNumber}
                       </Link>
                     </td>
@@ -217,18 +224,13 @@ export default function EquipmentDetailPage() {
                     )}
                   </td>
                   <td>
-                    {r.isMttrEligible ? (
-                      "포함"
-                    ) : r.isFailureCandidate ? (
-                      <span title="복합 사유는 설비이상 시간만 분리할 수 없어 MTTR 계산에서 제외했습니다.">
-                        제외
-                      </span>
-                    ) : (
-                      "-"
-                    )}
+                    {r.isMttrEligible ? "포함" : "-"}
                   </td>
                   <td>
-                    <Link href={`/downtime/${r.id}`} className="linkish">
+                    <Link
+                      href={detailHref(`/downtime/${r.id}`, from, "equipment")}
+                      className="linkish"
+                    >
                       →
                     </Link>
                   </td>

@@ -17,6 +17,8 @@ import {
   formatUph,
 } from "@/lib/format";
 import { paginate, sortBy } from "@/lib/metrics";
+import { withFromParam } from "@/lib/navigation";
+import { downloadExcel } from "@/lib/excelParse";
 
 export default function OperatorsPage() {
   const { filters, resetGlobal } = useFilters();
@@ -66,6 +68,24 @@ export default function OperatorsPage() {
           { value: "elapsed", label: "작업시간" },
           { value: "utilization", label: "가동률" },
         ]}
+        onExcel={() =>
+          downloadExcel(
+            "작업자분석.xlsx",
+            rows.map((o) => ({
+              작업자: o.name,
+              공장: o.factory,
+              주야간구성: o.shiftMix,
+              작업품번수: o.partCount,
+              설비수: o.equipmentCount,
+              생산량: o.kpi.productionQuantity,
+              불량수량: o.kpi.defectQuantity,
+              생산불량률: o.kpi.defectRatePercent,
+              작업시간분: o.kpi.elapsedMinutes,
+              UPH: o.kpi.uph,
+              가동률: o.kpi.utilizationRatePercent,
+            })),
+          )
+        }
       />
       {rows.length === 0 ? (
         <EmptyState
@@ -98,7 +118,10 @@ export default function OperatorsPage() {
                 {paged.items.map((o) => (
                   <tr key={o.id}>
                     <td>
-                      <Link href={`/operators/${o.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/operators/${o.id}`, "operators")}
+                        className="linkish"
+                      >
                         {o.name}
                       </Link>
                     </td>
@@ -113,7 +136,10 @@ export default function OperatorsPage() {
                     <td className="num">{formatUph(o.kpi.uph)}</td>
                     <td className="num">{formatPercent(o.kpi.utilizationRatePercent)}</td>
                     <td>
-                      <Link href={`/operators/${o.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/operators/${o.id}`, "operators")}
+                        className="linkish"
+                      >
                         →
                       </Link>
                     </td>

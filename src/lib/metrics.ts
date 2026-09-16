@@ -36,8 +36,12 @@ export function computeKpi(records: ProductionRecord[]): KpiSummary {
   const elapsedMinutes = valid.reduce((s, r) => s + r.elapsedMinutes, 0);
   const downtimeMinutes = valid.reduce((s, r) => s + r.downtimeMinutes, 0);
   const operatingMinutes = valid.reduce((s, r) => s + r.operatingMinutes, 0);
-  const failureCount = valid.filter((r) => r.isFailureCandidate).length;
-  const mttrEligible = valid.filter((r) => r.isMttrEligible);
+  const failureCount = valid.filter((r) =>
+    r.reasonTokens.includes("설비이상"),
+  ).length;
+  const mttrEligible = valid.filter((r) =>
+    r.reasonTokens.includes("설비이상"),
+  );
   const mttrEligibleCount = mttrEligible.length;
   const mttrSum = mttrEligible.reduce((s, r) => s + r.downtimeMinutes, 0);
 
@@ -111,7 +115,9 @@ export function matchesGlobalFilters(
     return false;
   if (
     filters.operatorIds.length > 0 &&
-    !filters.operatorIds.includes(record.operatorId)
+    !filters.operatorIds.some(
+      (id) => id.normalize("NFC") === record.operatorId.normalize("NFC"),
+    )
   )
     return false;
   if (filters.moldIds.length > 0 && !filters.moldIds.includes(record.moldId))
@@ -173,11 +179,14 @@ export function downtimeReasonShares(records: ProductionRecord[]): ReasonShare[]
   const map = new Map<string, { minutes: number; count: number }>();
 
   for (const r of withDt) {
-    const key = r.reasonTokens.length >= 2 ? "복합 사유" : r.reasonTokens[0]!;
-    const cur = map.get(key) ?? { minutes: 0, count: 0 };
-    cur.minutes += r.downtimeMinutes;
-    cur.count += 1;
-    map.set(key, cur);
+    const tokens = r.reasonTokens;
+    const share = tokens.length > 0 ? r.downtimeMinutes / tokens.length : 0;
+    for (const key of tokens) {
+      const cur = map.get(key) ?? { minutes: 0, count: 0 };
+      cur.minutes += share;
+      cur.count += 1;
+      map.set(key, cur);
+    }
   }
 
   const total = [...map.values()].reduce((s, v) => s + v.minutes, 0) || 1;

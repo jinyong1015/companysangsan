@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ProductionUtilizationTrend } from "@/components/charts/Charts";
 import { KpiCard } from "@/components/ui/KpiCard";
 import {
@@ -24,9 +24,13 @@ import {
   formatUph,
 } from "@/lib/format";
 import { buildTrends, computeKpi, filterRecords } from "@/lib/metrics";
+import { detailBackNav, detailHref } from "@/lib/navigation";
 
 export default function MoldDetailPage() {
   const params = useParams<{ moldId: string }>();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const back = detailBackNav(from, "molds");
   const { filters } = useFilters();
   const { records } = useDataSource();
   const mold =
@@ -77,7 +81,7 @@ export default function MoldDetailPage() {
 
   return (
     <>
-      <BackBanner href="/molds" label="금형 분석으로 돌아가기" />
+      <BackBanner href={back.href} label={back.label} icon={back.icon} />
       <PageHeader title={mold.moldNumber} description={`대표 품번 기준 조회`} />
       <ResponsiveGrid variant="kpi" className="mb-4">
         <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} />
@@ -117,7 +121,10 @@ export default function MoldDetailPage() {
               {byEq.map((e) => (
                 <tr key={e.id}>
                   <td>
-                    <Link href={`/equipment/${e.id}`} className="linkish">
+                    <Link
+                      href={detailHref(`/equipment/${e.id}`, from, "molds")}
+                      className="linkish"
+                    >
                       {e.name}
                     </Link>
                   </td>

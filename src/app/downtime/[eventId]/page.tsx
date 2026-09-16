@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { BackBanner, EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
 import { getRecordById } from "@/data/mock";
 import { formatMinutes, formatQuantity } from "@/lib/format";
+import { detailBackNav, detailHref } from "@/lib/navigation";
 
 export default function DowntimeEventPage() {
   const { records } = useDataSource();
   const params = useParams<{ eventId: string }>();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const back = detailBackNav(from, "downtime");
   const record = useMemo(
     () => getRecordById(params.eventId) ?? records.find((r) => r.id === params.eventId),
     [params.eventId, records],
@@ -46,8 +50,8 @@ export default function DowntimeEventPage() {
 
   return (
     <>
-      <BackBanner href="/downtime" label="비가동 분석으로 돌아가기" />
-      <PageHeader title="비가동 이벤트 상세" showExcel={false} />
+      <BackBanner href={back.href} label={back.label} icon={back.icon} />
+      <PageHeader title="비가동 이벤트 상세" />
       <SectionCard>
         <dl className="grid gap-3 sm:grid-cols-2">
           {rows.map(([k, v]) => (
@@ -55,19 +59,39 @@ export default function DowntimeEventPage() {
               <dt className="text-xs text-[var(--text-secondary)]">{k}</dt>
               <dd className="mt-1 font-medium">
                 {k === "설비명" ? (
-                  <Link href={`/equipment/${record.equipmentId}`} className="linkish">
+                  <Link
+                    href={detailHref(
+                      `/equipment/${record.equipmentId}`,
+                      from,
+                      "downtime",
+                    )}
+                    className="linkish"
+                  >
                     {v}
                   </Link>
                 ) : k === "품번" ? (
-                  <Link href={`/parts/${record.partId}`} className="linkish">
+                  <Link
+                    href={detailHref(`/parts/${record.partId}`, from, "downtime")}
+                    className="linkish"
+                  >
                     {v}
                   </Link>
                 ) : k === "금형번호" ? (
-                  <Link href={`/molds/${record.moldId}`} className="linkish">
+                  <Link
+                    href={detailHref(`/molds/${record.moldId}`, from, "downtime")}
+                    className="linkish"
+                  >
                     {v}
                   </Link>
                 ) : k === "작업자" ? (
-                  <Link href={`/operators/${record.operatorId}`} className="linkish">
+                  <Link
+                    href={detailHref(
+                      `/operators/${record.operatorId}`,
+                      from,
+                      "downtime",
+                    )}
+                    className="linkish"
+                  >
                     {v}
                   </Link>
                 ) : (
@@ -77,9 +101,10 @@ export default function DowntimeEventPage() {
             </div>
           ))}
         </dl>
-        {record.isFailureCandidate && !record.isMttrEligible ? (
-          <p className="mt-4 rounded-xl border border-[var(--warning)]/40 px-3 py-2 text-sm text-[var(--warning)]">
-            복합 사유는 설비이상 시간만 분리할 수 없어 MTTR에서 제외했습니다.
+        {record.isMttrEligible ? (
+          <p className="mt-4 rounded-xl border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+            설비이상이 포함된 비가동은 복합 사유여도 MTTR 계산에 포함합니다. 수리시간은
+            해당 행의 비가동시간 전체를 사용합니다.
           </p>
         ) : null}
         <div className="mt-4">

@@ -26,7 +26,7 @@ export default function UploadResultPage() {
 
   return (
     <>
-      <PageHeader title="업로드 검증 결과" showExcel={false} />
+      <PageHeader title="업로드 검증 결과" />
       <SectionCard className="mb-4">
         <p className="text-sm">
           파일명 {matchesBatch ? batch.originalFileName : batch.originalFileName}

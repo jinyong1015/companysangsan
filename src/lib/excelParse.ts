@@ -165,18 +165,38 @@ function excelDateToIso(raw: string): string | null {
 }
 
 function excelTimeToIso(date: string | null, raw: string): string | null {
-  if (!date || !raw) return null;
+  if (!raw) return null;
   if (/^#n\/?a$/i.test(raw)) return null;
+
   const asNum = Number(raw);
-  if (Number.isFinite(asNum) && asNum >= 0 && asNum < 1) {
-    const totalMinutes = Math.round(asNum * 24 * 60);
-    const hh = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
-    const mm = String(totalMinutes % 60).padStart(2, "0");
-    return `${date}T${hh}:${mm}:00+09:00`;
+  if (Number.isFinite(asNum)) {
+    // Excel 시간만(0~1) 또는 날짜+시간 시리얼(예: 46266.315)
+    if (asNum >= 0 && asNum < 1) {
+      if (!date) return null;
+      const totalMinutes = Math.round(asNum * 24 * 60);
+      const hh = String(Math.floor(totalMinutes / 60) % 24).padStart(2, "0");
+      const mm = String(totalMinutes % 60).padStart(2, "0");
+      return `${date}T${hh}:${mm}:00+09:00`;
+    }
+    if (asNum >= 1) {
+      const parsed = XLSX.SSF.parse_date_code(asNum);
+      if (parsed) {
+        const y = parsed.y;
+        const mo = String(parsed.m).padStart(2, "0");
+        const d = String(parsed.d).padStart(2, "0");
+        const hh = String(parsed.H).padStart(2, "0");
+        const mm = String(parsed.M).padStart(2, "0");
+        const ss = String(Math.floor(parsed.S || 0)).padStart(2, "0");
+        return `${y}-${mo}-${d}T${hh}:${mm}:${ss}+09:00`;
+      }
+    }
   }
-  const m = raw.match(/(\d{1,2}):(\d{2})/);
+
+  if (!date) return null;
+  const m = raw.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (m) {
-    return `${date}T${m[1]!.padStart(2, "0")}:${m[2]}:00+09:00`;
+    const ss = (m[3] ?? "00").padStart(2, "0");
+    return `${date}T${m[1]!.padStart(2, "0")}:${m[2]}:${ss}+09:00`;
   }
   return null;
 }
@@ -187,6 +207,26 @@ function tokenize(raw: string | null) {
     .split(/[,/|]/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** 복합사유 포함: reasonTokens에 설비이상이 있으면 고장후보·MTTR 동일 판정 */
+export function normalizeReasonFlags(
+  record: ProductionRecord,
+): ProductionRecord {
+  const hasEquipmentFailure = record.reasonTokens.includes("설비이상");
+  const isFailureCandidate =
+    record.isAnalysisEligible && hasEquipmentFailure;
+  return {
+    ...record,
+    isFailureCandidate,
+    isMttrEligible: isFailureCandidate,
+  };
+}
+
+export function normalizeReasonFlagsAll(
+  records: ProductionRecord[],
+): ProductionRecord[] {
+  return records.map(normalizeReasonFlags);
 }
 
 function hasNa(row: unknown[]) {
@@ -270,8 +310,7 @@ export async function parseProductionExcel(
 
     const downtimeReasonRaw = cell(row, colMap.downtimeReasonRaw) || null;
     const reasonTokens = tokenize(downtimeReasonRaw);
-    const isFailureCandidate = reasonTokens.includes("설비이상");
-    const isMttrEligible = isFailureCandidate && reasonTokens.length === 1;
+    const hasEquipmentFailure = reasonTokens.includes("설비이상");
 
     if (downtimeMinutes > 0 && !downtimeReasonRaw) {
       warningCodes.push("DOWNTIME_REASON_MISSING");
@@ -283,6 +322,9 @@ export async function parseProductionExcel(
 
     const uniqueErrors = [...new Set(errorCodes)];
     const isAnalysisEligible = uniqueErrors.length === 0;
+    // 복합사유라도 설비이상이 포함되면 고장후보·MTTR 대상
+    const isFailureCandidate = isAnalysisEligible && hasEquipmentFailure;
+    const isMttrEligible = isFailureCandidate;
 
     const resolvedProduct = productType ?? "GROMMET";
     const resolvedDate = workDate ?? "1970-01-01";
@@ -420,4 +462,21 @@ export function downloadArrayBuffer(buffer: ArrayBuffer, fileName: string) {
   a.download = fileName;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** JSON 행 배열을 xlsx로 내려받습니다. */
+export function downloadExcel(
+  fileName: string,
+  rows: Record<string, unknown>[],
+  sheetName = "분석",
+) {
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+  const buffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+  }) as ArrayBuffer;
+  const safeName = fileName.endsWith(".xlsx") ? fileName : `${fileName}.xlsx`;
+  downloadArrayBuffer(buffer, safeName);
 }

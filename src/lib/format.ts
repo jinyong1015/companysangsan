@@ -23,18 +23,14 @@ export function formatUph(value: number | null | undefined): string {
 
 export function formatMinutes(minutes: number | null | undefined): string {
   if (minutes == null || Number.isNaN(minutes)) return "-";
-  const abs = Math.abs(minutes);
-  const sign = minutes < 0 ? "-" : "";
-  if (abs < 60) return `${sign}${Math.round(abs)}분`;
-  const h = Math.floor(abs / 60);
-  const m = Math.round(abs % 60);
-  if (m === 0) return `${sign}${h}시간`;
-  return `${sign}${h}시간 ${m}분`;
+  const rounded = Math.round(minutes);
+  return `${formatNumber(rounded)}분`;
 }
 
-export function formatHours(hours: number | null | undefined, digits = 1): string {
+/** 시간 값을 분 단위로 표시 (MTBF 등) */
+export function formatHours(hours: number | null | undefined): string {
   if (hours == null || Number.isNaN(hours)) return "-";
-  return `${formatNumber(hours, digits)}시간`;
+  return `${formatNumber(Math.round(hours * 60))}분`;
 }
 
 export function formatChangePercent(value: number | null | undefined): string {

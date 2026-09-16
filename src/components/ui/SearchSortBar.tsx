@@ -16,6 +16,7 @@ interface SearchSortBarProps {
   onPageSize: (v: number) => void;
   sortOptions: Array<{ value: string; label: string }>;
   excelLabel?: string;
+  onExcel?: () => void;
 }
 
 export function SearchSortBar({
@@ -30,6 +31,7 @@ export function SearchSortBar({
   onPageSize,
   sortOptions,
   excelLabel = "Excel 다운로드",
+  onExcel,
 }: SearchSortBarProps) {
   const { pushToast } = useToast();
   const [local, setLocal] = useState(search);
@@ -83,14 +85,23 @@ export function SearchSortBar({
             </option>
           ))}
         </select>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => pushToast("Excel 파일 생성을 시작했습니다.", "info")}
-        >
-          <Download size={16} />
-          {excelLabel}
-        </button>
+        {onExcel ? (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              try {
+                onExcel();
+                pushToast("Excel 파일 생성을 시작했습니다.", "success");
+              } catch {
+                pushToast("Excel 다운로드에 실패했습니다.", "error");
+              }
+            }}
+          >
+            <Download size={16} />
+            {excelLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );

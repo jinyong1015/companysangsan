@@ -18,6 +18,8 @@ import {
   formatUph,
 } from "@/lib/format";
 import { paginate, sortBy } from "@/lib/metrics";
+import { withFromParam } from "@/lib/navigation";
+import { downloadExcel } from "@/lib/excelParse";
 
 export default function MoldsPage() {
   const { filters, resetGlobal } = useFilters();
@@ -68,6 +70,24 @@ export default function MoldsPage() {
           { value: "downtime", label: "비가동시간" },
           { value: "usage", label: "사용 횟수" },
         ]}
+        onExcel={() =>
+          downloadExcel(
+            "금형분석.xlsx",
+            rows.map((m) => ({
+              금형번호: m.moldNumber,
+              대표품번: m.representativePart,
+              제품유형: m.productType,
+              사용설비수: m.equipmentCount,
+              작업건수: m.workCount,
+              작업판수: m.shotCount,
+              생산량: m.kpi.productionQuantity,
+              불량수량: m.kpi.defectQuantity,
+              생산불량률: m.kpi.defectRatePercent,
+              비가동시간분: m.kpi.downtimeMinutes,
+              UPH: m.kpi.uph,
+            })),
+          )
+        }
       />
       {rows.length === 0 ? (
         <EmptyState
@@ -100,7 +120,10 @@ export default function MoldsPage() {
                 {paged.items.map((m) => (
                   <tr key={m.id}>
                     <td>
-                      <Link href={`/molds/${m.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/molds/${m.id}`, "molds")}
+                        className="linkish"
+                      >
                         {m.moldNumber}
                       </Link>
                     </td>
@@ -115,7 +138,10 @@ export default function MoldsPage() {
                     <td className="num">{formatMinutes(m.kpi.downtimeMinutes)}</td>
                     <td className="num">{formatUph(m.kpi.uph)}</td>
                     <td>
-                      <Link href={`/molds/${m.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/molds/${m.id}`, "molds")}
+                        className="linkish"
+                      >
                         →
                       </Link>
                     </td>

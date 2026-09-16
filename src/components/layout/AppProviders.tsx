@@ -15,16 +15,22 @@ function shouldShowGlobalFilters(pathname: string) {
   return true;
 }
 
+/** 가동률·비가동은 화면 내 조회월로 기간을 제어한다 */
+function shouldHideGlobalPeriod(pathname: string) {
+  return pathname === "/utilization" || pathname === "/downtime";
+}
+
 function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const showFilters = shouldShowGlobalFilters(pathname);
+  const hidePeriod = shouldHideGlobalPeriod(pathname);
 
   return (
     <>
       <GlobalHeader />
       <main className="mx-auto w-full max-w-[1600px] px-4 pb-10 pt-6 md:px-5 lg:px-6">
         <DemoDataBanner />
-        {showFilters ? <GlobalFilterSection /> : null}
+        {showFilters ? <GlobalFilterSection hidePeriod={hidePeriod} /> : null}
         {children}
       </main>
     </>

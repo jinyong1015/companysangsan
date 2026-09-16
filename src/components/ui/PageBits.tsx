@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { ArrowLeft, ChevronRight, Download, type LucideIcon } from "lucide-react";
 import { nowLabel } from "@/lib/dates";
 import { useToast } from "@/context/ToastContext";
 
 interface PageHeaderProps {
   title: string;
   description?: string;
-  showExcel?: boolean;
+  /** 제공 시에만 Excel 버튼을 표시합니다. */
+  onExcel?: () => void;
   excelName?: string;
   showTimestamp?: boolean;
   titleClassName?: string;
@@ -19,7 +20,7 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   description,
-  showExcel = true,
+  onExcel,
   excelName,
   showTimestamp = true,
   titleClassName,
@@ -55,16 +56,21 @@ export function PageHeader({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {actions}
-        {showExcel ? (
+        {onExcel ? (
           <button
             type="button"
             className="btn"
-            onClick={() =>
-              pushToast(
-                `Excel 파일 생성을 시작했습니다.${excelName ? ` (${excelName})` : ""}`,
-                "info",
-              )
-            }
+            onClick={() => {
+              try {
+                onExcel();
+                pushToast(
+                  `Excel 파일 생성을 시작했습니다.${excelName ? ` (${excelName})` : ""}`,
+                  "success",
+                );
+              } catch {
+                pushToast("Excel 다운로드에 실패했습니다.", "error");
+              }
+            }}
           >
             <Download size={16} />
             <span>Excel 다운로드</span>
@@ -75,20 +81,45 @@ export function PageHeader({
   );
 }
 
-export function BackBanner({ href, label }: { href: string; label: string }) {
+export function BackBanner({
+  href,
+  label,
+  icon: Icon,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}) {
   return (
-    <Link
-      href={href}
-      className="card mb-4 flex items-start gap-3 px-4 py-3 transition hover:border-[var(--accent)]"
-    >
-      <span className="text-[var(--accent)]">←</span>
-      <div>
-        <p className="font-semibold">{label}</p>
-        <p className="text-xs text-[var(--text-secondary)]">
-          이전 검색·정렬·페이지·조회조건을 유지합니다.
-        </p>
-      </div>
-    </Link>
+    <nav aria-label="상세 돌아가기" className="sticky top-16 z-10 mb-4">
+      <Link
+        href={href}
+        className="group flex items-center gap-3 rounded-2xl border-2 border-accent/50 bg-surface p-3 shadow-[0_8px_24px_rgba(59,130,246,0.12)] ring-1 ring-accent/20 transition hover:border-accent hover:bg-accent/[0.03] hover:shadow-[0_12px_28px_rgba(59,130,246,0.18)] sm:gap-4 sm:p-4"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-sm transition group-hover:bg-blue-600 sm:h-12 sm:w-12">
+          <ArrowLeft size={20} strokeWidth={2.5} aria-hidden />
+        </span>
+
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/25 sm:h-12 sm:w-12">
+          <Icon size={20} strokeWidth={2.25} aria-hidden />
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="block text-[11px] font-bold tracking-[0.12em] text-accent uppercase">
+            돌아가기
+          </span>
+          <span className="mt-0.5 block truncate text-base font-bold text-ink transition group-hover:text-accent sm:text-lg">
+            {label}
+          </span>
+        </span>
+
+        <ChevronRight
+          size={20}
+          className="shrink-0 text-muted/60 transition group-hover:translate-x-0.5 group-hover:text-accent"
+          aria-hidden
+        />
+      </Link>
+    </nav>
   );
 }
 
@@ -161,14 +192,16 @@ export function SectionCard({
   action,
   children,
   className = "",
+  id,
 }: {
   title?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
-    <section className={`card p-4 md:p-5 ${className}`}>
+    <section id={id} className={`card p-4 md:p-5 ${className}`}>
       {(title || action) && (
         <div className="mb-4 flex items-center justify-between gap-3">
           {title ? <h2 className="text-base font-bold">{title}</h2> : <span />}

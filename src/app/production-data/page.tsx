@@ -1,21 +1,29 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import { DetailFilterCard } from "@/components/filters/FilterCards";
+import { EditProductionRecordModal } from "@/components/production-data/EditProductionRecordModal";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
+import { useToast } from "@/context/ToastContext";
 
 import { usePageState } from "@/hooks/usePageState";
 import { formatMinutes, formatNumber, formatQuantity } from "@/lib/format";
 import { filterRecords, paginate, sortBy } from "@/lib/metrics";
+import { withFromParam } from "@/lib/navigation";
+import { downloadExcel } from "@/lib/excelParse";
 
 export default function ProductionDataPage() {
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
+  const { pushToast } = useToast();
   const { state, patch } = usePageState("production-data", "date", "desc");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     let list = filterRecords(records, filters);
@@ -39,13 +47,42 @@ export default function ProductionDataPage() {
   }, [filters, state, records]);
 
   const paged = paginate(rows, state.page, state.pageSize);
+  const selected = selectedId
+    ? (records.find((r) => r.id === selectedId) ?? null)
+    : null;
+  const editing = editingId
+    ? (records.find((r) => r.id === editingId) ?? null)
+    : null;
+
+  const openEdit = () => {
+    if (!selectedId) {
+      pushToast("수정할 행을 먼저 선택해 주세요.", "info");
+      return;
+    }
+    setEditingId(selectedId);
+  };
 
   return (
     <>
-      <PageHeader title="생산 DATA" description="정상 원본·정제값 조회" />
+      <PageHeader
+        title="생산 DATA"
+        description="정상 원본·정제값 조회 · 행 선택 후 수정"
+        actions={
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!selectedId}
+            onClick={openEdit}
+          >
+            <Pencil size={16} />
+            <span>수정</span>
+          </button>
+        }
+      />
       <DetailFilterCard showMolds />
       <div className="card mb-4 px-4 py-3 text-sm text-[var(--text-secondary)]">
         분석 대상 정상 DATA만 표시합니다. 제외 행은 데이터 오류 메뉴에서 확인할 수 있습니다.
+        행을 선택한 뒤 수정하면 저장 즉시 전체 메뉴에 반영됩니다.
       </div>
       <SearchSortBar
         search={state.search}
@@ -63,6 +100,32 @@ export default function ProductionDataPage() {
           { value: "downtime", label: "비가동시간" },
           { value: "equipment", label: "설비명" },
         ]}
+        onExcel={() =>
+          downloadExcel(
+            "생산DATA.xlsx",
+            rows.map((r) => ({
+              작업일자: r.workDate,
+              공장: r.factory,
+              설비명: r.equipmentName,
+              제품유형: r.productType,
+              품번: r.partNumber,
+              Cavity: r.cavity,
+              작업판수: r.shotCount,
+              불량수량: r.defectQuantity,
+              실적수량: r.productionQuantity,
+              작업자: r.operatorName,
+              구분: r.shiftType,
+              금형번호: r.moldNumber,
+              시작시간: r.startedAt?.slice(11, 16) ?? "",
+              종료시간: r.endedAt?.slice(11, 16) ?? "",
+              작업시간분: r.elapsedMinutes,
+              비가동시간분: r.downtimeMinutes,
+              가동시간분: r.operatingMinutes,
+              비가동내역: r.downtimeReasonRaw ?? "",
+              평균샷: r.averageShot,
+            })),
+          )
+        }
       />
       {rows.length === 0 ? (
         <EmptyState
@@ -73,10 +136,27 @@ export default function ProductionDataPage() {
         />
       ) : (
         <SectionCard>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--text-secondary)]">
+            <p>
+              {selected
+                ? `선택: ${selected.workDate} · ${selected.equipmentName} · ${selected.partNumber}`
+                : "수정할 행을 클릭해 선택하세요."}
+            </p>
+            <button
+              type="button"
+              className="btn"
+              disabled={!selectedId}
+              onClick={openEdit}
+            >
+              <Pencil size={14} />
+              선택 행 수정
+            </button>
+          </div>
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>선택</th>
                   <th>작업일자</th>
                   <th>공장</th>
                   <th>설비명</th>
@@ -100,17 +180,47 @@ export default function ProductionDataPage() {
               </thead>
               <tbody>
                 {paged.items.map((r) => (
-                  <tr key={r.id}>
+                  <tr
+                    key={r.id}
+                    className={`pd-row-selectable ${
+                      selectedId === r.id ? "pd-row-selected" : ""
+                    }`}
+                    onClick={() => setSelectedId(r.id)}
+                    onDoubleClick={() => {
+                      setSelectedId(r.id);
+                      setEditingId(r.id);
+                    }}
+                  >
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="radio"
+                        name="pd-row"
+                        checked={selectedId === r.id}
+                        onChange={() => setSelectedId(r.id)}
+                        aria-label={`${r.workDate} ${r.equipmentName} 선택`}
+                      />
+                    </td>
                     <td>{r.workDate}</td>
                     <td>{r.factory}</td>
                     <td>
-                      <Link href={`/equipment/${r.equipmentId}`} className="linkish">
+                      <Link
+                        href={withFromParam(
+                          `/equipment/${r.equipmentId}`,
+                          "production-data",
+                        )}
+                        className="linkish"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {r.equipmentName}
                       </Link>
                     </td>
                     <td>{r.productType}</td>
                     <td>
-                      <Link href={`/parts/${r.partId}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/parts/${r.partId}`, "production-data")}
+                        className="linkish"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {r.partNumber}
                       </Link>
                     </td>
@@ -119,13 +229,24 @@ export default function ProductionDataPage() {
                     <td className="num">{formatQuantity(r.defectQuantity)}</td>
                     <td className="num">{formatQuantity(r.productionQuantity)}</td>
                     <td>
-                      <Link href={`/operators/${r.operatorId}`} className="linkish">
+                      <Link
+                        href={withFromParam(
+                          `/operators/${r.operatorId}`,
+                          "production-data",
+                        )}
+                        className="linkish"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {r.operatorName}
                       </Link>
                     </td>
                     <td>{r.shiftType}</td>
                     <td>
-                      <Link href={`/molds/${r.moldId}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/molds/${r.moldId}`, "production-data")}
+                        className="linkish"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {r.moldNumber}
                       </Link>
                     </td>
@@ -151,6 +272,13 @@ export default function ProductionDataPage() {
           />
         </SectionCard>
       )}
+
+      {editing ? (
+        <EditProductionRecordModal
+          record={editing}
+          onClose={() => setEditingId(null)}
+        />
+      ) : null}
     </>
   );
 }

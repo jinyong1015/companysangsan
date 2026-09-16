@@ -108,7 +108,7 @@ npm run dev
 #### 분석 화면
 - 대시보드 KPI 6종 + 추이 · GROMMET/SEAL 비교 · 비가동 도넛 · 설비 TOP/요약
 - 생산 분석 (지표 토글, 일/주/월, 공장×제품유형 비교, 집계 표)
-- 가동률 현황 (날짜×설비 히트맵, 시간가동률 / 성능가동률 탭, 목표 기준 분리, Excel 다운로드)
+- 가동률 현황 (전체 종합 현황 게이지: GROMMET+SEAL / INJECTION+PRESS, 제품·설비유형 카드+미니 스파크라인, 시간/성능 탭, 목표 가동시간·판수 편집, 날짜×설비 히트맵, Excel)
 - 설비 · 비가동 · 품번 · 작업자 · 금형 목록/상세 및 메뉴 간 링크
 - 스마트 비교 (기간 / 설비 / 품번)
 - 생산 DATA · 데이터 오류 목록 + 오류 원본 drawer
@@ -118,16 +118,21 @@ npm run dev
 - 생산불량률 = 불량 / (생산+불량)
 - 가동률 = 가동시간 합 / 작업시간 합
 - 시간가동률(가동률 현황) = 유효 가동시간 합 / 목표 가동시간 합
-- 성능가동률(가동률 현황) = 작업판수 합 / 목표 작업판수 합 (GROMMET만 목표 확정, SEAL은 목표 미설정)
+- 성능가동률(가동률 현황) = 작업판수 합 / 목표 작업판수 합 (목표가 있는 셀만, SEAL INJECTION 목표 없음)
+- 양품률(가동률 현황) = 실적수량 합 / (실적+불량) 합
+- 종합설비효율(가동률 현황) = 시간가동률 × MIN(성능가동률, 100%) × 양품률
 - UPH = 생산량 / 작업시간(분) × 60
-- 고장 건수 = 정상 행 중 `설비이상` 토큰 포함
-- MTTR = 단일 `설비이상` 행만 사용
+- 고장 건수 = 정상 행 중 `설비이상` 토큰 포함 (복합 사유 포함)
+- MTTR = `설비이상` 포함 행의 비가동시간 합 ÷ 건수 (복합이어도 포함, 수리시간은 전체 비가동시간)
+- 복합 사유 발생 건수 = 토큰별 분리 집계 (예: 금형교체+설비이상 → 각 1건)
 - 참고 MTBF = 유효 가동시간 / 고장 건수 / 60 (고장 0건은 `-`)
 - 이전 기간 대비 (동일 일수 직전 구간)
 
 #### 상태 유지
 - 글로벌 필터: `production-analytics-filters` (sessionStorage)
 - 목록 상태: `production-analytics-page:{screenKey}`
+- 목표 가동시간: `production-analytics-target-minutes` (localStorage)
+- 목표 작업판수: `production-analytics-target-shots-v2` (localStorage)
 - 데이터 소스 모드: `production-analytics-data-source` (`demo` | `uploaded`, localStorage)
 - 업로드 데이터셋: IndexedDB `production-analytics-db` / key `uploaded-dataset`
 - 새 데이터셋 반영 시 필터/목록 초기화 훅 연결
@@ -192,7 +197,8 @@ npm run dev
 
 - 단가 · 생산금액 · GRADE · 1SHOT 중량 · 원재료 사용량/비용
 - 생산계획 대비 달성률 · 표준 C/T · 목표 UPH
-- 정확한 이벤트 간 MTBF · 완전한 OEE
+- 정확한 이벤트 간 MTBF · 계획·표준 C/T 기반의 완전한 산업표준 OEE  
+  (UTIL-01의 목표 가동시간·목표 판수 기준 종합설비효율은 구현됨)
 - 검사 DATA 결합 부적합률
 - 설비 센서 실시간 모니터링
 - AI 생산 챗봇
@@ -206,6 +212,7 @@ src/
 ├─ app/                    # 화면 라우트
 │  ├─ page.tsx             # 대시보드
 │  ├─ production/
+│  ├─ utilization/
 │  ├─ equipment/
 │  ├─ downtime/
 │  ├─ parts/
@@ -219,11 +226,12 @@ src/
 │  ├─ layout/              # Header, Providers
 │  ├─ filters/             # 글로벌·상세 필터
 │  ├─ charts/              # 추이·도넛·랭킹
+│  ├─ utilization/         # 가동률 종합 게이지·카드
 │  └─ ui/                  # KPI, 표 바, 배너 등
-├─ context/                # Filter · Theme · Toast
+├─ context/                # Filter · Theme · Toast · DataSource
 ├─ data/mock.ts            # Mock 생산 데이터·배치
 ├─ hooks/usePageState.ts
-├─ lib/                    # metrics · aggregates · dates · format · storage
+├─ lib/                    # metrics · aggregates · utilization · dates · format · storage
 └─ types/
 ```
 

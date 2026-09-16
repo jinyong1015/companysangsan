@@ -12,7 +12,15 @@ import {
 import { ACTIVE_BATCH, ALL_RECORDS, FILTER_OPTIONS as SEED_FILTER_OPTIONS } from "@/data/mock";
 import { buildFilterOptions, type FilterOption } from "@/lib/dimensions";
 import { idbDel, idbGet, idbSet } from "@/lib/idb";
-import type { UploadSummary } from "@/lib/excelParse";
+import {
+  normalizeReasonFlagsAll,
+  type UploadSummary,
+} from "@/lib/excelParse";
+import {
+  revalidateRecord,
+  summarizeRecords,
+  type ProductionRecordDraft,
+} from "@/lib/recordValidate";
 import type { ProductionRecord, UploadBatch } from "@/types";
 
 const SOURCE_KEY = "production-analytics-data-source";
@@ -45,6 +53,7 @@ interface DataSourceContextValue {
     batch: UploadBatch;
     summary: UploadSummary;
   }) => Promise<void>;
+  updateRecord: (id: string, draft: ProductionRecordDraft) => Promise<ProductionRecord>;
   resetToDemo: () => Promise<void>;
 }
 
@@ -65,9 +74,11 @@ const DEMO_BATCH: UploadBatch = {
   activatedAt: null,
 };
 
+const DEMO_RECORDS = normalizeReasonFlagsAll(ALL_RECORDS);
+
 export function DataSourceProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<DataSourceMode>("demo");
-  const [records, setRecords] = useState<ProductionRecord[]>(ALL_RECORDS);
+  const [records, setRecords] = useState<ProductionRecord[]>(DEMO_RECORDS);
   const [batch, setBatch] = useState<UploadBatch>(DEMO_BATCH);
   const [summary, setSummary] = useState<UploadSummary>(DEMO_SUMMARY);
   const [ready, setReady] = useState(false);
@@ -78,11 +89,14 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
       try {
         const saved = await idbGet<PersistedDataset>(IDB_PAYLOAD_KEY);
         if (!cancelled && saved?.mode === "uploaded" && saved.records?.length) {
+          const normalized = normalizeReasonFlagsAll(saved.records);
           setMode("uploaded");
-          setRecords(saved.records);
+          setRecords(normalized);
           setBatch(saved.batch);
           setSummary(saved.summary);
           localStorage.setItem(SOURCE_KEY, "uploaded");
+          // 예전 규칙으로 저장된 MTTR 플래그 교정 후 재저장
+          void idbSet(IDB_PAYLOAD_KEY, { ...saved, records: normalized });
         } else {
           const flag =
             typeof window !== "undefined" ? localStorage.getItem(SOURCE_KEY) : null;
@@ -90,14 +104,14 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
             localStorage.setItem(SOURCE_KEY, "demo");
           }
           setMode("demo");
-          setRecords(ALL_RECORDS);
+          setRecords(DEMO_RECORDS);
           setBatch(DEMO_BATCH);
           setSummary(DEMO_SUMMARY);
         }
       } catch {
         if (!cancelled) {
           setMode("demo");
-          setRecords(ALL_RECORDS);
+          setRecords(DEMO_RECORDS);
           setBatch(DEMO_BATCH);
           setSummary(DEMO_SUMMARY);
         }
@@ -116,27 +130,71 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
       batch: UploadBatch;
       summary: UploadSummary;
     }) => {
+      const normalized = normalizeReasonFlagsAll(payload.records);
       const next: PersistedDataset = {
         mode: "uploaded",
-        records: payload.records,
+        records: normalized,
         batch: payload.batch,
         summary: payload.summary,
       };
       await idbSet(IDB_PAYLOAD_KEY, next);
       localStorage.setItem(SOURCE_KEY, "uploaded");
       setMode("uploaded");
-      setRecords(payload.records);
+      setRecords(normalized);
       setBatch(payload.batch);
       setSummary(payload.summary);
     },
     [],
   );
 
+  const updateRecord = useCallback(
+    async (id: string, draft: ProductionRecordDraft) => {
+      const current = records.find((r) => r.id === id);
+      if (!current) {
+        throw new Error("수정할 행을 찾을 수 없습니다.");
+      }
+
+      const updated = revalidateRecord(
+        {
+          id: current.id,
+          batchId: current.batchId,
+          sourceRowNumber: current.sourceRowNumber,
+        },
+        draft,
+      );
+      const nextRecords = records.map((r) => (r.id === id ? updated : r));
+      const nextSummary = summarizeRecords(nextRecords);
+      const nextBatch: UploadBatch = {
+        ...batch,
+        sourceRowCount: nextRecords.length,
+        validRowCount: nextSummary.valid,
+        excludedRowCount: nextSummary.excluded,
+        warningRowCount: nextSummary.warning,
+      };
+
+      setRecords(nextRecords);
+      setSummary(nextSummary);
+      setBatch(nextBatch);
+
+      if (mode === "uploaded") {
+        await idbSet(IDB_PAYLOAD_KEY, {
+          mode: "uploaded",
+          records: nextRecords,
+          batch: nextBatch,
+          summary: nextSummary,
+        } satisfies PersistedDataset);
+      }
+
+      return updated;
+    },
+    [records, batch, mode],
+  );
+
   const resetToDemo = useCallback(async () => {
     await idbDel(IDB_PAYLOAD_KEY);
     localStorage.setItem(SOURCE_KEY, "demo");
     setMode("demo");
-    setRecords(ALL_RECORDS);
+    setRecords(DEMO_RECORDS);
     setBatch(DEMO_BATCH);
     setSummary(DEMO_SUMMARY);
   }, []);
@@ -158,6 +216,7 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
       filterOptions,
       lastFileName: isDemo ? null : batch.originalFileName,
       activateUploaded,
+      updateRecord,
       resetToDemo,
     }),
     [
@@ -168,6 +227,7 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
       summary,
       filterOptions,
       activateUploaded,
+      updateRecord,
       resetToDemo,
     ],
   );

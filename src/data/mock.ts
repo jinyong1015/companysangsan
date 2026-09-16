@@ -112,7 +112,7 @@ function buildRecord(
   const reasonRaw = overrides.downtimeReasonRaw ?? null;
   const tokens = tokenize(reasonRaw);
   const isFailure = tokens.includes("설비이상");
-  const isMttr = isFailure && tokens.length === 1;
+  const isMttr = isFailure;
   const production = overrides.productionQuantity ?? 1200;
   const errorCodes = overrides.errorCodes ?? [];
   const isEligible =
@@ -174,10 +174,9 @@ const base: ProductionRecord = {
     isMttrEligible:
       overrides.isMttrEligible ??
       ((overrides.isAnalysisEligible ?? isEligible) &&
-        (() => {
-          const t = tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw);
-          return t.includes("설비이상") && t.length === 1;
-        })()),
+        tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw).includes(
+          "설비이상",
+        )),
   };
 }
 

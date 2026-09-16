@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ProductionUtilizationTrend } from "@/components/charts/Charts";
 import { KpiCard } from "@/components/ui/KpiCard";
 import {
@@ -24,9 +24,13 @@ import {
   formatUph,
 } from "@/lib/format";
 import { buildTrends, computeKpi, filterRecords } from "@/lib/metrics";
+import { detailBackNav, detailHref } from "@/lib/navigation";
 
 export default function PartDetailPage() {
   const params = useParams<{ partId: string }>();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const back = detailBackNav(from, "parts");
   const { filters } = useFilters();
   const { records } = useDataSource();
   const part =
@@ -107,7 +111,7 @@ export default function PartDetailPage() {
 
   return (
     <>
-      <BackBanner href="/parts" label="품번 분석으로 돌아가기" />
+      <BackBanner href={back.href} label={back.label} icon={back.icon} />
       <PageHeader title={part.partNumber} description={part.productType} />
       <ResponsiveGrid variant="kpi" className="mb-4">
         <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} />
@@ -143,7 +147,10 @@ export default function PartDetailPage() {
               {byEquipment.map((e) => (
                 <tr key={e.id}>
                   <td>
-                    <Link href={`/equipment/${e.id}`} className="linkish">
+                    <Link
+                      href={detailHref(`/equipment/${e.id}`, from, "parts")}
+                      className="linkish"
+                    >
                       {e.name}
                     </Link>
                   </td>
@@ -175,7 +182,10 @@ export default function PartDetailPage() {
                 {byMold.map((m) => (
                   <tr key={m.id}>
                     <td>
-                      <Link href={`/molds/${m.id}`} className="linkish">
+                      <Link
+                        href={detailHref(`/molds/${m.id}`, from, "parts")}
+                        className="linkish"
+                      >
                         {m.moldNumber}
                       </Link>
                     </td>
@@ -203,7 +213,10 @@ export default function PartDetailPage() {
                 {byOperator.map((o) => (
                   <tr key={o.id}>
                     <td>
-                      <Link href={`/operators/${o.id}`} className="linkish">
+                      <Link
+                        href={detailHref(`/operators/${o.id}`, from, "parts")}
+                        className="linkish"
+                      >
                         {o.name}
                       </Link>
                     </td>

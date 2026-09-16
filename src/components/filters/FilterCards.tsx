@@ -69,7 +69,12 @@ function CompactFilterCard({
   );
 }
 
-export function GlobalFilterSection() {
+export function GlobalFilterSection({
+  hidePeriod = false,
+}: {
+  /** 조회월 전용 화면(가동률·비가동)에서는 기간 프리셋을 숨긴다 */
+  hidePeriod?: boolean;
+}) {
   const { filters, setFilters } = useFilters();
   const dateError =
     filters.startDate && filters.endDate && filters.endDate < filters.startDate;
@@ -91,37 +96,39 @@ export function GlobalFilterSection() {
           onChange={(productType) => setFilters({ productType })}
         />
       </CompactFilterCard>
-      <CompactFilterCard title="조회기간" className="filter-card-period">
-        <PillGroup
-          options={DATE_OPTIONS.map((d) => d.key)}
-          value={filters.datePreset}
-          onChange={(datePreset) => setFilters({ datePreset })}
-          labels={Object.fromEntries(DATE_OPTIONS.map((d) => [d.key, d.label]))}
-          nowrap
-        />
-        {showCustomDates ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <input
-              type="date"
-              className="rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ startDate: e.target.value })}
-            />
-            <span className="text-xs text-[var(--text-secondary)]">~</span>
-            <input
-              type="date"
-              className="rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ endDate: e.target.value })}
-            />
-            {dateError ? (
-              <p className="w-full text-xs text-[var(--error)]">
-                종료일은 시작일보다 빠를 수 없습니다.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </CompactFilterCard>
+      {!hidePeriod ? (
+        <CompactFilterCard title="조회기간" className="filter-card-period">
+          <PillGroup
+            options={DATE_OPTIONS.map((d) => d.key)}
+            value={filters.datePreset}
+            onChange={(datePreset) => setFilters({ datePreset })}
+            labels={Object.fromEntries(DATE_OPTIONS.map((d) => [d.key, d.label]))}
+            nowrap
+          />
+          {showCustomDates ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                className="rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ startDate: e.target.value })}
+              />
+              <span className="text-xs text-[var(--text-secondary)]">~</span>
+              <input
+                type="date"
+                className="rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ endDate: e.target.value })}
+              />
+              {dateError ? (
+                <p className="w-full text-xs text-[var(--error)]">
+                  종료일은 시작일보다 빠를 수 없습니다.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </CompactFilterCard>
+      ) : null}
     </div>
   );
 }

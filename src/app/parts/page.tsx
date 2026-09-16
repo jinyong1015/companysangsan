@@ -17,6 +17,8 @@ import {
   formatUph,
 } from "@/lib/format";
 import { paginate, sortBy } from "@/lib/metrics";
+import { withFromParam } from "@/lib/navigation";
+import { downloadExcel } from "@/lib/excelParse";
 
 export default function PartsPage() {
   const { filters, setFilters, resetGlobal } = useFilters();
@@ -76,6 +78,25 @@ export default function PartsPage() {
           { value: "utilization", label: "가동률" },
           { value: "downtime", label: "비가동시간" },
         ]}
+        onExcel={() =>
+          downloadExcel(
+            "품번분석.xlsx",
+            rows.map((p) => ({
+              품번: p.partNumber,
+              제품유형: p.productType,
+              생산공장: p.factories.join(", "),
+              설비수: p.equipmentCount,
+              금형수: p.moldCount,
+              생산량: p.kpi.productionQuantity,
+              불량수량: p.kpi.defectQuantity,
+              생산불량률: p.kpi.defectRatePercent,
+              작업시간분: p.kpi.elapsedMinutes,
+              가동률: p.kpi.utilizationRatePercent,
+              UPH: p.kpi.uph,
+              비가동시간분: p.kpi.downtimeMinutes,
+            })),
+          )
+        }
       />
       {rows.length === 0 ? (
         <EmptyState
@@ -108,7 +129,10 @@ export default function PartsPage() {
                 {paged.items.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      <Link href={`/parts/${p.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/parts/${p.id}`, "parts")}
+                        className="linkish"
+                      >
                         {p.partNumber}
                       </Link>
                     </td>
@@ -133,7 +157,10 @@ export default function PartsPage() {
                     <td className="num">{formatPercent(p.kpi.utilizationRatePercent)}</td>
                     <td className="num">{formatUph(p.kpi.uph)}</td>
                     <td>
-                      <Link href={`/parts/${p.id}`} className="linkish">
+                      <Link
+                        href={withFromParam(`/parts/${p.id}`, "parts")}
+                        className="linkish"
+                      >
                         →
                       </Link>
                     </td>

@@ -62,12 +62,17 @@ export interface UtilizationCell {
   operatingMinutes: number;
   shotCount: number;
   productionQuantity: number;
+  defectQuantity: number;
   failureCount: number;
   downtimeReasons: string[];
   /** 시간가동률 = 유효 가동시간 ÷ 목표 가동시간 × 100 */
   timeUtilizationPercent: number | null;
   /** 성능가동률 = 작업판수 ÷ 목표 작업판수 × 100 */
   performanceUtilizationPercent: number | null;
+  /** 양품률 = 실적수량 ÷ (실적수량 + 불량수량) × 100 */
+  yieldRatePercent: number | null;
+  /** 종합설비효율(OEE) = 시간 × MIN(성능,100) × 양품 */
+  oeePercent: number | null;
   /** 기존 가동률 = 가동시간 ÷ 작업시간 × 100 */
   utilizationRatePercent: number | null;
   hasData: boolean;
@@ -76,11 +81,83 @@ export interface UtilizationCell {
   recordIds: string[];
 }
 
+/** 제품유형·설비유형 종합 지표 (합계 기준, 단순 평균 아님) */
+export interface UtilizationMetricSummary {
+  performancePercent: number | null;
+  timePercent: number | null;
+  yieldPercent: number | null;
+  oeePercent: number | null;
+  shotCount: number;
+  targetShotCount: number | null;
+  operatingMinutes: number;
+  targetMinutes: number | null;
+  productionQuantity: number;
+  defectQuantity: number;
+  hasData: boolean;
+}
+
+export interface UtilizationOverview {
+  /** GROMMET + SEAL 합계 기준 종합 */
+  allProducts: UtilizationMetricSummary;
+  grommet: UtilizationMetricSummary;
+  seal: UtilizationMetricSummary;
+  /** INJECTION + PRESS 합계 기준 종합 */
+  allEquipment: UtilizationMetricSummary;
+  injection: UtilizationMetricSummary;
+  press: UtilizationMetricSummary;
+}
+
+export type UtilizationTrendSegment =
+  | "allProducts"
+  | "grommet"
+  | "seal"
+  | "allEquipment"
+  | "injection"
+  | "press";
+
+export interface UtilizationDailyPoint {
+  date: string;
+  label: string;
+  performancePercent: number | null;
+  timePercent: number | null;
+  yieldPercent: number | null;
+  oeePercent: number | null;
+  hasData: boolean;
+}
+
+export type UtilizationDailyTrends = Record<
+  UtilizationTrendSegment,
+  UtilizationDailyPoint[]
+>;
+
+export const UTILIZATION_TREND_SEGMENT_OPTIONS: Array<{
+  value: UtilizationTrendSegment;
+  label: string;
+}> = [
+  { value: "allProducts", label: "전체 (제품)" },
+  { value: "grommet", label: "GROMMET" },
+  { value: "seal", label: "SEAL" },
+  { value: "allEquipment", label: "전체 (설비)" },
+  { value: "injection", label: "INJECTION" },
+  { value: "press", label: "PRESS" },
+];
+
 export interface UtilizationEquipmentCol {
   id: string;
   name: string;
   factory: string;
   type: EquipmentType;
+}
+
+export interface UtilizationFamilyGroup {
+  /** GP01, PG12 등. 비 GP/PG는 설비 id */
+  key: string;
+  label: string;
+  equipmentIds: string[];
+  colSpan: number;
+  /** GP/PG/PS 호기 그룹이면 true */
+  isFamily: boolean;
+  total: UtilizationCell | null;
 }
 
 export interface UtilizationMatrix {
@@ -90,6 +167,8 @@ export interface UtilizationMatrix {
   press: UtilizationEquipmentCol[];
   cells: Map<string, UtilizationCell>;
   equipmentTotals: Map<string, UtilizationCell>;
+  /** GP/PG/PS -N 호기 평균 행용 그룹 */
+  familyGroups: UtilizationFamilyGroup[];
   injectionTotal: UtilizationCell | null;
   pressTotal: UtilizationCell | null;
   grandTotal: UtilizationCell | null;
@@ -104,6 +183,16 @@ export function inferEquipmentType(name: string): EquipmentType {
   const upper = name.trim().toUpperCase();
   if (upper.startsWith("IN")) return "INJECTION";
   return "PRESS";
+}
+
+/**
+ * GP01-1 / PG12-3 / PS10-2 → "GP01" / "PG12" / "PS10"
+ * 그 외 설비명은 null
+ */
+export function parseGpPgFamily(name: string): string | null {
+  const m = name.trim().toUpperCase().match(/^(GP|PG|PS)(\d+)-\d+$/);
+  if (!m) return null;
+  return `${m[1]}${m[2]}`;
 }
 
 /**
@@ -195,6 +284,32 @@ export function computePerformanceUtilizationPercent(
   return (shotCount / targetShotCount) * 100;
 }
 
+/** 양품률: 실적수량 ÷ (실적수량 + 불량수량) × 100. 분모 0이면 null(-) */
+export function computeYieldRatePercent(
+  productionQuantity: number,
+  defectQuantity: number,
+): number | null {
+  const total = productionQuantity + defectQuantity;
+  if (total <= 0) return null;
+  return (productionQuantity / total) * 100;
+}
+
+/**
+ * 종합설비효율(OEE) = 시간가동률 × MIN(성능가동률, 100%) × 양품률.
+ * 화면의 성능가동률은 그대로 두고, OEE 계산에만 100% 상한을 적용한다.
+ */
+export function computeOeePercent(
+  timePercent: number | null,
+  performancePercent: number | null,
+  yieldPercent: number | null,
+): number | null {
+  if (timePercent == null || performancePercent == null || yieldPercent == null) {
+    return null;
+  }
+  const perfCapped = Math.min(performancePercent, 100);
+  return (timePercent / 100) * (perfCapped / 100) * (yieldPercent / 100) * 100;
+}
+
 /** 기존 가동률: 총 가동시간 ÷ 총 작업시간 × 100 */
 export function computeUtilizationRatePercent(
   operatingMinutes: number,
@@ -202,6 +317,81 @@ export function computeUtilizationRatePercent(
 ): number | null {
   if (elapsedMinutes <= 0) return null;
   return (operatingMinutes / elapsedMinutes) * 100;
+}
+
+function emptyMetricSummary(): UtilizationMetricSummary {
+  return {
+    performancePercent: null,
+    timePercent: null,
+    yieldPercent: null,
+    oeePercent: null,
+    shotCount: 0,
+    targetShotCount: null,
+    operatingMinutes: 0,
+    targetMinutes: null,
+    productionQuantity: 0,
+    defectQuantity: 0,
+    hasData: false,
+  };
+}
+
+function summaryFromCells(cells: UtilizationCell[]): UtilizationMetricSummary {
+  const withData = cells.filter((c) => c.hasData);
+  if (withData.length === 0) return emptyMetricSummary();
+
+  const timed = withData.filter(
+    (c) => c.targetMinutes != null && c.targetMinutes > 0,
+  );
+  const shotTargeted = withData.filter(
+    (c) => c.targetShotCount != null && c.targetShotCount > 0,
+  );
+
+  const targetMinutes = timed.reduce((s, c) => s + (c.targetMinutes ?? 0), 0);
+  const targetShotCount = shotTargeted.reduce(
+    (s, c) => s + (c.targetShotCount ?? 0),
+    0,
+  );
+  const operatingForTime = timed.reduce((s, c) => s + c.operatingMinutes, 0);
+  const shotsForPerf = shotTargeted.reduce((s, c) => s + c.shotCount, 0);
+  const operatingMinutes = withData.reduce((s, c) => s + c.operatingMinutes, 0);
+  const shotCount = withData.reduce((s, c) => s + c.shotCount, 0);
+  const productionQuantity = withData.reduce(
+    (s, c) => s + c.productionQuantity,
+    0,
+  );
+  const defectQuantity = withData.reduce((s, c) => s + c.defectQuantity, 0);
+
+  const timePercent =
+    timed.length > 0
+      ? computeTimeUtilizationPercent(operatingForTime, targetMinutes)
+      : null;
+  const performancePercent =
+    shotTargeted.length > 0
+      ? computePerformanceUtilizationPercent(shotsForPerf, targetShotCount)
+      : null;
+  const yieldPercent = computeYieldRatePercent(
+    productionQuantity,
+    defectQuantity,
+  );
+  const oeePercent = computeOeePercent(
+    timePercent,
+    performancePercent,
+    yieldPercent,
+  );
+
+  return {
+    performancePercent,
+    timePercent,
+    yieldPercent,
+    oeePercent,
+    shotCount,
+    targetShotCount: shotTargeted.length > 0 ? targetShotCount : null,
+    operatingMinutes,
+    targetMinutes: timed.length > 0 ? targetMinutes : null,
+    productionQuantity,
+    defectQuantity,
+    hasData: true,
+  };
 }
 
 export function heatmapTone(rate: number | null, hasData: boolean): HeatmapTone {
@@ -263,10 +453,13 @@ function emptyCell(
     | "operatingMinutes"
     | "shotCount"
     | "productionQuantity"
+    | "defectQuantity"
     | "failureCount"
     | "downtimeReasons"
     | "timeUtilizationPercent"
     | "performanceUtilizationPercent"
+    | "yieldRatePercent"
+    | "oeePercent"
     | "utilizationRatePercent"
     | "hasData"
     | "missingTarget"
@@ -286,10 +479,13 @@ function emptyCell(
     operatingMinutes: 0,
     shotCount: 0,
     productionQuantity: 0,
+    defectQuantity: 0,
     failureCount: 0,
     downtimeReasons: [],
     timeUtilizationPercent: null,
     performanceUtilizationPercent: null,
+    yieldRatePercent: null,
+    oeePercent: null,
     utilizationRatePercent: null,
     hasData: false,
     missingTarget: false,
@@ -335,7 +531,10 @@ function aggregateCell(
   const operatingMinutes = valid.reduce((s, r) => s + r.operatingMinutes, 0);
   const shotCount = valid.reduce((s, r) => s + r.shotCount, 0);
   const productionQuantity = valid.reduce((s, r) => s + r.productionQuantity, 0);
-  const failureCount = valid.filter((r) => r.isFailureCandidate).length;
+  const defectQuantity = valid.reduce((s, r) => s + r.defectQuantity, 0);
+  const failureCount = valid.filter((r) =>
+    r.reasonTokens.includes("설비이상"),
+  ).length;
   const reasonSet = new Set<string>();
   valid.forEach((r) => {
     if (r.downtimeReasonRaw) reasonSet.add(r.downtimeReasonRaw);
@@ -348,6 +547,15 @@ function aggregateCell(
   const performanceUtilizationPercent = computePerformanceUtilizationPercent(
     shotCount,
     targetShotCount,
+  );
+  const yieldRatePercent = computeYieldRatePercent(
+    productionQuantity,
+    defectQuantity,
+  );
+  const oeePercent = computeOeePercent(
+    timeUtilizationPercent,
+    performanceUtilizationPercent,
+    yieldRatePercent,
   );
 
   return {
@@ -366,10 +574,13 @@ function aggregateCell(
     operatingMinutes,
     shotCount,
     productionQuantity,
+    defectQuantity,
     failureCount,
     downtimeReasons: [...reasonSet],
     timeUtilizationPercent,
     performanceUtilizationPercent,
+    yieldRatePercent,
+    oeePercent,
     utilizationRatePercent: computeUtilizationRatePercent(
       operatingMinutes,
       elapsedMinutes,
@@ -411,6 +622,7 @@ function sumCells(
   const downtimeMinutes = withData.reduce((s, c) => s + c.downtimeMinutes, 0);
   const shotCount = withData.reduce((s, c) => s + c.shotCount, 0);
   const productionQuantity = withData.reduce((s, c) => s + c.productionQuantity, 0);
+  const defectQuantity = withData.reduce((s, c) => s + c.defectQuantity, 0);
   const failureCount = withData.reduce((s, c) => s + c.failureCount, 0);
   const reasonSet = new Set<string>();
   withData.forEach((c) => c.downtimeReasons.forEach((r) => reasonSet.add(r)));
@@ -440,6 +652,15 @@ function sumCells(
     shotTargeted.length > 0
       ? computePerformanceUtilizationPercent(shotsForPerf, targetShotCount)
       : null;
+  const yieldRatePercent = computeYieldRatePercent(
+    productionQuantity,
+    defectQuantity,
+  );
+  const oeePercent = computeOeePercent(
+    timeUtilizationPercent,
+    performanceUtilizationPercent,
+    yieldRatePercent,
+  );
 
   const base: UtilizationCell = {
     date: meta.date,
@@ -457,10 +678,13 @@ function sumCells(
     operatingMinutes,
     shotCount,
     productionQuantity,
+    defectQuantity,
     failureCount,
     downtimeReasons: [...reasonSet],
     timeUtilizationPercent,
     performanceUtilizationPercent,
+    yieldRatePercent,
+    oeePercent,
     utilizationRatePercent: computeUtilizationRatePercent(
       operatingMinutes,
       elapsedMinutes,
@@ -471,6 +695,112 @@ function sumCells(
   };
 
   return withMetricMissingTarget(base, metric);
+}
+
+/** GP/PG/PS 호기별 가동률 산술 평균 (목표 있는 호기만, 존재하는 호기 수만큼) */
+function averageFamilyCells(
+  cells: UtilizationCell[],
+  meta: Partial<UtilizationCell> & {
+    date: string;
+    equipmentId: string;
+    equipmentName: string;
+  },
+  metric: UtilizationMetric,
+): UtilizationCell | null {
+  const withRate = cells.filter((c) => {
+    if (!c.hasData || c.missingTarget) return false;
+    const rate =
+      metric === "time"
+        ? c.timeUtilizationPercent
+        : c.performanceUtilizationPercent;
+    return rate != null;
+  });
+  if (withRate.length === 0) return null;
+
+  const avg =
+    withRate.reduce((sum, c) => {
+      const rate =
+        metric === "time"
+          ? (c.timeUtilizationPercent as number)
+          : (c.performanceUtilizationPercent as number);
+      return sum + rate;
+    }, 0) / withRate.length;
+
+  const summed = sumCells(withRate, meta, metric);
+  if (!summed) return null;
+
+  if (metric === "time") {
+    return {
+      ...summed,
+      timeUtilizationPercent: avg,
+      missingTarget: false,
+    };
+  }
+  return {
+    ...summed,
+    performanceUtilizationPercent: avg,
+    missingTarget: false,
+  };
+}
+
+function buildFamilyGroups(
+  equipment: UtilizationEquipmentCol[],
+  equipmentTotals: Map<string, UtilizationCell>,
+  startDate: string,
+  metric: UtilizationMetric,
+): UtilizationFamilyGroup[] {
+  const groups: UtilizationFamilyGroup[] = [];
+  let i = 0;
+  while (i < equipment.length) {
+    const eq = equipment[i];
+    const family = parseGpPgFamily(eq.name);
+    if (!family) {
+      groups.push({
+        key: eq.id,
+        label: eq.name,
+        equipmentIds: [eq.id],
+        colSpan: 1,
+        isFamily: false,
+        total: null,
+      });
+      i += 1;
+      continue;
+    }
+
+    const members = [eq];
+    let j = i + 1;
+    while (j < equipment.length) {
+      const next = equipment[j];
+      if (parseGpPgFamily(next.name) !== family) break;
+      members.push(next);
+      j += 1;
+    }
+
+    const memberTotals = members
+      .map((m) => equipmentTotals.get(m.id))
+      .filter((c): c is UtilizationCell => !!c);
+
+    groups.push({
+      key: family,
+      label: family,
+      equipmentIds: members.map((m) => m.id),
+      colSpan: members.length,
+      isFamily: true,
+      total: averageFamilyCells(
+        memberTotals,
+        {
+          date: startDate,
+          equipmentId: `family-${family}`,
+          equipmentName: family,
+          equipmentType: eq.type,
+          factory: eq.factory,
+        },
+        metric,
+      ),
+    });
+    i = j;
+  }
+  return groups;
 }
 
 export function monthDateRange(yearMonth: string): {
@@ -665,6 +995,13 @@ export function buildUtilizationMatrix(
     metric,
   );
 
+  const familyGroups = buildFamilyGroups(
+    equipment,
+    equipmentTotals,
+    startDate,
+    metric,
+  );
+
   return {
     dates,
     equipment,
@@ -672,10 +1009,247 @@ export function buildUtilizationMatrix(
     press,
     cells,
     equipmentTotals,
+    familyGroups,
     injectionTotal,
     pressTotal,
     grandTotal,
   };
+}
+
+type OverviewBuildOptions = {
+  workPattern: "전체" | WorkPattern | PerformanceShiftPattern;
+  metric?: UtilizationMetric;
+  targetSettings?: TargetMinutesSettings;
+  targetShotTable?: TargetShotCountTable;
+  startDate?: string;
+  endDate?: string;
+};
+
+function collectOverviewCellGroups(
+  records: ProductionRecord[],
+  filters: GlobalFilters,
+  options: OverviewBuildOptions,
+): {
+  grommetCells: UtilizationCell[];
+  sealCells: UtilizationCell[];
+  injectionCells: UtilizationCell[];
+  pressCells: UtilizationCell[];
+  startDate: string;
+  endDate: string;
+} {
+  const metric = options.metric ?? "time";
+  const settings = options.targetSettings ?? DEFAULT_TARGET_MINUTES;
+  const shotTable = options.targetShotTable ?? DEFAULT_TARGET_SHOT_COUNTS;
+  const startDate = options.startDate ?? filters.startDate;
+  const endDate = options.endDate ?? filters.endDate;
+  const rangeFilters: GlobalFilters = {
+    ...filters,
+    startDate,
+    endDate,
+  };
+
+  const collectCells = (
+    productType: "전체" | ProductType,
+    equipmentType: "전체" | EquipmentType,
+  ): UtilizationCell[] => {
+    const scopedFilters: GlobalFilters = {
+      ...rangeFilters,
+      productType,
+      equipmentIds: [],
+    };
+    const filtered = filterRecords(records, scopedFilters);
+    const byKey = new Map<string, ProductionRecord[]>();
+
+    for (const r of filtered) {
+      const type = inferEquipmentType(r.equipmentName);
+      if (equipmentType !== "전체" && type !== equipmentType) continue;
+      const key = `${r.workDate}__${r.equipmentId}`;
+      const list = byKey.get(key);
+      if (list) list.push(r);
+      else byKey.set(key, [r]);
+    }
+
+    const cells: UtilizationCell[] = [];
+    for (const rows of byKey.values()) {
+      const sample = rows[0];
+      if (!sample) continue;
+      const equipmentTypeResolved = inferEquipmentType(sample.equipmentName);
+      const cell = aggregateCell(
+        sample.workDate,
+        sample.equipmentId,
+        sample.equipmentName,
+        sample.factory,
+        equipmentTypeResolved,
+        rows,
+        settings,
+        shotTable,
+      );
+      if (
+        options.workPattern !== "전체" &&
+        cell.hasData &&
+        !matchesWorkPatternFilter(cell, metric, options.workPattern)
+      ) {
+        continue;
+      }
+      if (cell.hasData) cells.push(cell);
+    }
+    return cells;
+  };
+
+  // 제품유형은 각각 집계한 뒤 합산 (혼합 셀에서 목표 작업판수가 null이 되는 문제 방지)
+  return {
+    grommetCells: collectCells("GROMMET", "전체"),
+    sealCells: collectCells("SEAL", "전체"),
+    injectionCells: collectCells(rangeFilters.productType, "INJECTION"),
+    pressCells: collectCells(rangeFilters.productType, "PRESS"),
+    startDate,
+    endDate,
+  };
+}
+
+function dailySeriesFromCells(
+  cells: UtilizationCell[],
+  startDate: string,
+  endDate: string,
+): UtilizationDailyPoint[] {
+  const byDate = new Map<string, UtilizationCell[]>();
+  for (const cell of cells) {
+    const list = byDate.get(cell.date);
+    if (list) list.push(cell);
+    else byDate.set(cell.date, [cell]);
+  }
+
+  const days = eachDayOfInterval({
+    start: parseISO(startDate),
+    end: parseISO(endDate),
+  });
+
+  return days.map((day) => {
+    const date = toDateString(day);
+    const summary = summaryFromCells(byDate.get(date) ?? []);
+    return {
+      date,
+      label: format(day, "M/d"),
+      performancePercent: summary.performancePercent,
+      timePercent: summary.timePercent,
+      yieldPercent: summary.yieldPercent,
+      oeePercent: summary.oeePercent,
+      hasData: summary.hasData,
+    };
+  });
+}
+
+/**
+ * 상단 종합 지표.
+ * - 제품유형(GROMMET/SEAL): 제품유형 필터와 무관하게 각각 합계 집계 (강조만 필터 반영)
+ * - 설비유형(INJECTION/PRESS): 제품유형·근무형태는 반영, 설비유형 필터는 무시 (카드 클릭으로 매트릭스 필터)
+ * - 일별·설비별 % 단순 평균 금지. 분자·분모 합계 후 비율 계산.
+ */
+export function buildUtilizationOverview(
+  records: ProductionRecord[],
+  filters: GlobalFilters,
+  options: OverviewBuildOptions,
+): UtilizationOverview {
+  const { grommetCells, sealCells, injectionCells, pressCells } =
+    collectOverviewCellGroups(records, filters, options);
+
+  return {
+    allProducts: summaryFromCells([...grommetCells, ...sealCells]),
+    grommet: summaryFromCells(grommetCells),
+    seal: summaryFromCells(sealCells),
+    allEquipment: summaryFromCells([...injectionCells, ...pressCells]),
+    injection: summaryFromCells(injectionCells),
+    press: summaryFromCells(pressCells),
+  };
+}
+
+/** 조회월 일별 지표 추이 (세그먼트별, 합계 기준) */
+export function buildUtilizationDailyTrends(
+  records: ProductionRecord[],
+  filters: GlobalFilters,
+  options: OverviewBuildOptions,
+): UtilizationDailyTrends {
+  const {
+    grommetCells,
+    sealCells,
+    injectionCells,
+    pressCells,
+    startDate,
+    endDate,
+  } = collectOverviewCellGroups(records, filters, options);
+
+  return {
+    allProducts: dailySeriesFromCells(
+      [...grommetCells, ...sealCells],
+      startDate,
+      endDate,
+    ),
+    grommet: dailySeriesFromCells(grommetCells, startDate, endDate),
+    seal: dailySeriesFromCells(sealCells, startDate, endDate),
+    allEquipment: dailySeriesFromCells(
+      [...injectionCells, ...pressCells],
+      startDate,
+      endDate,
+    ),
+    injection: dailySeriesFromCells(injectionCells, startDate, endDate),
+    press: dailySeriesFromCells(pressCells, startDate, endDate),
+  };
+}
+
+/** 종합 현황 + 일별 추이를 한 번 집계 */
+export function buildUtilizationOverviewBundle(
+  records: ProductionRecord[],
+  filters: GlobalFilters,
+  options: OverviewBuildOptions,
+): { overview: UtilizationOverview; trends: UtilizationDailyTrends } {
+  const {
+    grommetCells,
+    sealCells,
+    injectionCells,
+    pressCells,
+    startDate,
+    endDate,
+  } = collectOverviewCellGroups(records, filters, options);
+
+  return {
+    overview: {
+      allProducts: summaryFromCells([...grommetCells, ...sealCells]),
+      grommet: summaryFromCells(grommetCells),
+      seal: summaryFromCells(sealCells),
+      allEquipment: summaryFromCells([...injectionCells, ...pressCells]),
+      injection: summaryFromCells(injectionCells),
+      press: summaryFromCells(pressCells),
+    },
+    trends: {
+      allProducts: dailySeriesFromCells(
+        [...grommetCells, ...sealCells],
+        startDate,
+        endDate,
+      ),
+      grommet: dailySeriesFromCells(grommetCells, startDate, endDate),
+      seal: dailySeriesFromCells(sealCells, startDate, endDate),
+      allEquipment: dailySeriesFromCells(
+        [...injectionCells, ...pressCells],
+        startDate,
+        endDate,
+      ),
+      injection: dailySeriesFromCells(injectionCells, startDate, endDate),
+      press: dailySeriesFromCells(pressCells, startDate, endDate),
+    },
+  };
+}
+
+export function sparklineValues(
+  points: UtilizationDailyPoint[],
+  key:
+    | "performancePercent"
+    | "timePercent"
+    | "yieldPercent"
+    | "oeePercent",
+  maxPoints = 14,
+): Array<number | null> {
+  const sliced = points.slice(-maxPoints);
+  return sliced.map((p) => p[key]);
 }
 
 export function getCell(

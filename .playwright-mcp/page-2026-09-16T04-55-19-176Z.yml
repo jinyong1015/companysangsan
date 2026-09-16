@@ -1,0 +1,339 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e13]:
+    - generic [ref=e15]:
+      - link "Hyundai Corporation Hyundaecorp 생산현황 분석" [ref=e16] [cursor=pointer]:
+        - /url: /
+        - img "Hyundai Corporation" [ref=e17]
+        - generic [ref=e18]:
+          - generic [ref=e19]: Hyundaecorp
+          - generic [ref=e20]: 생산현황 분석
+      - navigation "주 메뉴" [ref=e22]:
+        - generic [ref=e23]:
+          - link "대시보드" [ref=e24] [cursor=pointer]:
+            - /url: /
+          - link "생산 분석" [ref=e32] [cursor=pointer]:
+            - /url: /production
+          - link "가동률 현황" [ref=e37] [cursor=pointer]:
+            - /url: /utilization
+          - link "설비 분석" [ref=e42] [cursor=pointer]:
+            - /url: /equipment
+          - link "비가동 분석" [ref=e47] [cursor=pointer]:
+            - /url: /downtime
+          - link "품번 분석" [ref=e52] [cursor=pointer]:
+            - /url: /parts
+          - button "더 많은 메뉴" [ref=e60] [cursor=pointer]:
+            - generic [ref=e66]: 더보기
+      - generic [ref=e67]:
+        - link "데이터 업로드" [ref=e68] [cursor=pointer]:
+          - /url: /manage
+        - button "다크 모드로 전환" [ref=e71] [cursor=pointer]:
+          - generic [ref=e74]: 다크 모드
+  - main [ref=e75]:
+    - generic [ref=e76]:
+      - generic [ref=e77]:
+        - paragraph [ref=e78]: 가데이터로 표시 중
+        - paragraph [ref=e79]: 엑셀을 업로드하면 브라우저에 저장되어, 시드 데이터로 복원하기 전까지 계속 유지됩니다.
+      - link "데이터 업로드" [ref=e80] [cursor=pointer]:
+        - /url: /manage
+    - generic [ref=e81]:
+      - generic [ref=e82]:
+        - paragraph [ref=e83]: 공장
+        - radiogroup [ref=e84]:
+          - radio "전체" [checked] [ref=e85] [cursor=pointer]
+          - radio "본사" [ref=e86] [cursor=pointer]
+          - radio "2공장" [ref=e87] [cursor=pointer]
+      - generic [ref=e88]:
+        - paragraph [ref=e89]: 제품유형
+        - radiogroup [ref=e90]:
+          - radio "전체" [checked] [ref=e91] [cursor=pointer]
+          - radio "GROMMET" [ref=e92] [cursor=pointer]
+          - radio "SEAL" [ref=e93] [cursor=pointer]
+      - generic [ref=e94]:
+        - paragraph [ref=e95]: 조회기간
+        - radiogroup [ref=e96]:
+          - radio "오늘" [ref=e97] [cursor=pointer]
+          - radio "최근 7일" [ref=e98] [cursor=pointer]
+          - radio "이번 달" [checked] [ref=e99] [cursor=pointer]
+          - radio "지난 달" [ref=e100] [cursor=pointer]
+          - radio "올해" [ref=e101] [cursor=pointer]
+          - radio "사용자 지정" [ref=e102] [cursor=pointer]
+    - link "← 작업자 분석으로 돌아가기 이전 검색·정렬·페이지·조회조건을 유지합니다." [ref=e103] [cursor=pointer]:
+      - /url: /operators
+      - generic [ref=e104]: ←
+      - generic [ref=e105]:
+        - paragraph [ref=e106]: 작업자 분석으로 돌아가기
+        - paragraph [ref=e107]: 이전 검색·정렬·페이지·조회조건을 유지합니다.
+    - generic [ref=e108]:
+      - generic [ref=e109]:
+        - heading "정하늘" [level=1] [ref=e110]
+        - paragraph [ref=e111]: 기준 2026-09-16-13:55
+      - button "Excel 다운로드" [ref=e113] [cursor=pointer]
+    - generic [ref=e118]: 작업자 성과는 작업한 품번과 설비 구성에 영향을 받으므로 단순 순위만으로 인사평가에 사용하지 마세요.
+    - generic [ref=e119]:
+      - article [ref=e120]:
+        - paragraph [ref=e122]: 생산량
+        - paragraph [ref=e123]: 128,046 EA
+      - article [ref=e124]:
+        - paragraph [ref=e126]: 불량수량
+        - paragraph [ref=e127]: 1,257 EA
+      - article [ref=e128]:
+        - paragraph [ref=e130]: 생산불량률
+        - paragraph [ref=e131]: 0.97%
+      - article [ref=e132]:
+        - paragraph [ref=e134]: 작업시간
+        - paragraph [ref=e135]: 562시간 11분
+      - article [ref=e136]:
+        - paragraph [ref=e138]: UPH
+        - paragraph [ref=e139]: 228 EA/h
+      - article [ref=e140]:
+        - paragraph [ref=e142]: 가동률
+        - paragraph [ref=e143]: 93.4%
+    - generic [ref=e144]:
+      - heading "생산량·UPH 추이" [level=2] [ref=e146]
+      - generic [ref=e147]:
+        - button "표로 보기" [ref=e149] [cursor=pointer]
+        - generic [ref=e152]:
+          - list [ref=e154]:
+            - listitem [ref=e155]:
+              - img "가동률 legend icon" [ref=e156]
+              - text: 가동률
+            - listitem [ref=e158]:
+              - img "생산량 legend icon" [ref=e159]
+              - text: 생산량
+          - application [ref=e161]:
+            - generic [ref=e250]:
+              - generic [ref=e251]:
+                - generic [ref=e252]: 09/01
+                - generic [ref=e254]: 09/02
+                - generic [ref=e256]: 09/03
+                - generic [ref=e258]: 09/04
+                - generic [ref=e260]: 09/05
+                - generic [ref=e262]: 09/06
+                - generic [ref=e264]: 09/07
+                - generic [ref=e266]: 09/08
+                - generic [ref=e268]: 09/09
+                - generic [ref=e270]: 09/10
+                - generic [ref=e272]: 09/11
+                - generic [ref=e274]: 09/12
+                - generic [ref=e276]: 09/13
+                - generic [ref=e278]: 09/14
+                - generic [ref=e280]: 09/15
+                - generic [ref=e282]: 09/16
+              - generic [ref=e284]:
+                - generic [ref=e285]: "0"
+                - generic [ref=e287]: 3,500
+                - generic [ref=e289]: 7,000
+                - generic [ref=e291]: 10,500
+                - generic [ref=e293]: 14,000
+              - generic [ref=e295]:
+                - generic [ref=e296]: 0%
+                - generic [ref=e298]: 75%
+                - generic [ref=e300]: 150%
+                - generic [ref=e302]: 225%
+                - generic [ref=e304]: 290.53246753246754%
+    - generic [ref=e306]:
+      - generic [ref=e307]:
+        - heading "품번별 실적" [level=2] [ref=e309]
+        - table [ref=e311]:
+          - rowgroup [ref=e312]:
+            - row [ref=e313]:
+              - columnheader "품번" [ref=e314]
+              - columnheader "제품유형" [ref=e315]
+              - columnheader "생산량" [ref=e316]
+              - columnheader "UPH" [ref=e317]
+          - rowgroup [ref=e318]:
+            - row [ref=e319]:
+              - cell [ref=e320]:
+                - link "NE-CC088" [ref=e321] [cursor=pointer]:
+                  - /url: /parts/pt-necc088
+              - cell "GROMMET" [ref=e322]
+              - cell "28,141 EA" [ref=e323]
+              - cell "234 EA/h" [ref=e324]
+            - row [ref=e325]:
+              - cell [ref=e326]:
+                - link "NE-CC051" [ref=e327] [cursor=pointer]:
+                  - /url: /parts/pt-necc051
+              - cell "GROMMET" [ref=e328]
+              - cell "13,109 EA" [ref=e329]
+              - cell "217 EA/h" [ref=e330]
+            - row [ref=e331]:
+              - cell [ref=e332]:
+                - link "SL-441B" [ref=e333] [cursor=pointer]:
+                  - /url: /parts/pt-sl441
+              - cell "SEAL" [ref=e334]
+              - cell "14,014 EA" [ref=e335]
+              - cell "200 EA/h" [ref=e336]
+            - row [ref=e337]:
+              - cell [ref=e338]:
+                - link "SE-1201" [ref=e339] [cursor=pointer]:
+                  - /url: /parts/pt-se1201
+              - cell "SEAL" [ref=e340]
+              - cell "16,663 EA" [ref=e341]
+              - cell "218 EA/h" [ref=e342]
+            - row [ref=e343]:
+              - cell [ref=e344]:
+                - link "GR-330A" [ref=e345] [cursor=pointer]:
+                  - /url: /parts/pt-gr330
+              - cell "GROMMET" [ref=e346]
+              - cell "44,815 EA" [ref=e347]
+              - cell "245 EA/h" [ref=e348]
+            - row [ref=e349]:
+              - cell [ref=e350]:
+                - link "SE-2204" [ref=e351] [cursor=pointer]:
+                  - /url: /parts/pt-se2204
+              - cell "SEAL" [ref=e352]
+              - cell "11,304 EA" [ref=e353]
+              - cell "218 EA/h" [ref=e354]
+      - generic [ref=e355]:
+        - heading "설비별 실적" [level=2] [ref=e357]
+        - table [ref=e359]:
+          - rowgroup [ref=e360]:
+            - row [ref=e361]:
+              - columnheader "설비명" [ref=e362]
+              - columnheader "공장" [ref=e363]
+              - columnheader "생산량" [ref=e364]
+              - columnheader "가동률" [ref=e365]
+          - rowgroup [ref=e366]:
+            - row [ref=e367]:
+              - cell [ref=e368]:
+                - link "IN-03" [ref=e369] [cursor=pointer]:
+                  - /url: /equipment/eq-in03
+              - cell "본사" [ref=e370]
+              - cell "11,982 EA" [ref=e371]
+              - cell "89.0%" [ref=e372]
+            - row [ref=e373]:
+              - cell [ref=e374]:
+                - link "IN-06" [ref=e375] [cursor=pointer]:
+                  - /url: /equipment/eq-in06
+              - cell "본사" [ref=e376]
+              - cell "4,985 EA" [ref=e377]
+              - cell "90.0%" [ref=e378]
+            - row [ref=e379]:
+              - cell [ref=e380]:
+                - link "IN-10" [ref=e381] [cursor=pointer]:
+                  - /url: /equipment/eq-in10
+              - cell "본사" [ref=e382]
+              - cell "10,131 EA" [ref=e383]
+              - cell "94.6%" [ref=e384]
+            - row [ref=e385]:
+              - cell [ref=e386]:
+                - link "GP01-3" [ref=e387] [cursor=pointer]:
+                  - /url: /equipment/eq-gp013
+              - cell "본사" [ref=e388]
+              - cell "10,029 EA" [ref=e389]
+              - cell "89.3%" [ref=e390]
+            - row [ref=e391]:
+              - cell [ref=e392]:
+                - link "PS01-1" [ref=e393] [cursor=pointer]:
+                  - /url: /equipment/eq-ps01
+              - cell "본사" [ref=e394]
+              - cell "9,095 EA" [ref=e395]
+              - cell "100.0%" [ref=e396]
+            - row [ref=e397]:
+              - cell [ref=e398]:
+                - link "IN-04" [ref=e399] [cursor=pointer]:
+                  - /url: /equipment/eq-in04
+              - cell "본사" [ref=e400]
+              - cell "6,052 EA" [ref=e401]
+              - cell "90.6%" [ref=e402]
+            - row [ref=e403]:
+              - cell [ref=e404]:
+                - link "IN-08" [ref=e405] [cursor=pointer]:
+                  - /url: /equipment/eq-in08
+              - cell "2공장" [ref=e406]
+              - cell "11,028 EA" [ref=e407]
+              - cell "95.9%" [ref=e408]
+            - row [ref=e409]:
+              - cell [ref=e410]:
+                - link "IN-11" [ref=e411] [cursor=pointer]:
+                  - /url: /equipment/eq-in11
+              - cell "본사" [ref=e412]
+              - cell "3,811 EA" [ref=e413]
+              - cell "90.0%" [ref=e414]
+            - row [ref=e415]:
+              - cell [ref=e416]:
+                - link "IN-12" [ref=e417] [cursor=pointer]:
+                  - /url: /equipment/eq-in12
+              - cell "본사" [ref=e418]
+              - cell "6,502 EA" [ref=e419]
+              - cell "100.0%" [ref=e420]
+            - row [ref=e421]:
+              - cell [ref=e422]:
+                - link "GP02-1" [ref=e423] [cursor=pointer]:
+                  - /url: /equipment/eq-gp021
+              - cell "2공장" [ref=e424]
+              - cell "3,802 EA" [ref=e425]
+              - cell "100.0%" [ref=e426]
+            - row [ref=e427]:
+              - cell [ref=e428]:
+                - link "PS09-3" [ref=e429] [cursor=pointer]:
+                  - /url: /equipment/eq-ps09
+              - cell "2공장" [ref=e430]
+              - cell "13,673 EA" [ref=e431]
+              - cell "100.0%" [ref=e432]
+            - row [ref=e433]:
+              - cell [ref=e434]:
+                - link "IN-07" [ref=e435] [cursor=pointer]:
+                  - /url: /equipment/eq-in07
+              - cell "2공장" [ref=e436]
+              - cell "1,958 EA" [ref=e437]
+              - cell "100.0%" [ref=e438]
+            - row [ref=e439]:
+              - cell [ref=e440]:
+                - link "IN-05" [ref=e441] [cursor=pointer]:
+                  - /url: /equipment/eq-in05
+              - cell "본사" [ref=e442]
+              - cell "5,635 EA" [ref=e443]
+              - cell "91.0%" [ref=e444]
+            - row [ref=e445]:
+              - cell [ref=e446]:
+                - link "IN-09" [ref=e447] [cursor=pointer]:
+                  - /url: /equipment/eq-in09
+              - cell "2공장" [ref=e448]
+              - cell "4,371 EA" [ref=e449]
+              - cell "89.4%" [ref=e450]
+            - row [ref=e451]:
+              - cell [ref=e452]:
+                - link "GP01-2" [ref=e453] [cursor=pointer]:
+                  - /url: /equipment/eq-gp012
+              - cell "본사" [ref=e454]
+              - cell "8,425 EA" [ref=e455]
+              - cell "86.9%" [ref=e456]
+            - row [ref=e457]:
+              - cell [ref=e458]:
+                - link "GP02-3" [ref=e459] [cursor=pointer]:
+                  - /url: /equipment/eq-gp023
+              - cell "2공장" [ref=e460]
+              - cell "2,736 EA" [ref=e461]
+              - cell "96.0%" [ref=e462]
+            - row [ref=e463]:
+              - cell [ref=e464]:
+                - link "IN-02" [ref=e465] [cursor=pointer]:
+                  - /url: /equipment/eq-in02
+              - cell "본사" [ref=e466]
+              - cell "2,276 EA" [ref=e467]
+              - cell "72.8%" [ref=e468]
+            - row [ref=e469]:
+              - cell [ref=e470]:
+                - link "GP01-1" [ref=e471] [cursor=pointer]:
+                  - /url: /equipment/eq-gp011
+              - cell "본사" [ref=e472]
+              - cell "1,706 EA" [ref=e473]
+              - cell "90.0%" [ref=e474]
+            - row [ref=e475]:
+              - cell [ref=e476]:
+                - link "GP02-2" [ref=e477] [cursor=pointer]:
+                  - /url: /equipment/eq-gp022
+              - cell "2공장" [ref=e478]
+              - cell "7,475 EA" [ref=e479]
+              - cell "100.0%" [ref=e480]
+            - row [ref=e481]:
+              - cell [ref=e482]:
+                - link "IN-01" [ref=e483] [cursor=pointer]:
+                  - /url: /equipment/eq-in01
+              - cell "본사" [ref=e484]
+              - cell "2,374 EA" [ref=e485]
+              - cell "71.0%" [ref=e486]
+  - button "Open Next.js Dev Tools" [ref=e8] [cursor=pointer]
+  - alert [ref=e12]: 정하늘
+  - generic [aria-hidden] [ref=e487]: 0%
