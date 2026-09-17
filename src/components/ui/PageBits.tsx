@@ -22,7 +22,7 @@ export function PageHeader({
   description,
   onExcel,
   excelName,
-  showTimestamp = true,
+  showTimestamp = false,
   titleClassName,
   descriptionClassName,
   actions,
@@ -85,11 +85,24 @@ export function BackBanner({
   href,
   label,
   icon: Icon,
+  periodStart,
+  periodEnd,
+  scopeLabel,
+  scopeValue,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** 제공 시 오른쪽에 조회기간 박스를 표시합니다. (company ProductDetailBackNav 동일) */
+  periodStart?: string;
+  periodEnd?: string;
+  /** 제공 시 조회기간 왼쪽에 품번 등 스코프 박스를 표시합니다. */
+  scopeLabel?: string;
+  scopeValue?: string;
 }) {
+  const hasPeriod = Boolean(periodStart && periodEnd);
+  const hasScope = Boolean(scopeLabel && scopeValue);
+
   return (
     <nav aria-label="상세 돌아가기" className="sticky top-16 z-10 mb-4">
       <Link
@@ -113,12 +126,50 @@ export function BackBanner({
           </span>
         </span>
 
+        {hasScope ? (
+          <span className="hidden shrink-0 rounded-xl border border-line bg-canvas px-3 py-2 text-right sm:block">
+            <span className="block text-[10px] font-semibold tracking-wide text-muted uppercase">
+              {scopeLabel}
+            </span>
+            <span className="mt-0.5 block max-w-[9rem] truncate text-xs font-semibold text-ink">
+              {scopeValue}
+            </span>
+          </span>
+        ) : null}
+
+        {hasPeriod ? (
+          <span className="hidden shrink-0 rounded-xl border border-line bg-canvas px-3 py-2 text-right sm:block">
+            <span className="block text-[10px] font-semibold tracking-wide text-muted uppercase">
+              조회기간
+            </span>
+            <span className="num mt-0.5 block text-xs font-semibold text-ink">
+              {periodStart} ~ {periodEnd}
+            </span>
+          </span>
+        ) : null}
+
         <ChevronRight
           size={20}
           className="shrink-0 text-muted/60 transition group-hover:translate-x-0.5 group-hover:text-accent"
           aria-hidden
         />
       </Link>
+      {hasScope || hasPeriod ? (
+        <p className="mt-2 px-1 text-center text-xs font-medium text-muted sm:hidden">
+          {hasScope ? (
+            <span>
+              {scopeLabel}{" "}
+              <span className="font-semibold text-ink">{scopeValue}</span>
+            </span>
+          ) : null}
+          {hasScope && hasPeriod ? <span className="mx-1.5">·</span> : null}
+          {hasPeriod ? (
+            <span className="num">
+              조회기간 {periodStart} ~ {periodEnd}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
     </nav>
   );
 }
@@ -189,12 +240,14 @@ export function ResponsiveGrid({
 
 export function SectionCard({
   title,
+  description,
   action,
   children,
   className = "",
   id,
 }: {
   title?: string;
+  description?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
@@ -202,9 +255,14 @@ export function SectionCard({
 }) {
   return (
     <section id={id} className={`card p-4 md:p-5 ${className}`}>
-      {(title || action) && (
-        <div className="mb-4 flex items-center justify-between gap-3">
-          {title ? <h2 className="text-base font-bold">{title}</h2> : <span />}
+      {(title || description || action) && (
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {title ? <h2 className="text-base font-bold">{title}</h2> : null}
+            {description ? (
+              <p className="mt-0.5 text-sm text-muted">{description}</p>
+            ) : null}
+          </div>
           {action}
         </div>
       )}

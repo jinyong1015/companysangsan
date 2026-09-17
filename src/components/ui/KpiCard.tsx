@@ -34,13 +34,13 @@ export function KpiCard({
           : "text-[var(--error)]";
 
   return (
-    <article className="card flex min-h-[132px] flex-col gap-2 p-4">
+    <article className="card flex flex-col gap-1.5 px-4 py-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-[var(--text-secondary)]">{title}</p>
+        <p className="text-xs text-[var(--text-secondary)]">{title}</p>
         {tooltip ? <InfoTooltip text={tooltip} /> : null}
       </div>
       <p
-        className="text-[24px] font-bold leading-none md:text-[30px]"
+        className="text-xl font-semibold leading-none md:text-[22px]"
         style={accent ? { color: accent } : undefined}
       >
         {value}

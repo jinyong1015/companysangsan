@@ -61,7 +61,7 @@ export function ProductShotTopWorst({ rows, productTab }: ProductShotTopWorstPro
         <div className="pps-top-worst-head-main">
           <span className="pps-top-worst-badge">{titlePrefix}</span>
           <div>
-            <h2 className="pps-top-worst-title">ITEM SHOT TOP & WORST 10</h2>
+            <h2 className="pps-top-worst-title">품번 TOP & WORST 10</h2>
             <p className="pps-top-worst-sub">
               총 작업시간 · 총 SHOT · 비가동시간 기준 상위 10개 품번
             </p>

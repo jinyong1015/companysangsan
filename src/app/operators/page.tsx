@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { DetailFilterCard } from "@/components/filters/FilterCards";
+import { OperatorProductionTopChart } from "@/components/operators/OperatorProductionTopChart";
+import type { OperatorProdTopView } from "@/components/operators/OperatorProductionTopChart";
+import type { ProductTab } from "@/components/production/ProductPerformanceSummary";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
@@ -20,10 +23,30 @@ import { paginate, sortBy } from "@/lib/metrics";
 import { withFromParam } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
 
+function parseProductTab(value: unknown): ProductTab {
+  if (value === "GROMMET" || value === "SEAL" || value === "전체") return value;
+  return "전체";
+}
+
+function parseTopView(value: unknown): OperatorProdTopView {
+  return value === "bar" ? "bar" : "rank";
+}
+
 export default function OperatorsPage() {
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
   const { state, patch } = usePageState("operators", "production", "desc");
+
+  const topProductTab = parseProductTab(state.extra?.topProductTab);
+  const topView = parseTopView(state.extra?.topView);
+
+  const setTopProductTab = (tab: ProductTab) => {
+    patch({ extra: { topProductTab: tab } });
+  };
+
+  const setTopView = (view: OperatorProdTopView) => {
+    patch({ extra: { topView: view } });
+  };
 
   const rows = useMemo(() => {
     let list = aggregateOperators(records, filters);
@@ -41,6 +64,32 @@ export default function OperatorsPage() {
     });
   }, [filters, state, records]);
 
+  const topRows = useMemo(
+    () =>
+      aggregateOperators(records, {
+        ...filters,
+        productType: topProductTab,
+      }),
+    [records, filters, topProductTab],
+  );
+
+  const tabCounts = useMemo(() => {
+    const all = aggregateOperators(records, { ...filters, productType: "전체" });
+    const grommet = aggregateOperators(records, {
+      ...filters,
+      productType: "GROMMET",
+    });
+    const seal = aggregateOperators(records, {
+      ...filters,
+      productType: "SEAL",
+    });
+    return {
+      전체: all.filter((o) => o.kpi.productionQuantity > 0).length,
+      GROMMET: grommet.filter((o) => o.kpi.productionQuantity > 0).length,
+      SEAL: seal.filter((o) => o.kpi.productionQuantity > 0).length,
+    };
+  }, [records, filters]);
+
   const paged = paginate(rows, state.page, state.pageSize);
 
   return (
@@ -49,7 +98,18 @@ export default function OperatorsPage() {
       <div className="card mb-4 border-[var(--warning)]/30 px-4 py-3 text-sm text-[var(--text-secondary)]">
         작업자별 지표는 담당 품번과 설비 구성의 영향을 받습니다. 단순 순위만으로 평가하지 마세요.
       </div>
+
+      <OperatorProductionTopChart
+        rows={topRows}
+        productTab={topProductTab}
+        onProductTabChange={setTopProductTab}
+        view={topView}
+        onViewChange={setTopView}
+        tabCounts={tabCounts}
+      />
+
       <DetailFilterCard showOperators={false} />
+
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}
@@ -111,7 +171,6 @@ export default function OperatorsPage() {
                   <th className="num">작업시간</th>
                   <th className="num">UPH</th>
                   <th className="num">가동률</th>
-                  <th>상세</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,14 +194,6 @@ export default function OperatorsPage() {
                     <td className="num">{formatMinutes(o.kpi.elapsedMinutes)}</td>
                     <td className="num">{formatUph(o.kpi.uph)}</td>
                     <td className="num">{formatPercent(o.kpi.utilizationRatePercent)}</td>
-                    <td>
-                      <Link
-                        href={withFromParam(`/operators/${o.id}`, "operators")}
-                        className="linkish"
-                      >
-                        →
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>

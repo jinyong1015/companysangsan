@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   DowntimeReasonDonut,
@@ -15,12 +14,12 @@ import {
   ResponsiveGrid,
   SectionCard,
 } from "@/components/ui/PageBits";
+import { WorkPartSelect } from "@/components/ui/WorkPartSelect";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { getEquipmentById } from "@/data/mock";
 import { autoGrain } from "@/lib/dates";
 import {
-  formatHours,
   formatMinutes,
   formatNumber,
   formatPercent,
@@ -33,7 +32,7 @@ import {
   downtimeReasonShares,
   filterRecords,
 } from "@/lib/metrics";
-import { detailBackNav, detailHref } from "@/lib/navigation";
+import { detailBackNav } from "@/lib/navigation";
 
 export default function EquipmentDetailPage() {
   const params = useParams<{ equipmentId: string }>();
@@ -42,6 +41,8 @@ export default function EquipmentDetailPage() {
   const back = detailBackNav(from, "equipment");
   const { filters } = useFilters();
   const { records } = useDataSource();
+  const [selectedPartId, setSelectedPartId] = useState("");
+
   const equipment =
     getEquipmentById(params.equipmentId) ??
     (() => {
@@ -51,14 +52,48 @@ export default function EquipmentDetailPage() {
         : null;
     })();
 
-  const rows = useMemo(
+  const allRows = useMemo(
     () =>
       filterRecords(records, {
         ...filters,
         equipmentIds: [params.equipmentId],
       }),
-    [filters, params.equipmentId],
+    [filters, params.equipmentId, records],
   );
+
+  const partRows = useMemo(() => {
+    const map = new Map<string, typeof allRows>();
+    for (const r of allRows) {
+      const list = map.get(r.partId) ?? [];
+      list.push(r);
+      map.set(r.partId, list);
+    }
+    return [...map.entries()]
+      .map(([id, list]) => ({
+        id,
+        partNumber: list[0]!.partNumber,
+        productType: list[0]!.productType,
+        kpi: computeKpi(list),
+      }))
+      .sort(
+        (a, b) =>
+          b.kpi.productionQuantity - a.kpi.productionQuantity ||
+          a.partNumber.localeCompare(b.partNumber, "ko"),
+      );
+  }, [allRows]);
+
+  const activePartId = partRows.some((p) => p.id === selectedPartId)
+    ? selectedPartId
+    : "";
+  const hasSelection = Boolean(activePartId);
+  const activePart = hasSelection
+    ? partRows.find((p) => p.id === activePartId)
+    : null;
+
+  const rows = useMemo(() => {
+    if (!hasSelection) return allRows;
+    return allRows.filter((r) => r.partId === activePartId);
+  }, [allRows, hasSelection, activePartId]);
 
   const kpi = useMemo(() => computeKpi(rows), [rows]);
   const trends = useMemo(
@@ -73,25 +108,6 @@ export default function EquipmentDetailPage() {
   );
   const reasons = useMemo(() => downtimeReasonShares(rows), [rows]);
 
-  const partRows = useMemo(() => {
-    const map = new Map<string, typeof rows>();
-    for (const r of rows) {
-      const list = map.get(r.partId) ?? [];
-      list.push(r);
-      map.set(r.partId, list);
-    }
-    return [...map.entries()]
-      .map(([id, list]) => ({
-        id,
-        partNumber: list[0]!.partNumber,
-        productType: list[0]!.productType,
-        kpi: computeKpi(list),
-        moldCount: new Set(list.map((x) => x.moldId)).size,
-        operatorCount: new Set(list.map((x) => x.operatorId)).size,
-      }))
-      .sort((a, b) => b.kpi.productionQuantity - a.kpi.productionQuantity);
-  }, [rows]);
-
   const downtimeEvents = useMemo(
     () =>
       rows
@@ -100,6 +116,10 @@ export default function EquipmentDetailPage() {
         .slice(0, 20),
     [rows],
   );
+
+  const scopeLabel = hasSelection
+    ? `품번 ${activePart?.partNumber ?? ""} 기준`
+    : "전체 품번 기준";
 
   if (!equipment) {
     return (
@@ -112,10 +132,23 @@ export default function EquipmentDetailPage() {
 
   return (
     <>
-      <BackBanner href={back.href} label={back.label} icon={back.icon} />
+      <BackBanner
+        href={back.href}
+        label={back.label}
+        icon={back.icon}
+        periodStart={filters.startDate}
+        periodEnd={filters.endDate}
+      />
       <PageHeader
         title={equipment.name}
-        description={`${equipment.factory} · 조회기간 ${filters.startDate} ~ ${filters.endDate}`}
+        description={`${equipment.factory} · ${scopeLabel}`}
+      />
+
+      <WorkPartSelect
+        parts={partRows}
+        selectedPartId={activePartId}
+        onSelect={setSelectedPartId}
+        selectId="equipment-product-select"
       />
 
       <ResponsiveGrid variant="kpi" className="mb-4">
@@ -124,16 +157,6 @@ export default function EquipmentDetailPage() {
         <KpiCard title="UPH" value={formatUph(kpi.uph)} />
         <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} />
         <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} />
-        <KpiCard
-          title="MTTR"
-          value={kpi.mttrMinutes == null ? "-" : `${formatNumber(kpi.mttrMinutes, 1)}분`}
-          hint={`산출 ${kpi.mttrEligibleCount}건 / 고장 ${kpi.failureCount}건`}
-        />
-        <KpiCard
-          title="참고 MTBF"
-          value={formatHours(kpi.referenceMtbfHours)}
-          tooltip="고장·복구 시각이 없어 유효 가동시간을 고장 건수로 나눈 참고 지표입니다."
-        />
       </ResponsiveGrid>
 
       <SectionCard title="생산량·가동률 추이" className="mb-4">
@@ -144,142 +167,44 @@ export default function EquipmentDetailPage() {
         <SectionCard title="비가동 사유">
           <DowntimeReasonDonut data={reasons} />
         </SectionCard>
-        <SectionCard title="품번별 생산실적">
+        <SectionCard title="비가동이력">
           <div className="table-wrap max-h-[320px]">
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>작업일자</th>
+                  <th>구분</th>
                   <th>품번</th>
-                  <th>제품유형</th>
-                  <th className="num">생산량</th>
-                  <th className="num">가동률</th>
-                  <th className="num">UPH</th>
+                  <th>작업자</th>
+                  <th className="num">작업시간</th>
+                  <th className="num">비가동시간</th>
+                  <th>비가동내역</th>
                 </tr>
               </thead>
               <tbody>
-                {partRows.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <Link
-                        href={detailHref(`/parts/${p.id}`, from, "equipment")}
-                        className="linkish"
-                      >
-                        {p.partNumber}
-                      </Link>
-                    </td>
-                    <td>{p.productType}</td>
-                    <td className="num">{formatQuantity(p.kpi.productionQuantity)}</td>
-                    <td className="num">{formatPercent(p.kpi.utilizationRatePercent)}</td>
-                    <td className="num">{formatUph(p.kpi.uph)}</td>
+                {downtimeEvents.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.workDate}</td>
+                    <td>{r.shiftType}</td>
+                    <td>{r.partNumber}</td>
+                    <td>{r.operatorName}</td>
+                    <td className="num">{formatMinutes(r.elapsedMinutes)}</td>
+                    <td className="num">{formatMinutes(r.downtimeMinutes)}</td>
+                    <td>{r.downtimeReasonRaw ?? "-"}</td>
                   </tr>
                 ))}
+                {!downtimeEvents.length ? (
+                  <tr>
+                    <td colSpan={7} className="px-2 py-4 text-sm text-muted">
+                      표시할 비가동 이력이 없습니다.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
         </SectionCard>
       </ResponsiveGrid>
-
-      <SectionCard
-        title="고장·비가동 이력"
-        className="mb-4"
-        action={
-          <Link href="/downtime" className="linkish text-sm">
-            전체 비가동 보기
-          </Link>
-        }
-      >
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>작업일자</th>
-                <th>구분</th>
-                <th>품번</th>
-                <th>작업자</th>
-                <th className="num">작업시간</th>
-                <th className="num">비가동시간</th>
-                <th>비가동내역</th>
-                <th>고장 후보</th>
-                <th>MTTR 포함</th>
-                <th>상세</th>
-              </tr>
-            </thead>
-            <tbody>
-              {downtimeEvents.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.workDate}</td>
-                  <td>{r.shiftType}</td>
-                  <td>{r.partNumber}</td>
-                  <td>{r.operatorName}</td>
-                  <td className="num">{formatMinutes(r.elapsedMinutes)}</td>
-                  <td className="num">{formatMinutes(r.downtimeMinutes)}</td>
-                  <td>{r.downtimeReasonRaw ?? "-"}</td>
-                  <td>
-                    {r.isFailureCandidate ? (
-                      <span className="rounded-full bg-[color-mix(in_srgb,var(--error)_15%,transparent)] px-2 py-0.5 text-xs text-[var(--error)]">
-                        고장 후보
-                      </span>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td>
-                    {r.isMttrEligible ? "포함" : "-"}
-                  </td>
-                  <td>
-                    <Link
-                      href={detailHref(`/downtime/${r.id}`, from, "equipment")}
-                      className="linkish"
-                    >
-                      →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="원본 작업행"
-        action={
-          <Link href="/production-data" className="linkish text-sm">
-            전체 원본 DATA 보기
-          </Link>
-        }
-      >
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>작업일자</th>
-                <th>품번</th>
-                <th>작업자</th>
-                <th className="num">실적수량</th>
-                <th className="num">불량수량</th>
-                <th className="num">작업시간</th>
-                <th className="num">비가동시간</th>
-                <th className="num">가동시간</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.slice(0, 20).map((r) => (
-                <tr key={r.id}>
-                  <td>{r.workDate}</td>
-                  <td>{r.partNumber}</td>
-                  <td>{r.operatorName}</td>
-                  <td className="num">{formatQuantity(r.productionQuantity)}</td>
-                  <td className="num">{formatQuantity(r.defectQuantity)}</td>
-                  <td className="num">{formatMinutes(r.elapsedMinutes)}</td>
-                  <td className="num">{formatMinutes(r.downtimeMinutes)}</td>
-                  <td className="num">{formatMinutes(r.operatingMinutes)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
     </>
   );
 }

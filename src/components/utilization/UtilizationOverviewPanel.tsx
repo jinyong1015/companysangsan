@@ -251,6 +251,7 @@ export function UtilizationOverviewPanel({
   sealEmphasized,
   injectionEmphasized,
   pressEmphasized,
+  variant = "full",
 }: {
   monthLabel: string;
   overview: UtilizationOverview;
@@ -259,6 +260,8 @@ export function UtilizationOverviewPanel({
   sealEmphasized: boolean;
   injectionEmphasized: boolean;
   pressEmphasized: boolean;
+  /** full: 전체+제품+설비 / overall: 전체 종합 현황만 */
+  variant?: "full" | "overall";
 }) {
   return (
     <section className="util-overview mb-4" aria-label="종합 가동률 요약">
@@ -280,47 +283,51 @@ export function UtilizationOverviewPanel({
         </div>
       </div>
 
-      <div className="util-overview-products-block">
-        <h2 className="util-overview-section-title">제품유형별 종합 현황</h2>
-        <div className="util-overview-products">
-          <ProductOverviewCard
-            title="GROMMET 현황"
-            summary={overview.grommet}
-            daily={trends.grommet}
-            emphasized={grommetEmphasized}
-            muted={!grommetEmphasized}
-          />
-          <ProductOverviewCard
-            title="SEAL 현황"
-            summary={overview.seal}
-            daily={trends.seal}
-            emphasized={sealEmphasized}
-            muted={!sealEmphasized}
-          />
-        </div>
-      </div>
+      {variant === "full" ? (
+        <>
+          <div className="util-overview-products-block">
+            <h2 className="util-overview-section-title">제품유형별 종합 현황</h2>
+            <div className="util-overview-products">
+              <ProductOverviewCard
+                title="GROMMET 현황"
+                summary={overview.grommet}
+                daily={trends.grommet}
+                emphasized={grommetEmphasized}
+                muted={!grommetEmphasized}
+              />
+              <ProductOverviewCard
+                title="SEAL 현황"
+                summary={overview.seal}
+                daily={trends.seal}
+                emphasized={sealEmphasized}
+                muted={!sealEmphasized}
+              />
+            </div>
+          </div>
 
-      <div className="util-overview-equipment-block">
-        <h2 className="util-overview-section-title">설비유형별 종합 현황</h2>
-        <div className="util-overview-products">
-          <ProductOverviewCard
-            title="INJECTION 현황"
-            summary={overview.injection}
-            daily={trends.injection}
-            emphasized={injectionEmphasized}
-            muted={!injectionEmphasized}
-            metrics="rates"
-          />
-          <ProductOverviewCard
-            title="PRESS 현황"
-            summary={overview.press}
-            daily={trends.press}
-            emphasized={pressEmphasized}
-            muted={!pressEmphasized}
-            metrics="rates"
-          />
-        </div>
-      </div>
+          <div className="util-overview-equipment-block">
+            <h2 className="util-overview-section-title">설비유형별 종합 현황</h2>
+            <div className="util-overview-products">
+              <ProductOverviewCard
+                title="INJECTION 현황"
+                summary={overview.injection}
+                daily={trends.injection}
+                emphasized={injectionEmphasized}
+                muted={!injectionEmphasized}
+                metrics="rates"
+              />
+              <ProductOverviewCard
+                title="PRESS 현황"
+                summary={overview.press}
+                daily={trends.press}
+                emphasized={pressEmphasized}
+                muted={!pressEmphasized}
+                metrics="rates"
+              />
+            </div>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

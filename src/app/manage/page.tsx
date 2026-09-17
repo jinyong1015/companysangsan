@@ -298,15 +298,17 @@ export default function ManagePage() {
               </div>
             </div>
             <div className="min-w-0 p-5">
-              <div className="grid-dense">
+              <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
                 {qualityChecks.map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-sm"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2.5 text-sm"
                   >
-                    <span>{item.label}</span>
+                    <span className="min-w-0 truncate" title={item.label}>
+                      {item.label.replace(/\.$/, "")}
+                    </span>
                     <span
-                      className={`num font-medium ${item.count > 0 ? "text-danger" : "text-ok"}`}
+                      className={`num shrink-0 whitespace-nowrap font-medium ${item.count > 0 ? "text-danger" : "text-ok"}`}
                     >
                       {item.count}건
                     </span>

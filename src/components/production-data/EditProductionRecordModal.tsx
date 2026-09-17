@@ -193,7 +193,7 @@ export function EditProductionRecordModal({
           .map((c) => ERROR_MESSAGES[c] ?? c)
           .join(" · ");
         pushToast(
-          `저장했습니다. 검증 오류로 분석에서 제외됩니다.${reasons ? ` (${reasons})` : ""} 데이터 오류 메뉴에서 확인하세요.`,
+          `저장했습니다. 검증 오류로 분석에서 제외됩니다.${reasons ? ` (${reasons})` : ""} 오류 DATA 메뉴에서 확인하세요.`,
           "error",
         );
       } else {

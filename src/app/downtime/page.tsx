@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
-import {
-  DowntimeReasonDonut,
-  ProductionUtilizationTrend,
-} from "@/components/charts/Charts";
+import { DowntimeReasonDonut } from "@/components/charts/Charts";
 import {
   EquipmentReliabilitySection,
   PeriodReasonSection,
 } from "@/components/downtime/DowntimeDetailTables";
+import { DowntimeEquipmentHeatmap } from "@/components/downtime/DowntimeEquipmentHeatmap";
+import { DowntimeReasonDetailList } from "@/components/downtime/DowntimeReasonDetailList";
+import { DowntimeTopPartsChart } from "@/components/downtime/DowntimeTopPartsChart";
+import { QueryFilterShell } from "@/components/filters/FilterCards";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
 import { EmptyState, PageHeader, ResponsiveGrid, SectionCard } from "@/components/ui/PageBits";
-import { TopRankCards } from "@/components/ui/TopRankCards";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useToast } from "@/context/ToastContext";
@@ -27,13 +28,21 @@ import {
   buildProductTypeDowntimeSummary,
   isDowntimeEvent,
 } from "@/lib/downtimeDetail";
+import type {
+  DowntimeHeatmapMetric,
+  DowntimeHeatmapProductTab,
+  DowntimeHeatmapSelection,
+} from "@/lib/downtimeHeatmap";
+import type {
+  DowntimeTopPartsProductTab,
+  DowntimeTopPartsView,
+} from "@/lib/downtimeTopParts";
 import {
   formatHours,
   formatMinutes,
   formatNumber,
 } from "@/lib/format";
 import {
-  buildTrends,
   computeKpi,
   downtimeReasonShares,
   filterRecords,
@@ -43,6 +52,7 @@ import {
 import { inferEquipmentType, monthDateRange } from "@/lib/utilization";
 import { withFromParam } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
+import { saveFilters } from "@/lib/storage";
 import type { EquipmentType, GlobalFilters, ProductType, ProductionRecord } from "@/types";
 
 type ProductTab = "전체" | ProductType;
@@ -56,8 +66,12 @@ function isEqTypeFilter(value: unknown): value is EqTypeFilter {
   return value === "전체" || value === "PRESS" || value === "INJECTION";
 }
 
-function mainDowntimeReason(rows: ProductionRecord[]): string {
-  return downtimeReasonShares(rows)[0]?.reason ?? "-";
+function isTopPartsView(value: unknown): value is DowntimeTopPartsView {
+  return value === "rank" || value === "pareto";
+}
+
+function isHeatmapMetric(value: unknown): value is DowntimeHeatmapMetric {
+  return value === "minutes" || value === "count" || value === "rate";
 }
 
 function defaultYearMonth() {
@@ -79,6 +93,7 @@ function filterByEquipmentType(
 }
 
 export default function DowntimePage() {
+  const router = useRouter();
   const { filters, setFilters, resetGlobal } = useFilters();
   const { records } = useDataSource();
   const { pushToast } = useToast();
@@ -116,7 +131,13 @@ export default function DowntimePage() {
   const applyYearMonth = useCallback(
     (ym: string) => {
       const range = monthDateRange(ym);
-      setExtra({ yearMonth: ym });
+      setExtra({
+        yearMonth: ym,
+        heatmapSelDate: null,
+        heatmapSelEqId: null,
+        heatmapSelEqName: null,
+        heatmapSelProduct: null,
+      });
       setFilters({
         datePreset: "custom",
         startDate: range.startDate,
@@ -129,7 +150,13 @@ export default function DowntimePage() {
 
   const setEquipmentType = (next: EqTypeFilter) => {
     setFilters({ equipmentIds: [] });
-    setExtra({ equipmentType: next });
+    setExtra({
+      equipmentType: next,
+      heatmapSelDate: null,
+      heatmapSelEqId: null,
+      heatmapSelEqName: null,
+      heatmapSelProduct: null,
+    });
     patch({ page: 1 });
   };
 
@@ -171,38 +198,6 @@ export default function DowntimePage() {
 
   const kpi = useMemo(() => computeKpi(downtimeRecords), [downtimeRecords]);
   const reasons = useMemo(() => downtimeReasonShares(downtimeRecords), [downtimeRecords]);
-  const trends = useMemo(
-    () =>
-      buildTrends(
-        downtimeRecords,
-        monthRange.startDate,
-        monthRange.endDate,
-        "day",
-      ),
-    [downtimeRecords, monthRange.startDate, monthRange.endDate],
-  );
-
-  const topParts = useMemo(() => {
-    const map = new Map<string, typeof analysisRecords>();
-    for (const r of analysisRecords) {
-      const list = map.get(r.partId) ?? [];
-      list.push(r);
-      map.set(r.partId, list);
-    }
-    return [...map.entries()]
-      .map(([id, partRows]) => {
-        const first = partRows[0]!;
-        const kpi = computeKpi(partRows);
-        return {
-          id,
-          partNumber: first.partNumber,
-          kpi,
-          mainReason: mainDowntimeReason(partRows),
-        };
-      })
-      .sort((a, b) => b.kpi.downtimeMinutes - a.kpi.downtimeMinutes)
-      .slice(0, 10);
-  }, [analysisRecords]);
 
   const periodProductTab: ProductTab = isProductTab(state.extra?.periodProductTab)
     ? state.extra.periodProductTab
@@ -213,6 +208,57 @@ export default function DowntimePage() {
   )
     ? state.extra.reliabilityProductTab
     : "전체";
+
+  const topPartsProductTab: DowntimeTopPartsProductTab = isProductTab(
+    state.extra?.topPartsProductTab,
+  )
+    ? state.extra.topPartsProductTab
+    : "전체";
+
+  const topPartsView: DowntimeTopPartsView = isTopPartsView(
+    state.extra?.topPartsView,
+  )
+    ? state.extra.topPartsView
+    : "rank";
+
+  const heatmapProductTab: DowntimeHeatmapProductTab = isProductTab(
+    state.extra?.heatmapProductTab,
+  )
+    ? state.extra.heatmapProductTab
+    : "전체";
+
+  const heatmapMetric: DowntimeHeatmapMetric = isHeatmapMetric(
+    state.extra?.heatmapMetric,
+  )
+    ? state.extra.heatmapMetric
+    : "minutes";
+
+  const heatmapSelection = useMemo<DowntimeHeatmapSelection | null>(() => {
+    const workDate =
+      typeof state.extra?.heatmapSelDate === "string"
+        ? state.extra.heatmapSelDate
+        : "";
+    const equipmentId =
+      typeof state.extra?.heatmapSelEqId === "string"
+        ? state.extra.heatmapSelEqId
+        : "";
+    const equipmentName =
+      typeof state.extra?.heatmapSelEqName === "string"
+        ? state.extra.heatmapSelEqName
+        : "";
+    if (!workDate || !equipmentId) return null;
+    const productType: DowntimeHeatmapProductTab = isProductTab(
+      state.extra?.heatmapSelProduct,
+    )
+      ? state.extra.heatmapSelProduct
+      : heatmapProductTab;
+    return {
+      workDate,
+      equipmentId,
+      equipmentName: equipmentName || equipmentId,
+      productType,
+    };
+  }, [state.extra, heatmapProductTab]);
 
   const baseAnalysisRecords = useMemo(
     () => filterByEquipmentType(filterRecords(records, queryFilters), equipmentType),
@@ -243,6 +289,18 @@ export default function DowntimePage() {
     [records, queryFilters, reliabilityProductTab, equipmentType],
   );
 
+  const topPartsRecords = useMemo(
+    () =>
+      filterByEquipmentType(
+        filterRecords(records, {
+          ...queryFilters,
+          productType: topPartsProductTab,
+        }),
+        equipmentType,
+      ),
+    [records, queryFilters, topPartsProductTab, equipmentType],
+  );
+
   const productTypeSummary = useMemo(
     () =>
       buildProductTypeDowntimeSummary(
@@ -270,6 +328,19 @@ export default function DowntimePage() {
 
   const events = useMemo(() => {
     let list = baseAnalysisRecords.filter(isDowntimeEvent);
+    if (heatmapSelection) {
+      list = list.filter((r) => {
+        if (r.workDate !== heatmapSelection.workDate) return false;
+        if (r.equipmentId !== heatmapSelection.equipmentId) return false;
+        if (
+          heatmapSelection.productType !== "전체" &&
+          r.productType !== heatmapSelection.productType
+        ) {
+          return false;
+        }
+        return true;
+      });
+    }
     if (state.search.trim()) {
       const q = state.search.toLowerCase();
       list = list.filter(
@@ -284,7 +355,7 @@ export default function DowntimePage() {
       date: (r) => r.workDate,
       failure: (r) => (r.isFailureCandidate ? 1 : 0),
     });
-  }, [baseAnalysisRecords, state]);
+  }, [baseAnalysisRecords, heatmapSelection, state]);
 
   const paged = paginate(events, state.page, state.pageSize);
 
@@ -302,6 +373,71 @@ export default function DowntimePage() {
     setExtra({ reliabilityProductTab: next });
   };
 
+  const setTopPartsProductTab = (next: DowntimeTopPartsProductTab) => {
+    setExtra({ topPartsProductTab: next });
+  };
+
+  const setTopPartsView = (next: DowntimeTopPartsView) => {
+    setExtra({ topPartsView: next });
+  };
+
+  const setHeatmapProductTab = (next: DowntimeHeatmapProductTab) => {
+    setExtra({
+      heatmapProductTab: next,
+      heatmapSelDate: null,
+      heatmapSelEqId: null,
+      heatmapSelEqName: null,
+      heatmapSelProduct: null,
+    });
+  };
+
+  const setHeatmapMetric = (next: DowntimeHeatmapMetric) => {
+    setExtra({ heatmapMetric: next });
+  };
+
+  const setHeatmapSelection = (next: DowntimeHeatmapSelection | null) => {
+    if (!next) {
+      setExtra({
+        heatmapSelDate: null,
+        heatmapSelEqId: null,
+        heatmapSelEqName: null,
+        heatmapSelProduct: null,
+      });
+      return;
+    }
+    setExtra({
+      heatmapSelDate: next.workDate,
+      heatmapSelEqId: next.equipmentId,
+      heatmapSelEqName: next.equipmentName,
+      heatmapSelProduct: next.productType,
+    });
+    patch({ page: 1 });
+    requestAnimationFrame(() => {
+      document
+        .getElementById("downtime-detail")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const openTopPartDetail = (partId: string) => {
+    // 조회월 범위를 전역 필터에 반영한 뒤 품번 상세로 이동
+    const range = monthDateRange(yearMonth);
+    const nextFilters: GlobalFilters = {
+      ...filters,
+      datePreset: "custom",
+      startDate: range.startDate,
+      endDate: range.endDate,
+    };
+    setExtra({ yearMonth });
+    setFilters({
+      datePreset: "custom",
+      startDate: range.startDate,
+      endDate: range.endDate,
+    });
+    saveFilters(nextFilters);
+    router.push(withFromParam(`/parts/${partId}`, "downtime"));
+  };
+
   const resetQuery = () => {
     setFilters({
       equipmentIds: [],
@@ -315,6 +451,14 @@ export default function DowntimePage() {
       equipmentType: "전체",
       periodProductTab: "전체",
       reliabilityProductTab: "전체",
+      topPartsProductTab: "전체",
+      topPartsView: "rank",
+      heatmapProductTab: "전체",
+      heatmapMetric: "minutes",
+      heatmapSelDate: null,
+      heatmapSelEqId: null,
+      heatmapSelEqName: null,
+      heatmapSelProduct: null,
     });
     applyYearMonth(defaultYearMonth());
     pushToast("조회조건을 초기화했습니다.", "info");
@@ -355,28 +499,26 @@ export default function DowntimePage() {
         </div>
       </aside>
 
-      <section className="card mb-4 p-4 md:p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold">조회조건</h2>
-          <button type="button" className="btn btn-ghost" onClick={resetQuery}>
-            초기화
-          </button>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div>
-            <p className="mb-1 text-xs text-[var(--text-secondary)]">조회월</p>
+      <QueryFilterShell
+        title="조회조건"
+        activeCount={equipmentType !== "전체" ? 1 : 0}
+        onReset={resetQuery}
+      >
+        <div className="query-filter-grid">
+          <div className="query-filter-field">
+            <p className="query-filter-label">조회월</p>
             <input
               type="month"
-              className="w-full rounded-[10px] border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
+              className="query-filter-input"
               value={yearMonth}
               onChange={(e) => applyYearMonth(e.target.value)}
             />
-            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+            <p className="query-filter-hint">
               {monthLabel} ({periodLabel}) 기준 비가동 현황
             </p>
           </div>
-          <div>
-            <p className="mb-1 text-xs text-[var(--text-secondary)]">설비</p>
+          <div className="query-filter-field">
+            <p className="query-filter-label">설비</p>
             <div className="filter-pills">
               {(
                 [
@@ -398,7 +540,7 @@ export default function DowntimePage() {
             </div>
           </div>
         </div>
-      </section>
+      </QueryFilterShell>
 
       <ResponsiveGrid variant="kpi" className="mb-4">
         <KpiCard title="총 비가동시간" value={formatMinutes(kpi.downtimeMinutes)} accent="var(--metric-downtime)" />
@@ -412,38 +554,44 @@ export default function DowntimePage() {
         <KpiCard title="참고 MTBF" value={formatHours(kpi.referenceMtbfHours)} tooltip="고장·복구 시각이 없어 유효 가동시간을 고장 건수로 나눈 참고 지표입니다." />
       </ResponsiveGrid>
 
-      <ResponsiveGrid variant="split" className="mb-4">
-        <SectionCard title="비가동 사유 구성">
-          <DowntimeReasonDonut
-            data={reasons}
-            onSelect={(reason) =>
-              setFilters({
-                downtimeReason: reason as typeof filters.downtimeReason,
-              })
-            }
+      <div className="dt-overview-layout mb-4">
+        <div className="dt-overview-left">
+          <SectionCard title="비가동 사유 구성">
+            <DowntimeReasonDonut data={reasons} />
+          </SectionCard>
+          <SectionCard
+            title="비가동 사유별 상세"
+            description="사유별 귀속시간 · 발생 건수 · 건당 평균시간"
+          >
+            <DowntimeReasonDetailList records={downtimeRecords} />
+          </SectionCard>
+        </div>
+        <SectionCard
+          title="설비별 일자 비가동 현황"
+          className="dt-overview-heatmap"
+        >
+          <DowntimeEquipmentHeatmap
+            records={baseAnalysisRecords}
+            startDate={monthRange.startDate}
+            endDate={monthRange.endDate}
+            productTab={heatmapProductTab}
+            onProductTabChange={setHeatmapProductTab}
+            metric={heatmapMetric}
+            onMetricChange={setHeatmapMetric}
+            selection={heatmapSelection}
+            onSelectionChange={setHeatmapSelection}
           />
         </SectionCard>
-        <SectionCard title="기간별 비가동·고장">
-          <ProductionUtilizationTrend
-            data={trends.map((t) => ({
-              ...t,
-              productionQuantity: t.downtimeMinutes,
-              utilizationRatePercent: t.failureCount,
-            }))}
-            height={280}
-            showTableToggle={false}
-          />
-        </SectionCard>
-      </ResponsiveGrid>
+      </div>
 
       <SectionCard title="비가동시간 TOP 10 품번" className="mb-4">
-        <TopRankCards
-          items={topParts.map((p) => ({
-            id: p.id,
-            title: p.partNumber,
-            detail: `비가동 ${formatMinutes(p.kpi.downtimeMinutes)} · ${p.mainReason}`,
-            href: withFromParam(`/parts/${p.id}`, "downtime"),
-          }))}
+        <DowntimeTopPartsChart
+          records={topPartsRecords}
+          productTab={topPartsProductTab}
+          onProductTabChange={setTopPartsProductTab}
+          view={topPartsView}
+          onViewChange={setTopPartsView}
+          onOpenPart={openTopPartDetail}
         />
       </SectionCard>
 
@@ -460,10 +608,21 @@ export default function DowntimePage() {
         onProductTypeChange={setReliabilityProductTab}
       />
 
-      <SectionCard
-        title="비가동 상세 내역"
-        className="mb-4"
-      >
+      <SectionCard title="비가동 상세 내역" className="mb-4" id="downtime-detail">
+        {heatmapSelection ? (
+          <div className="dt-heat-chips mb-3" aria-label="히트맵 선택 필터">
+            <span className="dt-heat-chip">{heatmapSelection.workDate}</span>
+            <span className="dt-heat-chip">{heatmapSelection.equipmentName}</span>
+            <span className="dt-heat-chip">{heatmapSelection.productType}</span>
+            <button
+              type="button"
+              className="dt-heat-chip-clear"
+              onClick={() => setHeatmapSelection(null)}
+            >
+              필터 해제
+            </button>
+          </div>
+        ) : null}
         <SearchSortBar
           search={state.search}
           onSearch={(search) => patch({ search })}

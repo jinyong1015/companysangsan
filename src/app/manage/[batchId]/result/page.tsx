@@ -109,7 +109,7 @@ export default function UploadResultPage() {
           대시보드로 이동
         </Link>
         <Link href="/data-errors" className="btn">
-          데이터 오류 보기
+          오류 DATA 보기
         </Link>
       </div>
     </>

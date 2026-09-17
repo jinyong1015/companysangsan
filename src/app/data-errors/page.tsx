@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
@@ -62,7 +62,7 @@ export default function DataErrorsPage() {
   return (
     <>
       <PageHeader
-        title="데이터 오류"
+        title="오류 DATA"
         description={
           isDemo
             ? "가데이터 기준 제외 행 미리보기 · 엑셀 업로드 후 실제 오류를 확인하세요"

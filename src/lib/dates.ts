@@ -95,6 +95,33 @@ export function autoGrain(startDate: string, endDate: string): Grain {
   return days <= 62 ? "day" : "month";
 }
 
+/** 상세 추이용: 조회기간이 3개월 이상이면 월별, 미만이면 일별 */
+export function detailTrendGrain(startDate: string, endDate: string): "day" | "month" {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  const monthSpan =
+    end.getFullYear() * 12 +
+    end.getMonth() -
+    (start.getFullYear() * 12 + start.getMonth()) +
+    1;
+  return monthSpan >= 3 ? "month" : "day";
+}
+
+/** 대시보드 추이: 조회기간이 두 달 이하면 일별, 초과면 월별 */
+export function dashboardTrendGrain(
+  startDate: string,
+  endDate: string,
+): "day" | "month" {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  const monthSpan =
+    end.getFullYear() * 12 +
+    end.getMonth() -
+    (start.getFullYear() * 12 + start.getMonth()) +
+    1;
+  return monthSpan <= 2 ? "day" : "month";
+}
+
 export function periodBuckets(
   startDate: string,
   endDate: string,

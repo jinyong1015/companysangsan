@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ProductionUtilizationTrend } from "@/components/charts/Charts";
 import { KpiCard } from "@/components/ui/KpiCard";
 import {
   BackBanner,
@@ -15,15 +14,13 @@ import {
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { getMoldById } from "@/data/mock";
-import { autoGrain } from "@/lib/dates";
 import {
   formatMinutes,
   formatNumber,
   formatPercent,
   formatQuantity,
-  formatUph,
 } from "@/lib/format";
-import { buildTrends, computeKpi, filterRecords } from "@/lib/metrics";
+import { computeKpi, filterRecords } from "@/lib/metrics";
 import { detailBackNav, detailHref } from "@/lib/navigation";
 
 export default function MoldDetailPage() {
@@ -41,19 +38,9 @@ export default function MoldDetailPage() {
     })();
   const rows = useMemo(
     () => filterRecords(records, { ...filters, moldIds: [params.moldId] }),
-    [filters, params.moldId],
+    [filters, params.moldId, records],
   );
   const kpi = useMemo(() => computeKpi(rows), [rows]);
-  const trends = useMemo(
-    () =>
-      buildTrends(
-        rows,
-        filters.startDate,
-        filters.endDate,
-        autoGrain(filters.startDate, filters.endDate),
-      ),
-    [rows, filters],
-  );
   const shotCount = rows.reduce((s, r) => s + r.shotCount, 0);
 
   const byEq = useMemo(() => {
@@ -89,19 +76,7 @@ export default function MoldDetailPage() {
         <KpiCard title="생산불량률" value={formatPercent(kpi.defectRatePercent, 2)} />
         <KpiCard title="작업판수" value={formatNumber(shotCount)} />
         <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} />
-        <KpiCard title="UPH" value={formatUph(kpi.uph)} />
       </ResponsiveGrid>
-      <SectionCard title="기간별 생산·불량 추이" className="mb-4">
-        <ProductionUtilizationTrend
-          data={trends.map((t) => ({
-            ...t,
-            utilizationRatePercent:
-              t.productionQuantity + t.defectQuantity > 0
-                ? (t.defectQuantity / (t.productionQuantity + t.defectQuantity)) * 100
-                : null,
-          }))}
-        />
-      </SectionCard>
       <SectionCard title="설비별 사용 실적">
         <div className="table-wrap">
           <table className="data-table">
@@ -114,7 +89,6 @@ export default function MoldDetailPage() {
                 <th className="num">생산량</th>
                 <th className="num">불량수량</th>
                 <th className="num">비가동시간</th>
-                <th className="num">UPH</th>
               </tr>
             </thead>
             <tbody>
@@ -134,7 +108,6 @@ export default function MoldDetailPage() {
                   <td className="num">{formatQuantity(e.kpi.productionQuantity)}</td>
                   <td className="num">{formatQuantity(e.kpi.defectQuantity)}</td>
                   <td className="num">{formatMinutes(e.kpi.downtimeMinutes)}</td>
-                  <td className="num">{formatUph(e.kpi.uph)}</td>
                 </tr>
               ))}
             </tbody>

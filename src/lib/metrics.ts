@@ -172,6 +172,42 @@ export function buildTrends(
   });
 }
 
+/** 대시보드 기간 추이: 생산량 · 품번 종류 · 평균 SHOT */
+export type MonthlyDashboardPoint = {
+  period: string;
+  label: string;
+  productionQuantity: number;
+  partKindCount: number;
+  /** 총 SHOT ÷ 가동시간(hr) */
+  avgShot: number;
+};
+
+export function buildMonthlyDashboardTrends(
+  records: ProductionRecord[],
+  startDate: string,
+  endDate: string,
+  grain: "day" | "month" = "month",
+): MonthlyDashboardPoint[] {
+  const buckets = periodBuckets(startDate, endDate, grain);
+  return buckets.map((b) => {
+    const subset = records.filter(
+      (r) => r.isAnalysisEligible && r.workDate >= b.start && r.workDate <= b.end,
+    );
+    const kpi = computeKpi(subset);
+    const shotCount = subset.reduce((s, r) => s + r.shotCount, 0);
+    const operatingHours = kpi.operatingMinutes / 60;
+    return {
+      period: b.period,
+      label: b.label,
+      productionQuantity: kpi.productionQuantity,
+      partKindCount: new Set(
+        subset.map((r) => r.partId).filter((id) => Boolean(id)),
+      ).size,
+      avgShot: operatingHours > 0 ? shotCount / operatingHours : 0,
+    };
+  });
+}
+
 export function downtimeReasonShares(records: ProductionRecord[]): ReasonShare[] {
   const withDt = records.filter(
     (r) => r.isAnalysisEligible && r.downtimeMinutes > 0 && r.reasonTokens.length > 0,

@@ -866,6 +866,14 @@ export function buildUtilizationMatrix(
     ...filters,
     startDate,
     endDate,
+    // 가동률 현황은 화면 내 설비유형(전체/PRESS/INJECTION)만 사용.
+    // 생산 DATA 드릴다운으로 남은 equipmentIds 등이 히트맵을 오염시키지 않게 한다.
+    equipmentIds: [],
+    partIds: [],
+    operatorIds: [],
+    moldIds: [],
+    shiftType: "전체",
+    downtimeReason: "전체",
   };
 
   const filtered = filterRecords(records, rangeFilters);
@@ -892,13 +900,6 @@ export function buildUtilizationMatrix(
   };
 
   for (const r of filtered) addEquipment(r);
-
-  if (filters.equipmentIds.length > 0) {
-    for (const r of records) {
-      if (!filters.equipmentIds.includes(r.equipmentId)) continue;
-      addEquipment(r);
-    }
-  }
 
   const equipment = [...equipmentMap.values()].sort((a, b) => {
     if (a.type !== b.type) return a.type === "INJECTION" ? -1 : 1;

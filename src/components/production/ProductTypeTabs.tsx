@@ -9,7 +9,7 @@ const TABS: Array<{
   tone: "all" | "grommet" | "seal";
 }> = [
   { value: "전체", label: "전체", hint: "GROMMET + SEAL", tone: "all" },
-  { value: "GROMMET", label: "GROMMET", hint: "그로밋", tone: "grommet" },
+  { value: "GROMMET", label: "GROMMET", hint: "그로멧", tone: "grommet" },
   { value: "SEAL", label: "SEAL", hint: "씰", tone: "seal" },
 ];
 

@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
+import { QueryFilterShell } from "@/components/filters/FilterCards";
 import { UtilizationOverviewPanel } from "@/components/utilization/UtilizationOverviewPanel";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useDataSource } from "@/context/DataSourceContext";
@@ -35,8 +35,10 @@ import {
   type UtilizationCell,
 } from "@/lib/utilization";
 import { withFromParam } from "@/lib/navigation";
+import { saveFilters } from "@/lib/storage";
 import type {
   EquipmentType,
+  GlobalFilters,
   PerformanceShiftPattern,
   ProductType,
   TargetMinutesSettings,
@@ -287,10 +289,12 @@ function DetailModal({
   cell,
   metric,
   onClose,
+  onOpenEquipment,
 }: {
   cell: UtilizationCell;
   metric: UtilizationMetric;
   onClose: () => void;
+  onOpenEquipment: (equipmentId: string) => void;
 }) {
   const router = useRouter();
   const { setFilters } = useFilters();
@@ -370,7 +374,7 @@ function DetailModal({
       endDate: cell.date,
       equipmentIds: [cell.equipmentId],
     });
-    router.push("/production-data");
+    router.push(withFromParam("/production-data", "utilization"));
   };
 
   return (
@@ -404,12 +408,13 @@ function DetailModal({
           ))}
         </dl>
         <div className="mt-5 flex flex-wrap gap-2">
-          <Link
-            href={withFromParam(`/equipment/${cell.equipmentId}`, "utilization")}
+          <button
+            type="button"
             className="btn btn-primary"
+            onClick={() => onOpenEquipment(cell.equipmentId)}
           >
             설비 상세 이동
-          </Link>
+          </button>
           <button type="button" className="btn" onClick={openProductionData}>
             원본 생산 DATA 보기
           </button>
@@ -420,9 +425,11 @@ function DetailModal({
 }
 
 export default function UtilizationPage() {
+  const router = useRouter();
   const { filters, setFilters, resetGlobal, resetDetail } = useFilters();
   const { records } = useDataSource();
   const { pushToast } = useToast();
+  const pathname = usePathname();
   const { state, patch, ready } = usePageState("utilization", "date", "asc");
   const scrollRef = useRef<HTMLDivElement>(null);
   const persistRef = useRef({ scrollY: 0, scrollX: 0 });
@@ -475,6 +482,23 @@ export default function UtilizationPage() {
       if (scrollRef.current) scrollRef.current.scrollLeft = x;
     });
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** 생산 DATA 드릴다운에서 남은 설비·단일일 기간 등이 전역 필터에 남지 않게 정리 */
+  useEffect(() => {
+    if (!ready || pathname !== "/utilization") return;
+    const range = monthDateRange(yearMonth);
+    setFilters({
+      equipmentIds: [],
+      partIds: [],
+      operatorIds: [],
+      moldIds: [],
+      shiftType: "전체",
+      downtimeReason: "전체",
+      datePreset: "custom",
+      startDate: range.startDate,
+      endDate: range.endDate,
+    });
+  }, [ready, pathname, yearMonth, setFilters]);
 
   const matrix = useMemo(
     () =>
@@ -596,6 +620,24 @@ export default function UtilizationPage() {
     });
   };
 
+  const openEquipmentDetail = (equipmentId: string) => {
+    const range = monthDateRange(yearMonth);
+    const nextFilters: GlobalFilters = {
+      ...filters,
+      datePreset: "custom",
+      startDate: range.startDate,
+      endDate: range.endDate,
+    };
+    setExtra({ yearMonth });
+    setFilters({
+      datePreset: "custom",
+      startDate: range.startDate,
+      endDate: range.endDate,
+    });
+    saveFilters(nextFilters);
+    router.push(withFromParam(`/equipment/${equipmentId}`, "utilization"));
+  };
+
   const handleExcel = () => {
     try {
       exportUtilizationExcel(matrix, metric);
@@ -673,7 +715,7 @@ export default function UtilizationPage() {
   return (
     <>
       <PageHeader
-        title="가동률 현황"
+        title="가동률 분석"
         description="전체 종합 현황·제품·설비 요약 → 날짜 × 설비 히트맵"
         actions={
           <button type="button" className="btn" onClick={handleExcel}>
@@ -682,43 +724,39 @@ export default function UtilizationPage() {
         }
       />
 
-      <section className="card mb-4 p-4 md:p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold">조회조건</h2>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => {
-              resetDetail();
-              setFilters({ equipmentIds: [] });
-              const ym = defaultYearMonth();
-              setExtra({
-                yearMonth: ym,
-                equipmentType: "전체",
-                workPattern: "전체",
-              });
-              applyYearMonth(ym);
-              pushToast("조회조건을 초기화했습니다.", "info");
-            }}
-          >
-            초기화
-          </button>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div>
-            <p className="mb-1 text-xs text-[var(--text-secondary)]">조회월</p>
+      <QueryFilterShell
+        title="조회조건"
+        activeCount={
+          (equipmentType !== "전체" ? 1 : 0) + (workPattern !== "전체" ? 1 : 0)
+        }
+        onReset={() => {
+          resetDetail();
+          setFilters({ equipmentIds: [] });
+          const ym = defaultYearMonth();
+          setExtra({
+            yearMonth: ym,
+            equipmentType: "전체",
+            workPattern: "전체",
+          });
+          applyYearMonth(ym);
+          pushToast("조회조건을 초기화했습니다.", "info");
+        }}
+      >
+        <div className="query-filter-grid">
+          <div className="query-filter-field">
+            <p className="query-filter-label">조회월</p>
             <input
               type="month"
-              className="w-full rounded-[10px] border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
+              className="query-filter-input"
               value={yearMonth}
               onChange={(e) => applyYearMonth(e.target.value)}
             />
-            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+            <p className="query-filter-hint">
               {monthLabel} ({periodLabel}) 기준 종합 현황 · 히트맵
             </p>
           </div>
-          <div>
-            <p className="mb-1 text-xs text-[var(--text-secondary)]">설비</p>
+          <div className="query-filter-field">
+            <p className="query-filter-label">설비</p>
             <div className="filter-pills">
               {(
                 [
@@ -742,8 +780,8 @@ export default function UtilizationPage() {
               ))}
             </div>
           </div>
-          <div>
-            <p className="mb-1 text-xs text-[var(--text-secondary)]">
+          <div className="query-filter-field">
+            <p className="query-filter-label">
               {metric === "time" ? "근무형태" : "교대 구분"}
             </p>
             <div className="filter-pills">
@@ -764,7 +802,7 @@ export default function UtilizationPage() {
             </div>
           </div>
         </div>
-      </section>
+      </QueryFilterShell>
 
       <UtilizationOverviewPanel
         monthLabel={monthLabel}
@@ -1024,12 +1062,13 @@ export default function UtilizationPage() {
               <tr>
                 {matrix.equipment.map((eq) => (
                   <th key={eq.id} className="util-eq-head">
-                    <Link
-                      href={withFromParam(`/equipment/${eq.id}`, "utilization")}
+                    <button
+                      type="button"
                       className="linkish"
+                      onClick={() => openEquipmentDetail(eq.id)}
                     >
                       {eq.name}
-                    </Link>
+                    </button>
                   </th>
                 ))}
               </tr>
@@ -1145,6 +1184,7 @@ export default function UtilizationPage() {
           cell={selected}
           metric={metric}
           onClose={() => setSelected(null)}
+          onOpenEquipment={openEquipmentDetail}
         />
       ) : null}
     </>

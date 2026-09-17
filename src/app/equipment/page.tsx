@@ -124,7 +124,6 @@ export default function EquipmentListPage() {
                   <th className="num">고장 건수</th>
                   <th className="num">MTTR</th>
                   <th className="num">참고 MTBF</th>
-                  <th>상세</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,14 +163,6 @@ export default function EquipmentListPage() {
                         : `${formatNumber(e.kpi.mttrMinutes, 1)}분`}
                     </td>
                     <td className="num">{formatHours(e.kpi.referenceMtbfHours)}</td>
-                    <td>
-                      <Link
-                        href={withFromParam(`/equipment/${e.id}`, "equipment")}
-                        className="linkish"
-                      >
-                        →
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>

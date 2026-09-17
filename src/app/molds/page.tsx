@@ -15,7 +15,6 @@ import {
   formatNumber,
   formatPercent,
   formatQuantity,
-  formatUph,
 } from "@/lib/format";
 import { paginate, sortBy } from "@/lib/metrics";
 import { withFromParam } from "@/lib/navigation";
@@ -40,7 +39,6 @@ export default function MoldsPage() {
       production: (m) => m.kpi.productionQuantity,
       defect: (m) => m.kpi.defectQuantity,
       defectRate: (m) => m.kpi.defectRatePercent,
-      uph: (m) => m.kpi.uph,
       downtime: (m) => m.kpi.downtimeMinutes,
       usage: (m) => m.workCount,
     });
@@ -66,7 +64,6 @@ export default function MoldsPage() {
           { value: "production", label: "생산량" },
           { value: "defect", label: "불량수량" },
           { value: "defectRate", label: "생산불량률" },
-          { value: "uph", label: "UPH" },
           { value: "downtime", label: "비가동시간" },
           { value: "usage", label: "사용 횟수" },
         ]}
@@ -84,7 +81,6 @@ export default function MoldsPage() {
               불량수량: m.kpi.defectQuantity,
               생산불량률: m.kpi.defectRatePercent,
               비가동시간분: m.kpi.downtimeMinutes,
-              UPH: m.kpi.uph,
             })),
           )
         }
@@ -112,8 +108,6 @@ export default function MoldsPage() {
                   <th className="num">불량수량</th>
                   <th className="num">생산불량률</th>
                   <th className="num">비가동시간</th>
-                  <th className="num">UPH</th>
-                  <th>상세</th>
                 </tr>
               </thead>
               <tbody>
@@ -136,15 +130,6 @@ export default function MoldsPage() {
                     <td className="num">{formatQuantity(m.kpi.defectQuantity)}</td>
                     <td className="num">{formatPercent(m.kpi.defectRatePercent, 2)}</td>
                     <td className="num">{formatMinutes(m.kpi.downtimeMinutes)}</td>
-                    <td className="num">{formatUph(m.kpi.uph)}</td>
-                    <td>
-                      <Link
-                        href={withFromParam(`/molds/${m.id}`, "molds")}
-                        className="linkish"
-                      >
-                        →
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>

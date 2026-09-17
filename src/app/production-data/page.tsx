@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -81,7 +81,7 @@ export default function ProductionDataPage() {
       />
       <DetailFilterCard showMolds />
       <div className="card mb-4 px-4 py-3 text-sm text-[var(--text-secondary)]">
-        분석 대상 정상 DATA만 표시합니다. 제외 행은 데이터 오류 메뉴에서 확인할 수 있습니다.
+        분석 대상 정상 DATA만 표시합니다. 제외 행은 오류 DATA 메뉴에서 확인할 수 있습니다.
         행을 선택한 뒤 수정하면 저장 즉시 전체 메뉴에 반영됩니다.
       </div>
       <SearchSortBar

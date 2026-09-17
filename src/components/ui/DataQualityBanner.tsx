@@ -43,7 +43,7 @@ export function DataQualityBanner() {
         </p>
       </div>
       <Link href={href} className="btn shrink-0">
-        데이터 오류 보기
+        오류 DATA 보기
       </Link>
     </div>
   );

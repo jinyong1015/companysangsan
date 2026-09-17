@@ -511,7 +511,7 @@ export function periodTitle(productType: "전체" | "GROMMET" | "SEAL"): string 
 export function equipmentReliabilityTitle(
   productType: "전체" | "GROMMET" | "SEAL",
 ): string {
-  if (productType === "전체") return "전체 설비별 비가동·신뢰성 현황";
+  if (productType === "전체") return "전체 설비별 비가동 현황";
   return `${productType} 설비별 비가동·신뢰성 현황`;
 }
 
