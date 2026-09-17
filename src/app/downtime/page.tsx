@@ -38,9 +38,9 @@ import type {
   DowntimeTopPartsView,
 } from "@/lib/downtimeTopParts";
 import {
-  formatHours,
   formatMinutes,
   formatNumber,
+  formatPercent,
 } from "@/lib/format";
 import {
   computeKpi,
@@ -67,7 +67,7 @@ function isEqTypeFilter(value: unknown): value is EqTypeFilter {
 }
 
 function isTopPartsView(value: unknown): value is DowntimeTopPartsView {
-  return value === "rank" || value === "pareto";
+  return value === "rank" || value === "bar" || value === "pareto";
 }
 
 function isHeatmapMetric(value: unknown): value is DowntimeHeatmapMetric {
@@ -547,11 +547,19 @@ export default function DowntimePage() {
         <KpiCard title="비가동 발생 건수" value={`${formatNumber(downtimeRecords.length)}건`} />
         <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} />
         <KpiCard
-          title="MTTR"
-          value={kpi.mttrMinutes == null ? "-" : `${formatNumber(kpi.mttrMinutes, 1)}분`}
-          comparePositiveIsGood={false}
+          title="비가동률"
+          value={formatPercent(
+            kpi.elapsedMinutes > 0
+              ? (kpi.downtimeMinutes / kpi.elapsedMinutes) * 100
+              : null,
+          )}
+          hint={
+            kpi.elapsedMinutes > 0
+              ? `비가동 ${formatMinutes(kpi.downtimeMinutes)} / 작업 ${formatMinutes(kpi.elapsedMinutes)}`
+              : undefined
+          }
+          accent="var(--metric-downtime)"
         />
-        <KpiCard title="참고 MTBF" value={formatHours(kpi.referenceMtbfHours)} tooltip="고장·복구 시각이 없어 유효 가동시간을 고장 건수로 나눈 참고 지표입니다." />
       </ResponsiveGrid>
 
       <div className="dt-overview-layout mb-4">
@@ -584,16 +592,14 @@ export default function DowntimePage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="비가동시간 TOP 10 품번" className="mb-4">
-        <DowntimeTopPartsChart
-          records={topPartsRecords}
-          productTab={topPartsProductTab}
-          onProductTabChange={setTopPartsProductTab}
-          view={topPartsView}
-          onViewChange={setTopPartsView}
-          onOpenPart={openTopPartDetail}
-        />
-      </SectionCard>
+      <DowntimeTopPartsChart
+        records={topPartsRecords}
+        productTab={topPartsProductTab}
+        onProductTabChange={setTopPartsProductTab}
+        view={topPartsView}
+        onViewChange={setTopPartsView}
+        onOpenPart={openTopPartDetail}
+      />
 
       <PeriodReasonSection
         table={periodTable}

@@ -15,7 +15,9 @@ export type DatePreset =
   | "thisYear"
   | "custom";
 export type Grain = "day" | "week" | "month";
+/** 화면 모드 (라이트 / 다크) */
 export type ThemeMode = "light" | "dark";
+export type ThemePreference = ThemeMode;
 
 export interface TargetMinutesSettings {
   "주간+야간": number;

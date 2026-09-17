@@ -29,7 +29,7 @@ import type {
   DowntimeTopPartsProductTab,
   DowntimeTopPartsView,
 } from "@/lib/downtimeTopParts";
-import { dashboardTrendGrain } from "@/lib/dates";
+import { dashboardTrendGrain, todaySeoul } from "@/lib/dates";
 import {
   formatMinutes,
   formatNumber,
@@ -47,7 +47,16 @@ import {
   buildUtilizationOverviewBundle,
   loadTargetMinutes,
   loadTargetShotCounts,
+  monthDateRange,
 } from "@/lib/utilization";
+
+function yearMonthFromDate(date: string) {
+  return date.slice(0, 7);
+}
+
+function defaultYearMonth() {
+  return format(todaySeoul(), "yyyy-MM");
+}
 
 export default function DashboardPage() {
   const { filters, resetGlobal } = useFilters();
@@ -63,11 +72,36 @@ export default function DashboardPage() {
     useState<DowntimeHeatmapProductTab>("전체");
   const [heatmapMetric, setHeatmapMetric] =
     useState<DowntimeHeatmapMetric>("minutes");
+  const [heatmapYearMonth, setHeatmapYearMonth] = useState(
+    () => yearMonthFromDate(filters.startDate) || defaultYearMonth(),
+  );
   const [monthlyMetric, setMonthlyMetric] = useState<
-    "production" | "partKinds" | "avgShot"
+    "production" | "partKinds" | "avgShot" | "downtime"
   >("production");
 
   const invalidRange = filters.endDate < filters.startDate;
+
+  const heatmapMonthRange = useMemo(
+    () => monthDateRange(heatmapYearMonth),
+    [heatmapYearMonth],
+  );
+  const heatmapMonthLabel = useMemo(() => {
+    try {
+      return format(parseISO(`${heatmapYearMonth}-01`), "yyyy년 M월");
+    } catch {
+      return heatmapYearMonth;
+    }
+  }, [heatmapYearMonth]);
+  const heatmapPeriodLabel = useMemo(() => {
+    try {
+      return `${format(parseISO(heatmapMonthRange.startDate), "yyyy.MM.dd")} ~ ${format(
+        parseISO(heatmapMonthRange.endDate),
+        "yyyy.MM.dd",
+      )}`;
+    } catch {
+      return `${heatmapMonthRange.startDate} ~ ${heatmapMonthRange.endDate}`;
+    }
+  }, [heatmapMonthRange.endDate, heatmapMonthRange.startDate]);
 
   const topPartsRecords = useMemo(
     () =>
@@ -81,8 +115,14 @@ export default function DashboardPage() {
   );
 
   const heatmapRecords = useMemo(
-    () => (invalidRange ? [] : filterRecords(records, filters)),
-    [filters, invalidRange, records],
+    () =>
+      filterRecords(records, {
+        ...filters,
+        datePreset: "custom",
+        startDate: heatmapMonthRange.startDate,
+        endDate: heatmapMonthRange.endDate,
+      }),
+    [filters, heatmapMonthRange.endDate, heatmapMonthRange.startDate, records],
   );
 
   const trendGrain = useMemo(
@@ -133,6 +173,10 @@ export default function DashboardPage() {
           GROMMET: g?.avgShot ?? 0,
           SEAL: s?.avgShot ?? 0,
         },
+        downtime: {
+          GROMMET: g?.downtimeMinutes ?? 0,
+          SEAL: s?.downtimeMinutes ?? 0,
+        },
       };
     });
   }, [filters, invalidRange, records, trendGrain]);
@@ -143,7 +187,9 @@ export default function DashboardPage() {
         ? "production"
         : monthlyMetric === "partKinds"
           ? "partKinds"
-          : "avgShot";
+          : monthlyMetric === "avgShot"
+            ? "avgShot"
+            : "downtime";
     const data = monthlyTrendsByProduct.map((row) => ({
       label: row.label,
       ...row[seriesKey],
@@ -199,6 +245,28 @@ export default function DashboardPage() {
           {
             label: "SEAL 최고",
             value: `${formatNumber(Math.max(0, ...data.map((p) => p.SEAL), 0))}종`,
+          },
+        ],
+      };
+    }
+
+    if (monthlyMetric === "downtime") {
+      const gTotal = data.reduce((s, p) => s + p.GROMMET, 0);
+      const sTotal = data.reduce((s, p) => s + p.SEAL, 0);
+      return {
+        data,
+        metricLabel: "비가동시간(분)",
+        formatValue: (v: number) => formatMinutes(v),
+        stats: [
+          { label: "GROMMET 합계", value: formatMinutes(gTotal) },
+          { label: "SEAL 합계", value: formatMinutes(sTotal) },
+          {
+            label: `GROMMET ${periodAvgLabel}`,
+            value: formatMinutes(data.length ? gTotal / data.length : 0),
+          },
+          {
+            label: `SEAL ${periodAvgLabel}`,
+            value: formatMinutes(data.length ? sTotal / data.length : 0),
           },
         ],
       };
@@ -373,6 +441,7 @@ export default function DashboardPage() {
                 { key: "production" as const, label: "생산량" },
                 { key: "partKinds" as const, label: "작업품목(품번) 종류" },
                 { key: "avgShot" as const, label: "평균 SHOT" },
+                { key: "downtime" as const, label: "비가동시간(분)" },
               ] as const
             ).map((opt) => (
               <button
@@ -407,11 +476,29 @@ export default function DashboardPage() {
       />
       <ProductShotTopWorst rows={shotTopRows} productTab={shotTopProductTab} />
 
-      <SectionCard title="설비별 일자 비가동 현황" className="mb-4">
+      <SectionCard
+        title="설비별 일자 비가동 현황"
+        description={`${heatmapMonthLabel} (${heatmapPeriodLabel}) 기준 · 공장·제품유형은 상단 필터 적용`}
+        action={
+          <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
+            <span className="whitespace-nowrap font-medium">조회월</span>
+            <input
+              type="month"
+              className="query-filter-input"
+              value={heatmapYearMonth}
+              aria-label="설비별 일자 비가동 현황 조회월"
+              onChange={(e) => {
+                if (e.target.value) setHeatmapYearMonth(e.target.value);
+              }}
+            />
+          </label>
+        }
+        className="mb-4"
+      >
         <DowntimeEquipmentHeatmap
           records={heatmapRecords}
-          startDate={filters.startDate}
-          endDate={filters.endDate}
+          startDate={heatmapMonthRange.startDate}
+          endDate={heatmapMonthRange.endDate}
           productTab={heatmapProductTab}
           onProductTabChange={setHeatmapProductTab}
           metric={heatmapMetric}
@@ -420,18 +507,16 @@ export default function DashboardPage() {
         />
       </SectionCard>
 
-      <SectionCard title="비가동시간 TOP 10 품번" className="mb-4">
-        <DowntimeTopPartsChart
-          records={topPartsRecords}
-          productTab={topPartsProductTab}
-          onProductTabChange={setTopPartsProductTab}
-          view={topPartsView}
-          onViewChange={setTopPartsView}
-          onOpenPart={(partId) =>
-            router.push(withFromParam(`/parts/${partId}`, "home"))
-          }
-        />
-      </SectionCard>
+      <DowntimeTopPartsChart
+        records={topPartsRecords}
+        productTab={topPartsProductTab}
+        onProductTabChange={setTopPartsProductTab}
+        view={topPartsView}
+        onViewChange={setTopPartsView}
+        onOpenPart={(partId) =>
+          router.push(withFromParam(`/parts/${partId}`, "home"))
+        }
+      />
     </>
   );
 }

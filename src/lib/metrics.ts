@@ -172,7 +172,7 @@ export function buildTrends(
   });
 }
 
-/** 대시보드 기간 추이: 생산량 · 품번 종류 · 평균 SHOT */
+/** 대시보드 기간 추이: 생산량 · 품번 종류 · 평균 SHOT · 비가동시간(분) */
 export type MonthlyDashboardPoint = {
   period: string;
   label: string;
@@ -180,6 +180,8 @@ export type MonthlyDashboardPoint = {
   partKindCount: number;
   /** 총 SHOT ÷ 가동시간(hr) */
   avgShot: number;
+  /** 비가동시간 합계(분) */
+  downtimeMinutes: number;
 };
 
 export function buildMonthlyDashboardTrends(
@@ -204,6 +206,7 @@ export function buildMonthlyDashboardTrends(
         subset.map((r) => r.partId).filter((id) => Boolean(id)),
       ).size,
       avgShot: operatingHours > 0 ? shotCount / operatingHours : 0,
+      downtimeMinutes: kpi.downtimeMinutes,
     };
   });
 }

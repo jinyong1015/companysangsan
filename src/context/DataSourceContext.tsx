@@ -21,6 +21,7 @@ import {
   summarizeRecords,
   type ProductionRecordDraft,
 } from "@/lib/recordValidate";
+import { authorizeProductionUpdate } from "@/lib/admin/clientUpdate";
 import type { ProductionRecord, UploadBatch } from "@/types";
 
 const SOURCE_KEY = "production-analytics-data-source";
@@ -53,7 +54,11 @@ interface DataSourceContextValue {
     batch: UploadBatch;
     summary: UploadSummary;
   }) => Promise<void>;
-  updateRecord: (id: string, draft: ProductionRecordDraft) => Promise<ProductionRecord>;
+  updateRecord: (
+    id: string,
+    draft: ProductionRecordDraft,
+    options: { reason: string },
+  ) => Promise<ProductionRecord>;
   resetToDemo: () => Promise<void>;
 }
 
@@ -148,10 +153,15 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
   );
 
   const updateRecord = useCallback(
-    async (id: string, draft: ProductionRecordDraft) => {
+    async (id: string, draft: ProductionRecordDraft, options: { reason: string }) => {
       const current = records.find((r) => r.id === id);
       if (!current) {
         throw new Error("수정할 행을 찾을 수 없습니다.");
+      }
+
+      const reason = options.reason.trim();
+      if (!reason) {
+        throw new Error("수정 사유를 입력해 주세요.");
       }
 
       const updated = revalidateRecord(
@@ -162,6 +172,14 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
         },
         draft,
       );
+
+      await authorizeProductionUpdate({
+        id,
+        reason,
+        before: current,
+        after: updated,
+      });
+
       const nextRecords = records.map((r) => (r.id === id ? updated : r));
       const nextSummary = summarizeRecords(nextRecords);
       const nextBatch: UploadBatch = {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ProductionRecord } from "@/types";
 import { useDataSource } from "@/context/DataSourceContext";
+import { useAdmin, AdminAuthError } from "@/context/AdminContext";
 import { useToast } from "@/context/ToastContext";
 import { ERROR_MESSAGES } from "@/types";
 import {
@@ -106,17 +107,21 @@ export function EditProductionRecordModal({
   onClose: () => void;
 }) {
   const { updateRecord } = useDataSource();
+  const { setHasUnsavedEdits, markSessionExpired, openLogin } = useAdmin();
   const { pushToast } = useToast();
   const [form, setForm] = useState<FormState>(() => recordToForm(record));
+  const [reason, setReason] = useState("");
   const [averageShotManual, setAverageShotManual] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    setForm(recordToForm(record));
-    setAverageShotManual(false);
-  }, [record]);
+    setHasUnsavedEdits(dirty);
+    return () => setHasUnsavedEdits(false);
+  }, [dirty, setHasUnsavedEdits]);
 
   const patch = (partial: Partial<FormState>) => {
+    setDirty(true);
     setForm((prev) => ({ ...prev, ...partial }));
   };
 
@@ -150,6 +155,7 @@ export function EditProductionRecordModal({
   };
 
   const onStartOrEndChange = (field: "startedAt" | "endedAt", value: string) => {
+    setDirty(true);
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       return applyElapsedFromTimes(
@@ -162,6 +168,7 @@ export function EditProductionRecordModal({
   };
 
   const onWorkDateChange = (value: string) => {
+    setDirty(true);
     setForm((prev) => {
       const next = { ...prev, workDate: value };
       return applyElapsedFromTimes(
@@ -177,41 +184,68 @@ export function EditProductionRecordModal({
     field: "productionQuantity" | "shotCount",
     value: string,
   ) => {
+    setDirty(true);
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       return applyAverageShot(next, averageShotManual);
     });
   };
 
+  const requestClose = () => {
+    if (dirty && !saving) {
+      const ok = window.confirm(
+        "저장하지 않은 변경사항이 있습니다. 수정을 취소하시겠습니까?",
+      );
+      if (!ok) return;
+    }
+    onClose();
+  };
+
   const handleSave = async () => {
+    if (!reason.trim()) {
+      pushToast("수정 사유를 입력해 주세요.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const draft = formToDraft(form, averageShotManual);
-      const updated = await updateRecord(record.id, draft);
+      const updated = await updateRecord(record.id, draft, {
+        reason: reason.trim(),
+      });
+      setDirty(false);
       if (!updated.isAnalysisEligible) {
         const reasons = updated.errorCodes
           .map((c) => ERROR_MESSAGES[c] ?? c)
           .join(" · ");
         pushToast(
-          `저장했습니다. 검증 오류로 분석에서 제외됩니다.${reasons ? ` (${reasons})` : ""} 오류 DATA 메뉴에서 확인하세요.`,
+          `생산 DATA가 수정되었습니다. 검증 오류로 분석에서 제외됩니다.${reasons ? ` (${reasons})` : ""} 오류 DATA 메뉴에서 확인하세요.`,
           "error",
         );
       } else {
-        pushToast("생산 DATA를 저장했습니다. 전체 메뉴에 반영됩니다.", "success");
+        pushToast(
+          "생산 DATA가 수정되었습니다. 변경 내용이 전체 분석 메뉴에 반영되었습니다.",
+          "success",
+        );
       }
       onClose();
     } catch (err) {
-      pushToast(
-        err instanceof Error ? err.message : "저장에 실패했습니다.",
-        "error",
-      );
+      if (err instanceof AdminAuthError) {
+        markSessionExpired();
+        pushToast(err.message, "error");
+        openLogin();
+      } else {
+        pushToast(
+          err instanceof Error ? err.message : "저장에 실패했습니다.",
+          "error",
+        );
+      }
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="util-modal-backdrop" onClick={onClose} role="presentation">
+    <div className="util-modal-backdrop" onClick={requestClose} role="presentation">
       <div
         className="util-modal util-modal-wide"
         role="dialog"
@@ -226,7 +260,7 @@ export function EditProductionRecordModal({
               원본 행 {record.sourceRowNumber} · 저장 시 재검증 후 전체 메뉴에 반영
             </p>
           </div>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-ghost" onClick={requestClose}>
             닫기
           </button>
         </div>
@@ -385,22 +419,35 @@ export function EditProductionRecordModal({
               placeholder="예: 금형교체, 설비이상"
             />
           </label>
+          <label className="pd-edit-field pd-edit-field-span">
+            <span>수정 사유 (필수)</span>
+            <input
+              value={reason}
+              onChange={(e) => {
+                setDirty(true);
+                setReason(e.target.value);
+              }}
+              placeholder="예: 실적수량 오기입 정정"
+              required
+            />
+          </label>
         </div>
 
         <p className="mt-3 text-xs text-[var(--text-secondary)]">
           시작·종료 시간을 바꾸면 작업시간이 자동 계산됩니다. 종료가 시작보다
-          이르면 익일 종료(야간)로 처리합니다.
+          이르면 익일 종료(야간)로 처리합니다. 저장 시 관리자 세션이 서버에서
+          검증됩니다.
         </p>
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             취소
           </button>
           <button
             type="button"
             className="btn btn-primary"
             onClick={() => void handleSave()}
-            disabled={saving}
+            disabled={saving || !reason.trim()}
           >
             {saving ? "저장 중…" : "저장"}
           </button>

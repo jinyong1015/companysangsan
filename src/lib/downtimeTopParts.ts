@@ -4,7 +4,7 @@ import type { ProductType, ProductionRecord, ReasonShare } from "@/types";
 
 export type DowntimeTopPartsProductTab = "전체" | ProductType;
 export type DowntimeDurationUnit = "min" | "hour";
-export type DowntimeTopPartsView = "rank" | "pareto";
+export type DowntimeTopPartsView = "rank" | "bar" | "pareto";
 
 export type DowntimeTopPartRow = {
   id: string;

@@ -27,10 +27,22 @@ export interface DowntimeHeatCell {
   productTypes: ProductType[];
 }
 
+/** 행·열 합계용 (합계 기준 비율, 단순 평균 아님) */
+export interface DowntimeHeatTotal {
+  hasData: boolean;
+  downtimeMinutes: number;
+  elapsedMinutes: number;
+  eventCount: number;
+  failureCount: number;
+  downtimeRatePercent: number | null;
+}
+
 export interface DowntimeHeatRow {
   equipmentId: string;
   equipmentName: string;
   cells: DowntimeHeatCell[];
+  /** 설비별(행) 합계 */
+  rowTotal: DowntimeHeatTotal;
 }
 
 export interface DowntimeHeatScaleBreak {
@@ -50,8 +62,47 @@ export interface DowntimeHeatmapSelection {
 export interface DowntimeHeatmapBundle {
   dates: string[];
   rows: DowntimeHeatRow[];
+  /** 일별(열) 합계 — dates와 동일 인덱스 */
+  dayTotals: DowntimeHeatTotal[];
+  /** 전체 합계 */
+  grandTotal: DowntimeHeatTotal;
   breaks: DowntimeHeatScaleBreak[];
   metric: DowntimeHeatmapMetric;
+}
+
+function emptyTotal(): DowntimeHeatTotal {
+  return {
+    hasData: false,
+    downtimeMinutes: 0,
+    elapsedMinutes: 0,
+    eventCount: 0,
+    failureCount: 0,
+    downtimeRatePercent: null,
+  };
+}
+
+function accumulateTotal(
+  acc: DowntimeHeatTotal,
+  part: {
+    hasData: boolean;
+    downtimeMinutes: number;
+    elapsedMinutes: number;
+    eventCount: number;
+    failureCount: number;
+  },
+): DowntimeHeatTotal {
+  if (!part.hasData) return acc;
+  const downtimeMinutes = acc.downtimeMinutes + part.downtimeMinutes;
+  const elapsedMinutes = acc.elapsedMinutes + part.elapsedMinutes;
+  return {
+    hasData: true,
+    downtimeMinutes,
+    elapsedMinutes,
+    eventCount: acc.eventCount + part.eventCount,
+    failureCount: acc.failureCount + part.failureCount,
+    downtimeRatePercent:
+      elapsedMinutes > 0 ? (downtimeMinutes / elapsedMinutes) * 100 : null,
+  };
 }
 
 function metricValue(cell: DowntimeHeatCell, metric: DowntimeHeatmapMetric): number | null {
@@ -176,6 +227,21 @@ export function formatDowntimeHeatDisplay(
   return `${cell.downtimeRatePercent.toFixed(1)}%`;
 }
 
+export function formatDowntimeHeatTotalDisplay(
+  total: DowntimeHeatTotal,
+  metric: DowntimeHeatmapMetric,
+): string {
+  if (!total.hasData) return "-";
+  if (metric === "minutes") {
+    return `${Math.round(total.downtimeMinutes).toLocaleString("ko-KR")}`;
+  }
+  if (metric === "count") {
+    return `${total.eventCount}`;
+  }
+  if (total.downtimeRatePercent == null) return "-";
+  return `${total.downtimeRatePercent.toFixed(1)}%`;
+}
+
 function topReasonsFrom(records: ProductionRecord[], limit = 3): string[] {
   const map = new Map<string, number>();
   for (const r of records) {
@@ -279,12 +345,30 @@ export function buildDowntimeEquipmentHeatmap(
       } satisfies DowntimeHeatCell;
     });
 
+    const rowTotal = cells.reduce(
+      (acc, cell) => accumulateTotal(acc, cell),
+      emptyTotal(),
+    );
+
     return {
       equipmentId: eq.id,
       equipmentName: eq.name,
       cells,
+      rowTotal,
     };
   });
+
+  const dayTotals = dates.map((_, dateIndex) =>
+    rows.reduce(
+      (acc, row) => accumulateTotal(acc, row.cells[dateIndex]!),
+      emptyTotal(),
+    ),
+  );
+
+  const grandTotal = rows.reduce(
+    (acc, row) => accumulateTotal(acc, row.rowTotal),
+    emptyTotal(),
+  );
 
   const valuePool: number[] = [];
   for (const row of rows) {
@@ -297,6 +381,8 @@ export function buildDowntimeEquipmentHeatmap(
   return {
     dates,
     rows,
+    dayTotals,
+    grandTotal,
     breaks: buildDowntimeHeatBreaks(valuePool, metric),
     metric,
   };

@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { History, Pencil } from "lucide-react";
 import { DetailFilterCard } from "@/components/filters/FilterCards";
+import { ChangeHistoryModal } from "@/components/admin/ChangeHistoryModal";
 import { EditProductionRecordModal } from "@/components/production-data/EditProductionRecordModal";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
+import { useAdmin } from "@/context/AdminContext";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useToast } from "@/context/ToastContext";
@@ -20,10 +22,12 @@ import { downloadExcel } from "@/lib/excelParse";
 export default function ProductionDataPage() {
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
+  const { isAdmin, openLogin } = useAdmin();
   const { pushToast } = useToast();
   const { state, patch } = usePageState("production-data", "date", "desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const rows = useMemo(() => {
     let list = filterRecords(records, filters);
@@ -55,6 +59,11 @@ export default function ProductionDataPage() {
     : null;
 
   const openEdit = () => {
+    if (!isAdmin) {
+      pushToast("생산 DATA 수정은 관리자 모드에서만 가능합니다.", "info");
+      openLogin();
+      return;
+    }
     if (!selectedId) {
       pushToast("수정할 행을 먼저 선택해 주세요.", "info");
       return;
@@ -62,27 +71,77 @@ export default function ProductionDataPage() {
     setEditingId(selectedId);
   };
 
+  const tryOpenEditForRow = (id: string) => {
+    setSelectedId(id);
+    if (!isAdmin) {
+      pushToast("생산 DATA 수정은 관리자 모드에서만 가능합니다.", "info");
+      openLogin();
+      return;
+    }
+    setEditingId(id);
+  };
+
   return (
     <>
       <PageHeader
         title="생산 DATA"
-        description="정상 원본·정제값 조회 · 행 선택 후 수정"
+        description={
+          isAdmin
+            ? "정상 원본·정제값 조회 · 관리자 모드에서 행 수정 가능"
+            : "정상 원본·정제값 조회 · 수정은 관리자 모드에서만 가능"
+        }
         actions={
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!selectedId}
-            onClick={openEdit}
-          >
-            <Pencil size={16} />
-            <span>수정</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <History size={16} />
+                <span>변경 이력</span>
+              </button>
+            ) : null}
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!selectedId}
+                onClick={openEdit}
+              >
+                <Pencil size={16} />
+                <span>수정</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn"
+                disabled
+                title="생산 DATA 수정은 관리자 모드에서만 가능합니다."
+              >
+                <Pencil size={16} />
+                <span>수정</span>
+              </button>
+            )}
+          </div>
         }
       />
       <DetailFilterCard showMolds />
       <div className="card mb-4 px-4 py-3 text-sm text-[var(--text-secondary)]">
-        분석 대상 정상 DATA만 표시합니다. 제외 행은 오류 DATA 메뉴에서 확인할 수 있습니다.
-        행을 선택한 뒤 수정하면 저장 즉시 전체 메뉴에 반영됩니다.
+        {isAdmin ? (
+          <>
+            분석 대상 정상 DATA만 표시합니다. 수정 가능한 행은 배경색으로
+            구분됩니다. 저장 즉시 재검증·재집계되어 전체 메뉴에 반영됩니다.
+          </>
+        ) : (
+          <>
+            분석 대상 정상 DATA만 표시합니다. 제외 행은 오류 DATA 메뉴에서
+            확인할 수 있습니다.{" "}
+            <strong className="font-medium text-[var(--text)]">
+              생산 DATA 수정은 관리자 모드에서만 가능합니다.
+            </strong>
+          </>
+        )}
       </div>
       <SearchSortBar
         search={state.search}
@@ -140,17 +199,21 @@ export default function ProductionDataPage() {
             <p>
               {selected
                 ? `선택: ${selected.workDate} · ${selected.equipmentName} · ${selected.partNumber}`
-                : "수정할 행을 클릭해 선택하세요."}
+                : isAdmin
+                  ? "수정할 행을 클릭해 선택하세요."
+                  : "조회 전용입니다. 행을 선택해 상세 링크를 사용할 수 있습니다."}
             </p>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedId}
-              onClick={openEdit}
-            >
-              <Pencil size={14} />
-              선택 행 수정
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn"
+                disabled={!selectedId}
+                onClick={openEdit}
+              >
+                <Pencil size={14} />
+                선택 행 수정
+              </button>
+            ) : null}
           </div>
           <div className="table-wrap">
             <table className="data-table">
@@ -183,13 +246,10 @@ export default function ProductionDataPage() {
                   <tr
                     key={r.id}
                     className={`pd-row-selectable ${
-                      selectedId === r.id ? "pd-row-selected" : ""
-                    }`}
+                      isAdmin ? "pd-row-editable" : ""
+                    } ${selectedId === r.id ? "pd-row-selected" : ""}`}
                     onClick={() => setSelectedId(r.id)}
-                    onDoubleClick={() => {
-                      setSelectedId(r.id);
-                      setEditingId(r.id);
-                    }}
+                    onDoubleClick={() => tryOpenEditForRow(r.id)}
                   >
                     <td onClick={(e) => e.stopPropagation()}>
                       <input
@@ -273,11 +333,16 @@ export default function ProductionDataPage() {
         </SectionCard>
       )}
 
-      {editing ? (
+      {editing && isAdmin ? (
         <EditProductionRecordModal
+          key={editing.id}
           record={editing}
           onClose={() => setEditingId(null)}
         />
+      ) : null}
+
+      {historyOpen && isAdmin ? (
+        <ChangeHistoryModal onClose={() => setHistoryOpen(false)} />
       ) : null}
     </>
   );

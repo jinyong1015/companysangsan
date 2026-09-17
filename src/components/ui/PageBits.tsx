@@ -1,6 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, ChevronRight, Download, type LucideIcon } from "lucide-react";
 import { nowLabel } from "@/lib/dates";
 import { useToast } from "@/context/ToastContext";
@@ -199,18 +208,117 @@ export function EmptyState({
 }
 
 export function InfoTooltip({ text }: { text: string }) {
+  const tipId = useId();
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const open = pinned || hovered;
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    placeAbove: boolean;
+  } | null>(null);
+
+  const updatePosition = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const tipWidth = 224; // w-56
+    const gap = 8;
+    const placeAbove = rect.top > 120;
+    const left = Math.min(
+      Math.max(rect.left + rect.width / 2, tipWidth / 2 + 8),
+      window.innerWidth - tipWidth / 2 - 8,
+    );
+    const top = placeAbove ? rect.top - gap : rect.bottom + gap;
+    setCoords({ top, left, placeAbove });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setPinned(false);
+      setHovered(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPinned(false);
+        setHovered(false);
+      }
+    };
+    const onReposition = () => updatePosition();
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
+    };
+  }, [open, updatePosition]);
+
+  const panelStyle: CSSProperties | undefined = coords
+    ? {
+        position: "fixed",
+        top: coords.top,
+        left: coords.left,
+        transform: coords.placeAbove
+          ? "translate(-50%, -100%)"
+          : "translate(-50%, 0)",
+        zIndex: 80,
+      }
+    : undefined;
+
   return (
-    <span className="group relative inline-flex">
+    <span
+      ref={rootRef}
+      className="relative inline-flex"
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") setHovered(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") setHovered(false);
+      }}
+    >
       <button
+        ref={buttonRef}
         type="button"
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] text-[11px] text-[var(--text-secondary)]"
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[11px] text-[var(--text-secondary)]"
         aria-label="정보"
+        aria-expanded={open}
+        aria-describedby={open ? tipId : undefined}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setPinned((prev) => !prev);
+        }}
       >
         i
       </button>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-56 -translate-x-1/2 rounded-lg border border-[var(--border)] bg-[var(--elevated)] px-3 py-2 text-left text-xs leading-relaxed text-[var(--text)] shadow-lg group-hover:block group-focus-within:block">
-        {text}
-      </span>
+      {open && coords && typeof document !== "undefined"
+        ? createPortal(
+            <span
+              id={tipId}
+              role="tooltip"
+              style={panelStyle}
+              className="pointer-events-none w-56 rounded-lg border border-[var(--border)] bg-[var(--elevated)] px-3 py-2 text-left text-xs leading-relaxed text-[var(--text)] shadow-lg"
+            >
+              {text}
+            </span>,
+            document.body,
+          )
+        : null}
     </span>
   );
 }

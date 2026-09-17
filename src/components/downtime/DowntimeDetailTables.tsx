@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Download, LayoutList, Maximize2, X } from "lucide-react";
-import { SectionCard } from "@/components/ui/PageBits";
+import { InfoTooltip, SectionCard } from "@/components/ui/PageBits";
 import { useToast } from "@/context/ToastContext";
 import {
   type EquipmentReliabilityTable,
@@ -21,6 +21,9 @@ import {
 import { formatNumber } from "@/lib/format";
 import { withFromParam } from "@/lib/navigation";
 import type { ProductType } from "@/types";
+
+const REFERENCE_MTBF_HINT =
+  "고장·복구 시각이 없어 유효 가동시간을 고장 건수로 나눈 참고 지표입니다.";
 
 function useDragScroll<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -401,7 +404,10 @@ function EquipmentReliabilityTableView({
                 <span className="dt-unit">min</span>
               </th>
               <th className="num dt-col-mtbf dt-metric-col">
-                MTBF [고장간격시간]
+                <span className="inline-flex items-center justify-end gap-1">
+                  MTBF [고장간격시간]
+                  <InfoTooltip text={REFERENCE_MTBF_HINT} />
+                </span>
                 <span className="dt-unit">hr</span>
               </th>
               <th className="num dt-col-factory-mttr dt-group-start dt-metric-col">
@@ -409,7 +415,10 @@ function EquipmentReliabilityTableView({
                 <span className="dt-unit">min</span>
               </th>
               <th className="num dt-col-factory-mtbf dt-metric-col">
-                호기 평균 MTBF
+                <span className="inline-flex items-center justify-end gap-1">
+                  호기 평균 MTBF
+                  <InfoTooltip text={REFERENCE_MTBF_HINT} />
+                </span>
                 <span className="dt-unit">hr</span>
               </th>
             </tr>

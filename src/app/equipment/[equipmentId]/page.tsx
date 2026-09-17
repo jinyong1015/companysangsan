@@ -2,10 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import {
-  DowntimeReasonDonut,
-  ProductionUtilizationTrend,
-} from "@/components/charts/Charts";
+import { DowntimeReasonDonut } from "@/components/charts/Charts";
 import { KpiCard } from "@/components/ui/KpiCard";
 import {
   BackBanner,
@@ -18,7 +15,6 @@ import { WorkPartSelect } from "@/components/ui/WorkPartSelect";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { getEquipmentById } from "@/data/mock";
-import { autoGrain } from "@/lib/dates";
 import {
   formatMinutes,
   formatNumber,
@@ -27,7 +23,6 @@ import {
   formatUph,
 } from "@/lib/format";
 import {
-  buildTrends,
   computeKpi,
   downtimeReasonShares,
   filterRecords,
@@ -96,16 +91,6 @@ export default function EquipmentDetailPage() {
   }, [allRows, hasSelection, activePartId]);
 
   const kpi = useMemo(() => computeKpi(rows), [rows]);
-  const trends = useMemo(
-    () =>
-      buildTrends(
-        rows,
-        filters.startDate,
-        filters.endDate,
-        autoGrain(filters.startDate, filters.endDate),
-      ),
-    [rows, filters],
-  );
   const reasons = useMemo(() => downtimeReasonShares(rows), [rows]);
 
   const downtimeEvents = useMemo(
@@ -158,10 +143,6 @@ export default function EquipmentDetailPage() {
         <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} />
         <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} />
       </ResponsiveGrid>
-
-      <SectionCard title="생산량·가동률 추이" className="mb-4">
-        <ProductionUtilizationTrend data={trends} />
-      </SectionCard>
 
       <ResponsiveGrid variant="split" className="mb-4">
         <SectionCard title="비가동 사유">

@@ -7,6 +7,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -140,25 +141,54 @@ function BarChartView({
   const router = useRouter();
 
   return (
-    <div className="op-prod-top-chart">
-      <ResponsiveContainer width="100%" height={340}>
+    <div className="op-prod-top-chart op-prod-top-chart--labeled">
+      <ResponsiveContainer width="100%" height={400}>
         <BarChart
           data={rows}
-          margin={{ top: 16, right: 12, left: 4, bottom: 8 }}
+          margin={{ top: 36, right: 16, left: 8, bottom: 56 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
-            dataKey="label"
+            dataKey="partNumber"
             interval={0}
-            tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-            tickFormatter={(v) =>
-              String(v).length > 8 ? `${String(v).slice(0, 8)}…` : String(v)
-            }
+            height={58}
+            tickMargin={10}
+            tick={(props) => {
+              const { x, y, payload, index } = props;
+              const row = rows[index ?? 0];
+              const name = String(payload?.value ?? "");
+              const display =
+                name.length > 10 ? `${name.slice(0, 10)}…` : name;
+              return (
+                <g transform={`translate(${x},${y})`}>
+                  <text
+                    x={0}
+                    y={0}
+                    dy={14}
+                    textAnchor="middle"
+                    className="op-prod-top-bar-name"
+                  >
+                    {display}
+                  </text>
+                  {row ? (
+                    <text
+                      x={0}
+                      y={0}
+                      dy={30}
+                      textAnchor="middle"
+                      className="op-prod-top-bar-rank"
+                    >
+                      {row.rank}위
+                    </text>
+                  ) : null}
+                </g>
+              );
+            }}
           />
           <YAxis
-            tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
+            tick={{ fill: "var(--text)", fontSize: 12, fontWeight: 600 }}
             tickFormatter={(v) => formatQuantity(Number(v))}
-            width={68}
+            width={72}
           />
           <Tooltip
             contentStyle={{
@@ -166,7 +196,10 @@ function BarChartView({
               border: "1px solid var(--border)",
               borderRadius: 12,
             }}
-            formatter={(value) => [formatQuantity(Number(value)), "생산수량"]}
+            formatter={(value) => [
+              `${formatQuantity(Number(value))} EA`,
+              "생산수량",
+            ]}
             labelFormatter={(_, payload) => {
               const row = payload?.[0]?.payload as RankRow | undefined;
               if (!row) return "";
@@ -177,7 +210,7 @@ function BarChartView({
             dataKey="production"
             name="생산수량"
             radius={[6, 6, 0, 0]}
-            maxBarSize={44}
+            maxBarSize={48}
             cursor="pointer"
             onClick={(entry) => {
               const payload = entry as unknown as { id?: string };
@@ -187,6 +220,13 @@ function BarChartView({
             {rows.map((d) => (
               <Cell key={d.id} fill={barFill(d.rank)} />
             ))}
+            <LabelList
+              dataKey="production"
+              position="top"
+              offset={8}
+              className="op-prod-top-bar-value"
+              formatter={(value) => formatQuantity(Number(value))}
+            />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

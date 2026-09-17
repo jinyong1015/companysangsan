@@ -1,4 +1,9 @@
-import type { GlobalFilters, PageListState, ThemeMode } from "@/types";
+import type {
+  GlobalFilters,
+  PageListState,
+  ThemeMode,
+  ThemePreference,
+} from "@/types";
 import { resolveDateRange, todaySeoul, toDateString } from "@/lib/dates";
 import { startOfMonth } from "date-fns";
 
@@ -53,15 +58,31 @@ export function resetFilters() {
   return next;
 }
 
-export function loadTheme(): ThemeMode {
-  if (typeof window === "undefined") return "light";
-  const raw = localStorage.getItem(THEME_KEY);
-  return raw === "dark" ? "dark" : "light";
+export function resolveThemePreference(preference: ThemePreference): ThemeMode {
+  return preference;
 }
 
-export function saveTheme(theme: ThemeMode) {
+/** 기본값: 라이트. 구버전 system 값은 라이트로 매핑 */
+export function loadThemePreference(): ThemePreference {
+  if (typeof window === "undefined") return "light";
+  const raw = localStorage.getItem(THEME_KEY);
+  if (raw === "dark") return "dark";
+  return "light";
+}
+
+export function saveThemePreference(preference: ThemePreference) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(THEME_KEY, theme);
+  localStorage.setItem(THEME_KEY, preference);
+}
+
+/** @deprecated use loadThemePreference */
+export function loadTheme(): ThemeMode {
+  return loadThemePreference();
+}
+
+/** @deprecated use saveThemePreference */
+export function saveTheme(theme: ThemeMode) {
+  saveThemePreference(theme);
 }
 
 export function loadPageState(screenKey: string): PageListState | null {

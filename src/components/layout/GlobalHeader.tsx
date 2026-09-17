@@ -17,16 +17,15 @@ import {
   Factory,
   Grid3x3,
   LayoutDashboard,
-  Moon,
   MoreHorizontal,
   Package,
   PauseCircle,
   Plus,
-  Sun,
+  Settings,
   Users,
   type LucideProps,
 } from "lucide-react";
-import { useTheme } from "@/context/ThemeContext";
+import { useAdmin } from "@/context/AdminContext";
 import { clsx } from "@/lib/format";
 
 type IconComp = ComponentType<LucideProps>;
@@ -109,7 +108,7 @@ function pickVisibleIndices(
 
 export function GlobalHeader() {
   const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
+  const { isAdmin, openSettings } = useAdmin();
   const navigationRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -336,19 +335,20 @@ export function GlobalHeader() {
             </Link>
             <button
               type="button"
-              className="header-action"
-              aria-label={
-                theme === "light" ? "다크 모드로 전환" : "라이트 모드로 전환"
-              }
-              title={
-                theme === "light" ? "다크 모드로 전환" : "라이트 모드로 전환"
-              }
-              onClick={toggleTheme}
+              className="header-action header-settings-btn"
+              aria-label={isAdmin ? "설정 (관리자 모드)" : "설정"}
+              title="설정"
+              onClick={() => openSettings("display")}
             >
-              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-              <span className="hidden sm:inline">
-                {theme === "light" ? "다크 모드" : "라이트 모드"}
-              </span>
+              <Settings size={16} />
+              <span className="hidden md:inline">설정</span>
+              {isAdmin ? (
+                <span
+                  className="header-settings-admin-dot"
+                  title="관리자 로그인 중"
+                  aria-hidden="true"
+                />
+              ) : null}
             </button>
           </div>
         </div>

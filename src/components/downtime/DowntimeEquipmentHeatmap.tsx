@@ -8,7 +8,9 @@ import {
   buildDowntimeEquipmentHeatmap,
   downtimeHeatTone,
   formatDowntimeHeatDisplay,
+  formatDowntimeHeatTotalDisplay,
   type DowntimeHeatCell,
+  type DowntimeHeatTotal,
   type DowntimeHeatmapMetric,
   type DowntimeHeatmapProductTab,
   type DowntimeHeatmapSelection,
@@ -154,6 +156,34 @@ function HeatCell({
   );
 }
 
+function TotalCell({
+  total,
+  metric,
+  title,
+  kind,
+}: {
+  total: DowntimeHeatTotal;
+  metric: DowntimeHeatmapMetric;
+  title: string;
+  /** 설비별 합계 열 / 일자 합계 행 / 전체 교차 */
+  kind: "equipment" | "day" | "grand";
+}) {
+  return (
+    <td
+      className="dt-heat-cell dt-heat-total-cell"
+      data-total-kind={kind}
+      data-empty={!total.hasData ? "true" : "false"}
+      title={title}
+    >
+      <span className="dt-heat-cell-inner">
+        <span className="dt-heat-cell-value">
+          {formatDowntimeHeatTotalDisplay(total, metric)}
+        </span>
+      </span>
+    </td>
+  );
+}
+
 interface DowntimeEquipmentHeatmapProps {
   records: ProductionRecord[];
   startDate: string;
@@ -256,6 +286,7 @@ export function DowntimeEquipmentHeatmap({
                   {bundle.dates.map((d) => (
                     <th key={d}>{shortDate(d)}</th>
                   ))}
+                  <th className="dt-heat-total-head">합계</th>
                 </tr>
               </thead>
               <tbody>
@@ -295,9 +326,37 @@ export function DowntimeEquipmentHeatmap({
                         />
                       );
                     })}
+                    <TotalCell
+                      total={row.rowTotal}
+                      metric={metric}
+                      kind="equipment"
+                      title={`${row.equipmentName} 합계`}
+                    />
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="dt-heat-footer-row">
+                  <th className="dt-heat-sticky" scope="row">
+                    일자 합계
+                  </th>
+                  {bundle.dayTotals.map((total, i) => (
+                    <TotalCell
+                      key={`day-total-${bundle.dates[i]}`}
+                      total={total}
+                      metric={metric}
+                      kind="day"
+                      title={`${bundle.dates[i]} 일자 합계`}
+                    />
+                  ))}
+                  <TotalCell
+                    total={bundle.grandTotal}
+                    metric={metric}
+                    kind="grand"
+                    title="전체 합계"
+                  />
+                </tr>
+              </tfoot>
             </table>
           </div>
 
@@ -316,6 +375,14 @@ export function DowntimeEquipmentHeatmap({
                 {TONE_LABEL[b.tone]} ({b.label})
               </span>
             ))}
+            <span className="dt-heat-legend-item">
+              <i data-total-kind="equipment" />
+              설비별 합계
+            </span>
+            <span className="dt-heat-legend-item">
+              <i data-total-kind="day" />
+              일자 합계
+            </span>
             <span className="dt-heat-legend-item dt-heat-legend-warn">
               <AlertTriangle size={12} aria-hidden />
               설비이상 포함

@@ -3,7 +3,9 @@
 import { usePathname } from "next/navigation";
 import { GlobalFilterSection } from "@/components/filters/FilterCards";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
+import { SettingsModal } from "@/components/admin/SettingsModal";
 import { DemoDataBanner } from "@/components/ui/DemoDataBanner";
+import { AdminProvider } from "@/context/AdminContext";
 import { DataSourceProvider } from "@/context/DataSourceContext";
 import { FilterProvider } from "@/context/FilterContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -33,6 +35,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         {showFilters ? <GlobalFilterSection hidePeriod={hidePeriod} /> : null}
         {children}
       </main>
+      <SettingsModal />
     </>
   );
 }
@@ -41,11 +44,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <DataSourceProvider>
-          <FilterProvider>
-            <AppShell>{children}</AppShell>
-          </FilterProvider>
-        </DataSourceProvider>
+        <AdminProvider>
+          <DataSourceProvider>
+            <FilterProvider>
+              <AppShell>{children}</AppShell>
+            </FilterProvider>
+          </DataSourceProvider>
+        </AdminProvider>
       </ToastProvider>
     </ThemeProvider>
   );
