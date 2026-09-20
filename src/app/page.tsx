@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
-import { PeriodProductSplitTrendCharts } from "@/components/charts/Charts";
+import { AnalysisGroupComparison } from "@/components/dashboard/AnalysisGroupComparison";
 import { DowntimeEquipmentHeatmap } from "@/components/downtime/DowntimeEquipmentHeatmap";
 import { DowntimeTopPartsChart } from "@/components/downtime/DowntimeTopPartsChart";
+import { ProductionVariationTrend } from "@/components/production/ProductionVariationTrend";
 import { ProductShotTopWorst } from "@/components/production/ProductShotTopWorst";
 import { ProductTypeTabs } from "@/components/production/ProductTypeTabs";
 import type { ProductTab } from "@/components/production/ProductPerformanceSummary";
@@ -20,6 +21,10 @@ import {
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 
+import {
+  buildAnalysisGroupBundle,
+  resolveSelectedAnalysisGroup,
+} from "@/lib/analysisGroups";
 import { aggregateProductPerformance } from "@/lib/aggregates";
 import type {
   DowntimeHeatmapMetric,
@@ -32,12 +37,11 @@ import type {
 import { dashboardTrendGrain, todaySeoul } from "@/lib/dates";
 import {
   formatMinutes,
-  formatNumber,
   formatPercent,
   formatQuantity,
 } from "@/lib/format";
 import {
-  buildMonthlyDashboardTrends,
+  buildTrends,
   comparePeriodKpis,
   filterRecords,
 } from "@/lib/metrics";
@@ -75,9 +79,6 @@ export default function DashboardPage() {
   const [heatmapYearMonth, setHeatmapYearMonth] = useState(
     () => yearMonthFromDate(filters.startDate) || defaultYearMonth(),
   );
-  const [monthlyMetric, setMonthlyMetric] = useState<
-    "production" | "partKinds" | "avgShot" | "downtime"
-  >("production");
 
   const invalidRange = filters.endDate < filters.startDate;
 
@@ -132,162 +133,6 @@ export default function DashboardPage() {
         : dashboardTrendGrain(filters.startDate, filters.endDate),
     [filters.endDate, filters.startDate, invalidRange],
   );
-  const trendGrainLabel = trendGrain === "day" ? "일별" : "월별";
-  const periodAvgLabel = trendGrain === "day" ? "일평균" : "월평균";
-
-  const monthlyTrendsByProduct = useMemo(() => {
-    if (invalidRange) return [];
-    const build = (productType: "GROMMET" | "SEAL") =>
-      buildMonthlyDashboardTrends(
-        filterRecords(records, { ...filters, productType }),
-        filters.startDate,
-        filters.endDate,
-        trendGrain,
-      );
-    const grommet = build("GROMMET");
-    const seal = build("SEAL");
-    const labels = grommet.length >= seal.length ? grommet : seal;
-    return labels.map((row, i) => {
-      const g = grommet[i];
-      const s = seal[i];
-      let label = row.label;
-      if (trendGrain === "month" && /^\d{4}-\d{2}$/.test(row.period)) {
-        const [year, month] = row.period.split("-");
-        const m = Number(month);
-        label =
-          i === 0 || m === 1
-            ? `${year!.slice(2)}년 ${m}월`
-            : `${m}월`;
-      }
-      return {
-        label,
-        production: {
-          GROMMET: g?.productionQuantity ?? 0,
-          SEAL: s?.productionQuantity ?? 0,
-        },
-        partKinds: {
-          GROMMET: g?.partKindCount ?? 0,
-          SEAL: s?.partKindCount ?? 0,
-        },
-        avgShot: {
-          GROMMET: g?.avgShot ?? 0,
-          SEAL: s?.avgShot ?? 0,
-        },
-        downtime: {
-          GROMMET: g?.downtimeMinutes ?? 0,
-          SEAL: s?.downtimeMinutes ?? 0,
-        },
-      };
-    });
-  }, [filters, invalidRange, records, trendGrain]);
-
-  const monthlyChart = useMemo(() => {
-    const seriesKey =
-      monthlyMetric === "production"
-        ? "production"
-        : monthlyMetric === "partKinds"
-          ? "partKinds"
-          : monthlyMetric === "avgShot"
-            ? "avgShot"
-            : "downtime";
-    const data = monthlyTrendsByProduct.map((row) => ({
-      label: row.label,
-      ...row[seriesKey],
-    }));
-
-    const avgOf = (values: number[]) => {
-      const positive = values.filter((v) => v > 0);
-      return positive.length
-        ? positive.reduce((s, v) => s + v, 0) / positive.length
-        : 0;
-    };
-
-    if (monthlyMetric === "production") {
-      const gTotal = data.reduce((s, p) => s + p.GROMMET, 0);
-      const sTotal = data.reduce((s, p) => s + p.SEAL, 0);
-      return {
-        data,
-        metricLabel: "생산량",
-        formatValue: (v: number) => formatQuantity(v),
-        stats: [
-          { label: "GROMMET 합계", value: formatQuantity(gTotal) },
-          { label: "SEAL 합계", value: formatQuantity(sTotal) },
-          {
-            label: `GROMMET ${periodAvgLabel}`,
-            value: formatQuantity(data.length ? gTotal / data.length : 0),
-          },
-          {
-            label: `SEAL ${periodAvgLabel}`,
-            value: formatQuantity(data.length ? sTotal / data.length : 0),
-          },
-        ],
-      };
-    }
-
-    if (monthlyMetric === "partKinds") {
-      return {
-        data,
-        metricLabel: "작업품목(품번) 종류",
-        formatValue: (v: number) => `${formatNumber(v)}종`,
-        stats: [
-          {
-            label: `GROMMET ${periodAvgLabel}`,
-            value: `${formatNumber(avgOf(data.map((p) => p.GROMMET)), 1)}종`,
-          },
-          {
-            label: `SEAL ${periodAvgLabel}`,
-            value: `${formatNumber(avgOf(data.map((p) => p.SEAL)), 1)}종`,
-          },
-          {
-            label: "GROMMET 최고",
-            value: `${formatNumber(Math.max(0, ...data.map((p) => p.GROMMET), 0))}종`,
-          },
-          {
-            label: "SEAL 최고",
-            value: `${formatNumber(Math.max(0, ...data.map((p) => p.SEAL), 0))}종`,
-          },
-        ],
-      };
-    }
-
-    if (monthlyMetric === "downtime") {
-      const gTotal = data.reduce((s, p) => s + p.GROMMET, 0);
-      const sTotal = data.reduce((s, p) => s + p.SEAL, 0);
-      return {
-        data,
-        metricLabel: "비가동시간(분)",
-        formatValue: (v: number) => formatMinutes(v),
-        stats: [
-          { label: "GROMMET 합계", value: formatMinutes(gTotal) },
-          { label: "SEAL 합계", value: formatMinutes(sTotal) },
-          {
-            label: `GROMMET ${periodAvgLabel}`,
-            value: formatMinutes(data.length ? gTotal / data.length : 0),
-          },
-          {
-            label: `SEAL ${periodAvgLabel}`,
-            value: formatMinutes(data.length ? sTotal / data.length : 0),
-          },
-        ],
-      };
-    }
-
-    return {
-      data,
-      metricLabel: "평균 SHOT",
-      formatValue: (v: number) => formatNumber(v, 1),
-      stats: [
-        {
-          label: "GROMMET 평균",
-          value: formatNumber(avgOf(data.map((p) => p.GROMMET)), 1),
-        },
-        {
-          label: "SEAL 평균",
-          value: formatNumber(avgOf(data.map((p) => p.SEAL)), 1),
-        },
-      ],
-    };
-  }, [monthlyMetric, monthlyTrendsByProduct, periodAvgLabel]);
 
   const productPerfRows = useMemo(
     () =>
@@ -342,6 +187,47 @@ export default function DashboardPage() {
     [filters, invalidRange, records],
   );
 
+  const analysisGroups = useMemo(
+    () =>
+      invalidRange ? null : buildAnalysisGroupBundle(records, filters),
+    [filters, invalidRange, records],
+  );
+
+  const selectedGroup = useMemo(
+    () => resolveSelectedAnalysisGroup(filters),
+    [filters],
+  );
+
+  const headerDescription = selectedGroup
+    ? `${selectedGroup.label} 기준 생산·불량 현황`
+    : "SEAL · GROMMET 기준 생산·불량 현황";
+
+  const sparkSeries = useMemo(() => {
+    if (invalidRange) {
+      return {
+        production: [] as number[],
+        defectRate: [] as number[],
+        defect: [] as number[],
+        utilization: [] as number[],
+      };
+    }
+    const points = buildTrends(
+      filterRecords(records, filters),
+      filters.startDate,
+      filters.endDate,
+      trendGrain,
+    );
+    return {
+      production: points.map((p) => p.productionQuantity),
+      defectRate: points.map((p) => {
+        const denom = p.productionQuantity + p.defectQuantity;
+        return denom > 0 ? (p.defectQuantity / denom) * 100 : 0;
+      }),
+      defect: points.map((p) => p.defectQuantity),
+      utilization: points.map((p) => p.utilizationRatePercent ?? 0),
+    };
+  }, [filters, invalidRange, records, trendGrain]);
+
   if (invalidRange) {
     return (
       <>
@@ -368,6 +254,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="대시보드"
+        description={headerDescription}
         excelName="생산현황_대시보드"
         onExcel={() =>
           downloadExcel(
@@ -387,18 +274,30 @@ export default function DashboardPage() {
 
       <ResponsiveGrid variant="kpi" className="mb-4">
         <KpiCard
-          title="총 생산량"
+          title="생산량"
           value={formatQuantity(kpi.productionQuantity)}
           compare={buildCompareLabel("percent", kpi.productionChangePercent)}
           compareValue={kpi.productionChangePercent}
-          accent="var(--metric-production)"
+          sparkline={sparkSeries.production}
+          sparklineColor="var(--success)"
+        />
+        <KpiCard
+          title="불량률"
+          value={formatPercent(kpi.defectRatePercent, 2)}
+          compare={buildCompareLabel("pp", kpi.defectRateChangePp)}
+          compareValue={kpi.defectRateChangePp}
+          comparePositiveIsGood={false}
+          sparkline={sparkSeries.defectRate}
+          sparklineColor="var(--error)"
         />
         <KpiCard
           title="불량수량"
           value={formatQuantity(kpi.defectQuantity)}
-          hint={`생산불량률 ${formatPercent(kpi.defectRatePercent, 2)}`}
-          accent="var(--metric-defect)"
+          compare={buildCompareLabel("percent", kpi.defectChangePercent)}
+          compareValue={kpi.defectChangePercent}
           comparePositiveIsGood={false}
+          sparkline={sparkSeries.defect}
+          sparklineColor="var(--error)"
         />
         <KpiCard
           title="가동률"
@@ -406,9 +305,14 @@ export default function DashboardPage() {
           hint={`${formatMinutes(kpi.operatingMinutes)} / ${formatMinutes(kpi.elapsedMinutes)}`}
           compare={buildCompareLabel("pp", kpi.utilizationChangePp)}
           compareValue={kpi.utilizationChangePp}
-          accent="var(--metric-util)"
+          sparkline={sparkSeries.utilization}
+          sparklineColor="var(--metric-util)"
         />
       </ResponsiveGrid>
+
+      {analysisGroups ? (
+        <AnalysisGroupComparison bundle={analysisGroups} />
+      ) : null}
 
       {utilizationOverview ? (
         <UtilizationOverviewPanel
@@ -427,46 +331,7 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      <SectionCard
-        title={`${trendGrainLabel} 생산변동 추이`}
-        className="mb-4"
-        action={
-          <div
-            className="flex flex-wrap justify-end gap-2"
-            role="tablist"
-            aria-label={`${trendGrainLabel} 생산변동 지표`}
-          >
-            {(
-              [
-                { key: "production" as const, label: "생산량" },
-                { key: "partKinds" as const, label: "작업품목(품번) 종류" },
-                { key: "avgShot" as const, label: "평균 SHOT" },
-                { key: "downtime" as const, label: "비가동시간(분)" },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.key}
-                type="button"
-                role="tab"
-                aria-selected={monthlyMetric === opt.key}
-                className="pill"
-                data-active={monthlyMetric === opt.key}
-                onClick={() => setMonthlyMetric(opt.key)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        }
-      >
-        <PeriodProductSplitTrendCharts
-          data={monthlyChart.data}
-          periodLabel={trendGrain === "day" ? "일" : "월"}
-          metricLabel={monthlyChart.metricLabel}
-          formatValue={monthlyChart.formatValue}
-          height={260}
-        />
-      </SectionCard>
+      <ProductionVariationTrend grain={trendGrain} />
 
       <ProductTypeTabs
         value={shotTopProductTab}

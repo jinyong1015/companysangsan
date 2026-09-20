@@ -5,6 +5,7 @@ import {
   ProductPerformanceSummary,
   type ProductTab,
 } from "@/components/production/ProductPerformanceSummary";
+import { ProductionVariationTrend } from "@/components/production/ProductionVariationTrend";
 import { ProductTypeTabs } from "@/components/production/ProductTypeTabs";
 import { ProductShotTopWorst } from "@/components/production/ProductShotTopWorst";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
@@ -141,6 +142,8 @@ export default function ProductionPage() {
           )
         }
       />
+
+      <ProductionVariationTrend grain="month" lastMonths={12} />
 
       <ProductTypeTabs
         value={topProductTab}

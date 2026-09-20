@@ -122,6 +122,8 @@ export interface KpiSummary {
 export interface KpiWithCompare extends KpiSummary {
   previous?: KpiSummary;
   productionChangePercent: number | null;
+  defectChangePercent: number | null;
+  defectRateChangePp: number | null;
   utilizationChangePp: number | null;
   uphChangePercent: number | null;
 }

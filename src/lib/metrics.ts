@@ -82,6 +82,11 @@ export function withCompare(
     ...current,
     previous,
     productionChangePercent: pct(current.productionQuantity, previous.productionQuantity),
+    defectChangePercent: pct(current.defectQuantity, previous.defectQuantity),
+    defectRateChangePp:
+      current.defectRatePercent == null || previous.defectRatePercent == null
+        ? null
+        : current.defectRatePercent - previous.defectRatePercent,
     utilizationChangePp:
       current.utilizationRatePercent == null || previous.utilizationRatePercent == null
         ? null
