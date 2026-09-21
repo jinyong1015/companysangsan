@@ -117,14 +117,14 @@ export function GlobalFilterSection({
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <input
                 type="date"
-                className="rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
+                className="filter-date-input rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
                 value={filters.startDate}
                 onChange={(e) => setFilters({ startDate: e.target.value })}
               />
               <span className="text-xs text-[var(--text-secondary)]">~</span>
               <input
                 type="date"
-                className="rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
+                className="filter-date-input rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs"
                 value={filters.endDate}
                 onChange={(e) => setFilters({ endDate: e.target.value })}
               />
