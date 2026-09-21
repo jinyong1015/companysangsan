@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 기준 문서 | `prd.md` V1.3, `화면설계서.md` V1.3 |
+| 기준 문서 | `prd.md` V1.4, `화면설계서.md` V1.4 |
 | 브랜딩 | Hyundai / Hyundaecorp |
 | 기준 타임존 | `Asia/Seoul` |
 | 현재 상태 | **프론트엔드 UI + Mock/업로드 데이터 + 관리자 세션 API 프로토타입** |
@@ -92,7 +92,7 @@ npm run admin:hash -- "새비밀번호"
 
 ## 화면 · 라우트
 
-주 메뉴 순서와 더보기 구성은 `화면설계서.md` V1.3 / `prd.md` V1.3와 동일합니다.
+주 메뉴 순서와 더보기 구성은 `화면설계서.md` V1.4 / `prd.md` V1.4와 동일합니다.
 
 | 화면 ID | 메뉴 | 라우트 | 구현 |
 |---|---|---|---|
@@ -117,8 +117,10 @@ npm run admin:hash -- "새비밀번호"
 | 경로 | 공장·제품유형 | 조회기간 |
 |---|---|---|
 | `/manage*` , `/downtime/:eventId` | 숨김 | 숨김 |
-| `/utilization`, `/downtime` | 표시 | **숨김** (화면 내 조회월) |
+| `/utilization`, `/downtime` | 표시 | **숨김** (화면 내 조회월). 조회월은 전역 기간을 덮어쓰지 않음 |
 | 그 외 | 표시 | 표시 |
+
+가동률·비가동에서 설비·품번·생산 DATA로 이동할 때는 URL `startDate`/`endDate`로 기간을 전달하며, 전역 필터는 유지됩니다.
 
 ---
 
@@ -128,13 +130,13 @@ npm run admin:hash -- "새비밀번호"
 |---|---|
 | 대시보드 | KPI 3종 · 종합 가동률 게이지 · 생산 추이(생산량·품목 종류·평균 SHOT·**비가동시간**) · SHOT TOP/WORST · 비가동 히트맵 · 비가동 TOP 품번 |
 | 생산 분석 | SHOT TOP/WORST · 제품별 생산 종합 실적(검색·정렬·컬럼·전체화면·Excel) · 품번 상세 |
-| 가동률 분석 | 조회월·설비유형 · 게이지/카드 · 목표 편집 · 날짜×설비 히트맵 · 셀→설비/원본 DATA |
-| 비가동 분석 | 사유 상세 · 선택형 히트맵 · TOP 품번(순위/막대) · 기간별·설비 신뢰성 · 이벤트 상세 |
-| 품번 / 설비 / 작업자 | TOP·목록·상세 · 상호 링크 (`WorkPartSelect` on 설비·작업자 상세) |
+| 가동률 분석 | 조회월·설비유형 · 게이지/카드 · **평일·주말** 목표 편집 · 날짜×설비 히트맵 · 셀→설비/원본 DATA(기간 쿼리) |
+| 비가동 분석 | 사유 상세 · 선택형 히트맵 · TOP 품번(순위/막대, 기간 쿼리) · 기간별·설비 신뢰성 · 이벤트 상세 |
+| 품번 / 설비 / 작업자 | TOP·목록·상세 · 상호 링크 (`WorkPartSelect`에 제품유형 표시) |
 | 금형 | 목록·상세(설비 사용 실적) |
-| 생산 DATA | 원본 조회 · **관리자만** 행 수정·변경 이력 |
+| 생산 DATA | 원본 조회 · **관리자만** 행 수정·변경 이력 · URL `equipment`/`startDate`/`endDate` 지원 |
 | 오류 DATA | 제외 행 · 오류코드 필터 · 원본 패널 |
-| 데이터 업로드 | 엑셀 업로드·검증·반영 · 샘플 다운로드 · 시드 복원 |
+| 데이터 업로드 | MES 성형작업일보 공지 · 엑셀 업로드·검증·반영 · 샘플 다운로드 · 시드 복원 |
 | 설정 | 화면 모드(라이트/다크) · 관리자 로그인/로그아웃 |
 
 ---
@@ -172,8 +174,10 @@ npm run admin:hash -- "새비밀번호"
 - 생산량 = `SUM(실적수량)`
 - 생산불량률 = 불량 / (생산+불량)
 - 가동률 = 가동시간 합 / 작업시간 합
-- 시간가동률 = 유효 가동시간 합 / 목표 가동시간 합
-- 성능가동률 = 작업판수 합 / 목표 작업판수 합 (목표 있는 셀만)
+- 시간가동률 = 유효 가동시간 합 / 목표 가동시간 합  
+  ※ 목표는 **평일·주말** × 주간 / 야간 / 주간+야간 (`연장` 없음)
+- 성능가동률 = 작업판수 합 / 목표 작업판수 합 (목표 있는 셀만)  
+  ※ 같은 날 설비에 GROMMET·SEAL이 섞여도 PRESS는 GROMMET 목표 우선 적용
 - 양품률 = 실적수량 합 / (실적+불량) 합
 - 종합설비효율 = 시간가동률 × MIN(성능가동률, 100%) × 양품률
 - UPH(일반) = 생산량 / 작업시간(분) × 60  
@@ -187,9 +191,13 @@ npm run admin:hash -- "새비밀번호"
 #### 상태 유지
 - 글로벌 필터: `production-analytics-filters` (sessionStorage)
 - 목록 상태: `production-analytics-page:{screenKey}`
-- 목표 가동시간 / 목표 판수: localStorage
+- 목표 가동시간: localStorage (`weekday`/`weekend` 스키마). 구버전 flat 값은 무시
+- 목표 판수: localStorage `production-analytics-target-shots-v2`
+- 가동률·비가동: `usePreserveGlobalPeriod`로 진입 전 전역 기간 복원
+- 드릴다운 기간: URL `startDate`/`endDate` (설비·품번·생산 DATA)
 - 데이터 소스: `demo` \| `uploaded` + IndexedDB 업로드 데이터셋
 - 엑셀 미업로드 → 시드만 표시 / 업로드 → IndexedDB 유지 / 시드 복원 시에만 가데이터 복귀
+- MES 파싱: 제품유형 `G`/`S`·`구분3`, 주야 전용 컬럼, `유압`→GROMMET
 
 ---
 
@@ -202,7 +210,7 @@ npm run admin:hash -- "새비밀번호"
 | 생산 DATA 수정 | 단건 모달 + 서버 권한·감사. 실제 값은 IndexedDB/메모리 | DB 영속·일괄 편집 UI·그리드 인라인 편집 |
 | 변경 이력 | 로컬 JSON 파일 | DB·계정별 감사·접속정보 고도화 |
 | 상세 복귀 | BackBanner + 목록 상태 | 스크롤 위치까지 완전 복원 |
-| 공유 URL | 라우트·일부 쿼리 | 공장·제품유형·기간 URL 우선 |
+| 공유 URL | 라우트·`from`·드릴다운 `startDate`/`endDate`·생산 DATA `equipment` | 공장·제품유형까지 URL 우선 동기화 |
 | 모바일 UX | 기본 반응형 | 카드형 목록·full-screen sheet |
 | 접근성 | label / aria-label 일부 | WCAG AA·차트 표 전면 |
 | 종속 필터 | 옵션 목록 고정에 가깝음 | 상위 필터 존재 값만·무효 해제 Toast |
@@ -254,10 +262,10 @@ src/
 │  ├─ filters/ · charts/ · downtime/ · production/ · utilization/ · ui/
 ├─ context/                # Filter · Theme · Toast · DataSource · Admin
 ├─ data/mock.ts
-├─ hooks/
+├─ hooks/                  # usePageState · usePreserveGlobalPeriod
 ├─ lib/
 │  ├─ admin/               # password · session · audit · clientUpdate
-│  ├─ metrics · utilization · downtime* · dates · excel …
+│  ├─ metrics · utilization · dimensions · downtime* · dates · excel · navigation …
 └─ types/
 scripts/
 └─ hash-admin-password.mjs
@@ -280,8 +288,8 @@ data/                      # 로컬 감사 로그 (gitignore)
 
 ## 참고 문서
 
-- [`prd.md`](./prd.md) V1.3 — 제품 요구사항, 계산식, API, 인수 기준, 관리자 모드
-- [`화면설계서.md`](./화면설계서.md) V1.3 — 메뉴별 UI/기능, 사용 매뉴얼, 상태 키
+- [`prd.md`](./prd.md) V1.4 — 제품 요구사항, 계산식, API, 인수 기준, 관리자 모드
+- [`화면설계서.md`](./화면설계서.md) V1.4 — 메뉴별 UI/기능, 사용 매뉴얼, 상태 키
 
 ---
 

@@ -27,14 +27,14 @@ const HEADER_ALIASES: Record<string, string[]> = {
   workDate: ["작업일자", "작업일", "일자", "날짜", "date"],
   factory: ["공장", "공장명", "사업장"],
   equipmentName: ["설비명", "설비", "호기", "machine"],
-  productType: ["제품유형", "제품구분", "유형", "product"],
+  productType: ["구분3", "제품유형", "제품구분", "유형", "구분", "product"],
   partNumber: ["품번", "품명코드", "part"],
   cavity: ["캐비티", "cavity", "캐비티수"],
   shotCount: ["작업판수", "판수", "shot", "샷수"],
   defectQuantity: ["불량수량", "불량", "defect"],
   productionQuantity: ["실적수량", "생산수량", "생산량", "실적"],
   operatorName: ["작업자", "작업자명", "성명", "operator"],
-  shiftType: ["구분", "주야", "근무구분", "교대"],
+  shiftType: ["주야", "근무구분", "교대", "주야구분"],
   moldNumber: ["금형번호", "금형", "mold"],
   startedAt: ["시작시간", "시작", "start"],
   endedAt: ["종료시간", "종료", "end"],
@@ -111,7 +111,15 @@ function mapColumns(headerRow: unknown[]) {
   });
 
   // 더 구체적인(점수 높은) 매칭을 우선하고, 한 컬럼은 한 필드만 사용
-  candidates.sort((a, b) => b.score - a.score || a.idx - b.idx);
+  // 동점이면 productType을 shiftType보다 우선 (MES '구분' = G/S 제품유형)
+  const fieldPriority = (field: keyof typeof HEADER_ALIASES) =>
+    field === "productType" ? 0 : field === "shiftType" ? 2 : 1;
+  candidates.sort(
+    (a, b) =>
+      b.score - a.score ||
+      fieldPriority(a.field) - fieldPriority(b.field) ||
+      a.idx - b.idx,
+  );
   for (const c of candidates) {
     if (map[c.field] != null) continue;
     if (usedIndexes.has(c.idx)) continue;
@@ -417,7 +425,7 @@ export function buildSampleWorkbookBuffer(seedRecords: ProductionRecord[]) {
     "불량수량",
     "실적수량",
     "작업자",
-    "구분",
+    "주야",
     "금형번호",
     "시작",
     "종료",

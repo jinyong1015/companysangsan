@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Download,
   FileSpreadsheet,
+  Megaphone,
   RotateCcw,
   Upload,
 } from "lucide-react";
@@ -154,10 +155,6 @@ export default function ManagePage() {
           <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-[26px]">
             데이터 업로드
           </h1>
-          <p className="mt-1 text-sm text-muted">
-            Excel 선택 → 컬럼 확인 → 검증 → 오류 차단(#N/A 포함) / 경고 확인 → 저장 → Dashboard
-            갱신
-          </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <button
@@ -178,6 +175,23 @@ export default function ManagePage() {
               시드 데이터로 복원
             </button>
           ) : null}
+        </div>
+      </div>
+
+      <div
+        className="flex gap-3 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-4 py-3.5"
+        role="note"
+      >
+        <Megaphone
+          size={18}
+          className="mt-0.5 shrink-0 text-[var(--accent)]"
+          aria-hidden
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-[var(--accent)]">공지사항</p>
+          <p className="mt-1 text-sm text-[var(--text)]">
+            MES 성형작업일보 데이터를 업로드 하시면 됩니다.
+          </p>
         </div>
       </div>
 

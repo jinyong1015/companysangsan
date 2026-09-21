@@ -13,6 +13,8 @@ import type {
   PerformanceShiftPattern,
   ProductType,
   ProductionRecord,
+  TargetDayKind,
+  TargetMinutesByPattern,
   TargetMinutesSettings,
   TargetShotCountTable,
   UtilizationMetric,
@@ -23,10 +25,28 @@ import { downloadArrayBuffer } from "@/lib/excelParse";
 import { filterRecords } from "@/lib/metrics";
 
 export const DEFAULT_TARGET_MINUTES: TargetMinutesSettings = {
-  "주간+야간": 1280,
-  연장: 620,
-  주간: 540,
+  weekday: {
+    주간: 620,
+    야간: 660,
+    "주간+야간": 1280,
+  },
+  weekend: {
+    주간: 540,
+    야간: 750,
+    "주간+야간": 1290,
+  },
 };
+
+export const WORK_PATTERN_KEYS: WorkPattern[] = ["주간", "야간", "주간+야간"];
+
+export function cloneTargetMinutes(
+  settings: TargetMinutesSettings = DEFAULT_TARGET_MINUTES,
+): TargetMinutesSettings {
+  return {
+    weekday: { ...settings.weekday },
+    weekend: { ...settings.weekend },
+  };
+}
 
 /** GROMMET·SEAL PRESS 기본 240/120. SEAL에는 INJECTION이 없음. */
 export const DEFAULT_TARGET_SHOT_COUNTS: TargetShotCountTable = {
@@ -51,7 +71,7 @@ export interface UtilizationCell {
   factory: string;
   equipmentType: EquipmentType;
   productTypes: ProductType[];
-  /** 시간가동률용 근무형태 (연장 자동판정 없음) */
+  /** 시간가동률용 근무형태 (주간 / 야간 / 주간+야간) */
   workPattern: WorkPattern | null;
   /** 성능가동률용 교대 구분 */
   performanceShiftPattern: PerformanceShiftPattern | null;
@@ -197,8 +217,7 @@ export function parseGpPgFamily(name: string): string | null {
 
 /**
  * 시간가동률 근무형태.
- * 원천에 연장 여부가 없으므로 연장은 자동 판정하지 않는다.
- * 주간+야간 / 주간(단일 교대·야간만 포함)만 데이터로 판정한다.
+ * 주간+야간 / 주간 / 야간을 데이터 교대로 판정한다.
  */
 export function resolveWorkPattern(
   records: ProductionRecord[],
@@ -211,8 +230,25 @@ export function resolveWorkPattern(
   const hasNight = shifts.has("야간");
 
   if (hasDay && hasNight) return "주간+야간";
-  if (hasDay || hasNight) return "주간";
+  if (hasDay) return "주간";
+  if (hasNight) return "야간";
   return null;
+}
+
+/** 작업일 기준 평일/주말 (토·일 = 주말, Asia/Seoul 날짜 문자열) */
+export function resolveTargetDayKind(workDate: string): TargetDayKind {
+  const day = getDay(parseISO(workDate));
+  return day === 0 || day === 6 ? "weekend" : "weekday";
+}
+
+export function getTargetMinutes(
+  pattern: WorkPattern | null,
+  settings: TargetMinutesSettings = DEFAULT_TARGET_MINUTES,
+  dayKind: TargetDayKind = "weekday",
+): number | null {
+  if (!pattern) return null;
+  const value = settings[dayKind][pattern];
+  return value != null && value > 0 ? value : null;
 }
 
 /** 성능가동률: 주간·야간 모두 있으면 주간+야간, 하나만 있으면 단일 교대 */
@@ -231,19 +267,11 @@ export function resolvePerformanceShiftPattern(
   return null;
 }
 
-export function getTargetMinutes(
-  pattern: WorkPattern | null,
-  settings: TargetMinutesSettings = DEFAULT_TARGET_MINUTES,
-): number | null {
-  if (!pattern) return null;
-  const value = settings[pattern];
-  return value != null && value > 0 ? value : null;
-}
-
 /**
  * 목표 작업판수.
- * - SEAL에는 INJECTION이 없으므로 SEAL+INJECTION은 항상 미설정
- * - GROMMET 목표를 SEAL에 적용하지 않음
+ * - SEAL 단독 + INJECTION은 항상 미설정 (SEAL에 INJECTION 없음)
+ * - 같은 날 설비에서 SEAL·GROMMET이 섞여도 목표 작업판수는 동일하게 적용
+ *   (PRESS: GROMMET 목표 우선, 없으면 SEAL / INJECTION: GROMMET 목표)
  */
 export function getTargetShotCount(
   productTypes: ProductType[],
@@ -253,19 +281,27 @@ export function getTargetShotCount(
 ): number | null {
   if (!shiftPattern) return null;
   if (productTypes.length === 0) return null;
-  if (productTypes.includes("SEAL") && equipmentType === "INJECTION") {
-    return null;
+
+  const hasGrommet = productTypes.includes("GROMMET");
+  const hasSeal = productTypes.includes("SEAL");
+
+  if (equipmentType === "INJECTION") {
+    // SEAL만 있는 INJECTION 셀은 목표 없음
+    if (hasSeal && !hasGrommet) return null;
+    const target = table.GROMMET.INJECTION[shiftPattern];
+    return target != null && target > 0 ? target : null;
   }
-  if (productTypes.includes("SEAL") && productTypes.includes("GROMMET")) {
-    return null;
+
+  // PRESS: 제품유형이 섞여도 동일 목표 적용
+  if (hasGrommet) {
+    const grommetTarget = table.GROMMET.PRESS[shiftPattern];
+    if (grommetTarget != null && grommetTarget > 0) return grommetTarget;
   }
-  if (productTypes.includes("SEAL") && !productTypes.includes("GROMMET")) {
+  if (hasSeal) {
     const sealTarget = table.SEAL.PRESS[shiftPattern];
     return sealTarget != null && sealTarget > 0 ? sealTarget : null;
   }
-  if (!productTypes.includes("GROMMET")) return null;
-  const target = table.GROMMET[equipmentType][shiftPattern];
-  return target != null && target > 0 ? target : null;
+  return null;
 }
 
 export function computeTimeUtilizationPercent(
@@ -518,7 +554,12 @@ function aggregateCell(
   const workPattern = resolveWorkPattern(valid);
   const performanceShiftPattern = resolvePerformanceShiftPattern(valid);
   const productTypes = [...new Set(valid.map((r) => r.productType))];
-  const targetMinutes = getTargetMinutes(workPattern, targetMinutesSettings);
+  const dayKind = resolveTargetDayKind(date);
+  const targetMinutes = getTargetMinutes(
+    workPattern,
+    targetMinutesSettings,
+    dayKind,
+  );
   const targetShotCount = getTargetShotCount(
     productTypes,
     equipmentType,
@@ -1262,19 +1303,49 @@ export function getCell(
 }
 
 export function loadTargetMinutes(): TargetMinutesSettings {
-  if (typeof window === "undefined") return { ...DEFAULT_TARGET_MINUTES };
+  if (typeof window === "undefined") return cloneTargetMinutes();
   try {
     const raw = localStorage.getItem("production-analytics-target-minutes");
-    if (!raw) return { ...DEFAULT_TARGET_MINUTES };
-    const parsed = JSON.parse(raw) as Partial<TargetMinutesSettings>;
-    return {
-      "주간+야간":
-        Number(parsed["주간+야간"]) || DEFAULT_TARGET_MINUTES["주간+야간"],
-      연장: Number(parsed["연장"]) || DEFAULT_TARGET_MINUTES["연장"],
-      주간: Number(parsed["주간"]) || DEFAULT_TARGET_MINUTES["주간"],
-    };
+    if (!raw) return cloneTargetMinutes();
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+    // v2: { weekday: {...}, weekend: {...} }
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      parsed.weekday &&
+      typeof parsed.weekday === "object" &&
+      parsed.weekend &&
+      typeof parsed.weekend === "object"
+    ) {
+      const weekday = parsed.weekday as Partial<TargetMinutesByPattern>;
+      const weekend = parsed.weekend as Partial<TargetMinutesByPattern>;
+      return {
+        weekday: {
+          주간:
+            Number(weekday["주간"]) || DEFAULT_TARGET_MINUTES.weekday["주간"],
+          야간:
+            Number(weekday["야간"]) || DEFAULT_TARGET_MINUTES.weekday["야간"],
+          "주간+야간":
+            Number(weekday["주간+야간"]) ||
+            DEFAULT_TARGET_MINUTES.weekday["주간+야간"],
+        },
+        weekend: {
+          주간:
+            Number(weekend["주간"]) || DEFAULT_TARGET_MINUTES.weekend["주간"],
+          야간:
+            Number(weekend["야간"]) || DEFAULT_TARGET_MINUTES.weekend["야간"],
+          "주간+야간":
+            Number(weekend["주간+야간"]) ||
+            DEFAULT_TARGET_MINUTES.weekend["주간+야간"],
+        },
+      };
+    }
+
+    // 구버전 flat 스키마는 무시하고 새 기본값 사용
+    return cloneTargetMinutes();
   } catch {
-    return { ...DEFAULT_TARGET_MINUTES };
+    return cloneTargetMinutes();
   }
 }
 
@@ -1282,7 +1353,7 @@ export function saveTargetMinutes(settings: TargetMinutesSettings) {
   if (typeof window === "undefined") return;
   localStorage.setItem(
     "production-analytics-target-minutes",
-    JSON.stringify(settings),
+    JSON.stringify(cloneTargetMinutes(settings)),
   );
 }
 

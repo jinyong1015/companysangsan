@@ -98,7 +98,9 @@ export function WorkPartSelect({
                 <option value="">전체 ({parts.length})</option>
                 {parts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.partNumber} · {formatNumber(p.kpi.productionQuantity)} EA
+                    {p.partNumber}
+                    {p.productType ? ` · ${p.productType}` : ""} ·{" "}
+                    {formatNumber(p.kpi.productionQuantity)} EA
                   </option>
                 ))}
               </select>
@@ -231,6 +233,14 @@ export function WorkPartSelect({
                             : formatNumber(Math.round(p.kpi.uph))}
                         </span>
                       </span>
+                      {p.productType ? (
+                        <span>
+                          제품유형{" "}
+                          <span className="font-medium text-ink/80">
+                            {p.productType}
+                          </span>
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                 </button>

@@ -147,7 +147,20 @@ export function normalizeFactory(raw: string): Factory {
 
 export function normalizeProductType(raw: string): ProductType | null {
   const v = raw.trim().toUpperCase();
-  if (v.includes("GROMMET") || v.includes("그로멧") || v.includes("그로밋")) return "GROMMET";
+  if (!v) return null;
+
+  // MES 구분 코드: G = GROMMET, S = SEAL
+  if (v === "G") return "GROMMET";
+  if (v === "S") return "SEAL";
+
+  if (
+    v.includes("GROMMET") ||
+    v.includes("그로멧") ||
+    v.includes("그로밋") ||
+    v.includes("유압")
+  ) {
+    return "GROMMET";
+  }
   if (v.includes("SEAL") || v.includes("씰") || v.includes("실")) return "SEAL";
   return null;
 }

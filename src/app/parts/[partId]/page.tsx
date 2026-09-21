@@ -38,6 +38,8 @@ export default function PartDetailPage() {
   const params = useParams<{ partId: string }>();
   const searchParams = useSearchParams();
   const from = searchParams.get("from");
+  const periodStart = searchParams.get("startDate");
+  const periodEnd = searchParams.get("endDate");
   const back = detailBackNav(from, "parts");
   const { filters } = useFilters();
   const { records } = useDataSource();
@@ -50,20 +52,33 @@ export default function PartDetailPage() {
         : null;
     })();
 
+  const rangeStart = periodStart || filters.startDate;
+  const rangeEnd = periodEnd || filters.endDate;
+
   const rows = useMemo(
-    () => filterRecords(records, { ...filters, partIds: [params.partId] }),
-    [filters, params.partId, records],
+    () =>
+      filterRecords(records, {
+        ...filters,
+        ...(periodStart && periodEnd
+          ? {
+              datePreset: "custom" as const,
+              startDate: periodStart,
+              endDate: periodEnd,
+            }
+          : null),
+        partIds: [params.partId],
+      }),
+    [filters, params.partId, periodEnd, periodStart, records],
   );
   const kpi = useMemo(() => computeKpi(rows), [rows]);
   const trendGrain = useMemo(
-    () => detailTrendGrain(filters.startDate, filters.endDate),
-    [filters.startDate, filters.endDate],
+    () => detailTrendGrain(rangeStart, rangeEnd),
+    [rangeEnd, rangeStart],
   );
   const grainLabel = trendGrain === "month" ? "월별" : "일별";
   const trends = useMemo(
-    () =>
-      buildTrends(rows, filters.startDate, filters.endDate, trendGrain),
-    [rows, filters.startDate, filters.endDate, trendGrain],
+    () => buildTrends(rows, rangeStart, rangeEnd, trendGrain),
+    [rows, rangeStart, rangeEnd, trendGrain],
   );
   const chartData = useMemo(() => {
     const mapped = trends.map((t) => ({

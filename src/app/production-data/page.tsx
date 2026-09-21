@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { History, Pencil } from "lucide-react";
 import { DetailFilterCard } from "@/components/filters/FilterCards";
 import { ChangeHistoryModal } from "@/components/admin/ChangeHistoryModal";
@@ -20,6 +21,10 @@ import { withFromParam } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
 
 export default function ProductionDataPage() {
+  const searchParams = useSearchParams();
+  const periodStart = searchParams.get("startDate");
+  const periodEnd = searchParams.get("endDate");
+  const equipmentParam = searchParams.get("equipment");
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
   const { isAdmin, openLogin } = useAdmin();
@@ -30,7 +35,17 @@ export default function ProductionDataPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const rows = useMemo(() => {
-    let list = filterRecords(records, filters);
+    let list = filterRecords(records, {
+      ...filters,
+      ...(periodStart && periodEnd
+        ? {
+            datePreset: "custom" as const,
+            startDate: periodStart,
+            endDate: periodEnd,
+          }
+        : null),
+      ...(equipmentParam ? { equipmentIds: [equipmentParam] } : null),
+    });
     if (state.search.trim()) {
       const q = state.search.toLowerCase();
       list = list.filter(
@@ -48,7 +63,7 @@ export default function ProductionDataPage() {
       downtime: (r) => r.downtimeMinutes,
       equipment: (r) => r.equipmentName,
     });
-  }, [filters, state, records]);
+  }, [equipmentParam, filters, periodEnd, periodStart, records, state]);
 
   const paged = paginate(rows, state.page, state.pageSize);
   const selected = selectedId

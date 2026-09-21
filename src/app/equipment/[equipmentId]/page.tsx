@@ -33,6 +33,8 @@ export default function EquipmentDetailPage() {
   const params = useParams<{ equipmentId: string }>();
   const searchParams = useSearchParams();
   const from = searchParams.get("from");
+  const periodStart = searchParams.get("startDate");
+  const periodEnd = searchParams.get("endDate");
   const back = detailBackNav(from, "equipment");
   const { filters } = useFilters();
   const { records } = useDataSource();
@@ -51,9 +53,16 @@ export default function EquipmentDetailPage() {
     () =>
       filterRecords(records, {
         ...filters,
+        ...(periodStart && periodEnd
+          ? {
+              datePreset: "custom" as const,
+              startDate: periodStart,
+              endDate: periodEnd,
+            }
+          : null),
         equipmentIds: [params.equipmentId],
       }),
-    [filters, params.equipmentId, records],
+    [filters, params.equipmentId, periodEnd, periodStart, records],
   );
 
   const partRows = useMemo(() => {

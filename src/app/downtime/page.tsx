@@ -21,6 +21,7 @@ import { useDataSource } from "@/context/DataSourceContext";
 import { useToast } from "@/context/ToastContext";
 
 import { usePageState } from "@/hooks/usePageState";
+import { usePreserveGlobalPeriod } from "@/hooks/usePreserveGlobalPeriod";
 import { todaySeoul } from "@/lib/dates";
 import {
   buildEquipmentReliabilityTable,
@@ -50,9 +51,8 @@ import {
   sortBy,
 } from "@/lib/metrics";
 import { inferEquipmentType, monthDateRange } from "@/lib/utilization";
-import { withFromParam } from "@/lib/navigation";
+import { withFromParam, withPeriodParams } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
-import { saveFilters } from "@/lib/storage";
 import type { EquipmentType, GlobalFilters, ProductType, ProductionRecord } from "@/types";
 
 type ProductTab = "전체" | ProductType;
@@ -78,10 +78,6 @@ function defaultYearMonth() {
   return format(todaySeoul(), "yyyy-MM");
 }
 
-function yearMonthFromDate(date: string) {
-  return date.slice(0, 7);
-}
-
 function filterByEquipmentType(
   list: ProductionRecord[],
   equipmentType: EqTypeFilter,
@@ -98,12 +94,13 @@ export default function DowntimePage() {
   const { records } = useDataSource();
   const { pushToast } = useToast();
   const { state, patch, ready } = usePageState("downtime", "downtime", "desc");
+  usePreserveGlobalPeriod(ready);
   const didSyncMonth = useRef(false);
 
   const yearMonth =
     typeof state.extra?.yearMonth === "string" && state.extra.yearMonth
       ? state.extra.yearMonth
-      : yearMonthFromDate(filters.startDate) || defaultYearMonth();
+      : defaultYearMonth();
 
   const equipmentType: EqTypeFilter = isEqTypeFilter(state.extra?.equipmentType)
     ? state.extra.equipmentType
@@ -130,7 +127,6 @@ export default function DowntimePage() {
 
   const applyYearMonth = useCallback(
     (ym: string) => {
-      const range = monthDateRange(ym);
       setExtra({
         yearMonth: ym,
         heatmapSelDate: null,
@@ -138,14 +134,9 @@ export default function DowntimePage() {
         heatmapSelEqName: null,
         heatmapSelProduct: null,
       });
-      setFilters({
-        datePreset: "custom",
-        startDate: range.startDate,
-        endDate: range.endDate,
-      });
       patch({ page: 1 });
     },
-    [setExtra, setFilters, patch],
+    [setExtra, patch],
   );
 
   const setEquipmentType = (next: EqTypeFilter) => {
@@ -164,27 +155,7 @@ export default function DowntimePage() {
     if (!ready || didSyncMonth.current) return;
     didSyncMonth.current = true;
     setExtra({ yearMonth, equipmentType });
-    if (
-      filters.startDate !== monthRange.startDate ||
-      filters.endDate !== monthRange.endDate
-    ) {
-      setFilters({
-        datePreset: "custom",
-        startDate: monthRange.startDate,
-        endDate: monthRange.endDate,
-      });
-    }
-  }, [
-    ready,
-    yearMonth,
-    equipmentType,
-    monthRange.startDate,
-    monthRange.endDate,
-    filters.startDate,
-    filters.endDate,
-    setExtra,
-    setFilters,
-  ]);
+  }, [ready, yearMonth, equipmentType, setExtra]);
 
   const analysisRecords = useMemo(
     () => filterByEquipmentType(filterRecords(records, queryFilters), equipmentType),
@@ -420,22 +391,18 @@ export default function DowntimePage() {
   };
 
   const openTopPartDetail = (partId: string) => {
-    // 조회월 범위를 전역 필터에 반영한 뒤 품번 상세로 이동
     const range = monthDateRange(yearMonth);
-    const nextFilters: GlobalFilters = {
-      ...filters,
-      datePreset: "custom",
-      startDate: range.startDate,
-      endDate: range.endDate,
-    };
     setExtra({ yearMonth });
-    setFilters({
-      datePreset: "custom",
-      startDate: range.startDate,
-      endDate: range.endDate,
-    });
-    saveFilters(nextFilters);
-    router.push(withFromParam(`/parts/${partId}`, "downtime"));
+    router.push(
+      withFromParam(
+        withPeriodParams(
+          `/parts/${encodeURIComponent(partId)}`,
+          range.startDate,
+          range.endDate,
+        ),
+        "downtime",
+      ),
+    );
   };
 
   const resetQuery = () => {

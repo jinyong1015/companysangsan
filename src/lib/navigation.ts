@@ -66,6 +66,16 @@ export function withFromParam(href: string, from: DetailBackSource): string {
   return `${href}${join}from=${from}`;
 }
 
+/** 상세 등에서 전역 필터를 바꾸지 않고 기간만 전달 */
+export function withPeriodParams(
+  href: string,
+  startDate: string,
+  endDate: string,
+): string {
+  const join = href.includes("?") ? "&" : "?";
+  return `${href}${join}startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+}
+
 /** 상세→상세 이동 시 기존 from을 유지하고, 없으면 fallback 사용 */
 export function detailHref(
   href: string,

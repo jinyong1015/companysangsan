@@ -10,6 +10,7 @@ import { useDataSource } from "@/context/DataSourceContext";
 import { useFilters } from "@/context/FilterContext";
 import { useToast } from "@/context/ToastContext";
 import { usePageState } from "@/hooks/usePageState";
+import { usePreserveGlobalPeriod } from "@/hooks/usePreserveGlobalPeriod";
 import { todaySeoul } from "@/lib/dates";
 import {
   formatMinutes,
@@ -21,7 +22,7 @@ import {
   buildUtilizationMatrix,
   buildUtilizationOverviewBundle,
   cellDisplay,
-  DEFAULT_TARGET_MINUTES,
+  cloneTargetMinutes,
   DEFAULT_TARGET_SHOT_COUNTS,
   exportUtilizationExcel,
   formatMonthLabel,
@@ -30,17 +31,18 @@ import {
   loadTargetMinutes,
   loadTargetShotCounts,
   monthDateRange,
+  resolveTargetDayKind,
   saveTargetMinutes,
   saveTargetShotCounts,
+  WORK_PATTERN_KEYS,
   type UtilizationCell,
 } from "@/lib/utilization";
-import { withFromParam } from "@/lib/navigation";
-import { saveFilters } from "@/lib/storage";
+import { withFromParam, withPeriodParams } from "@/lib/navigation";
 import type {
   EquipmentType,
-  GlobalFilters,
   PerformanceShiftPattern,
   ProductType,
+  TargetDayKind,
   TargetMinutesSettings,
   TargetShotCountTable,
   UtilizationMetric,
@@ -69,16 +71,12 @@ function defaultYearMonth() {
   return format(todaySeoul(), "yyyy-MM");
 }
 
-function yearMonthFromDate(date: string) {
-  return date.slice(0, 7);
-}
-
 function isTimeWorkPattern(value: string): value is WorkPattern | "전체" {
   return (
     value === "전체" ||
     value === "주간+야간" ||
-    value === "연장" ||
-    value === "주간"
+    value === "주간" ||
+    value === "야간"
   );
 }
 
@@ -167,7 +165,16 @@ function CellTooltip({
         </div>
         <div>
           <dt>적용 근무형태</dt>
-          <dd>{cell.workPattern ?? "-"}</dd>
+          <dd>
+            {cell.workPattern ?? "-"}
+            {cell.date
+              ? ` · ${
+                  resolveTargetDayKind(cell.date) === "weekend"
+                    ? "주말"
+                    : "평일"
+                }`
+              : ""}
+          </dd>
         </div>
         <div>
           <dt>목표 가동시간</dt>
@@ -297,7 +304,6 @@ function DetailModal({
   onOpenEquipment: (equipmentId: string) => void;
 }) {
   const router = useRouter();
-  const { setFilters } = useFilters();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -368,13 +374,16 @@ function DetailModal({
         ];
 
   const openProductionData = () => {
-    setFilters({
-      datePreset: "custom",
-      startDate: cell.date,
-      endDate: cell.date,
-      equipmentIds: [cell.equipmentId],
-    });
-    router.push(withFromParam("/production-data", "utilization"));
+    router.push(
+      withFromParam(
+        withPeriodParams(
+          `/production-data?equipment=${encodeURIComponent(cell.equipmentId)}`,
+          cell.date,
+          cell.date,
+        ),
+        "utilization",
+      ),
+    );
   };
 
   return (
@@ -431,13 +440,14 @@ export default function UtilizationPage() {
   const { pushToast } = useToast();
   const pathname = usePathname();
   const { state, patch, ready } = usePageState("utilization", "date", "asc");
+  usePreserveGlobalPeriod(ready);
   const scrollRef = useRef<HTMLDivElement>(null);
   const persistRef = useRef({ scrollY: 0, scrollX: 0 });
   const [selected, setSelected] = useState<UtilizationCell | null>(null);
   const [targetSettings, setTargetSettings] = useState<TargetMinutesSettings>(
     () =>
       typeof window === "undefined"
-        ? DEFAULT_TARGET_MINUTES
+        ? cloneTargetMinutes()
         : loadTargetMinutes(),
   );
   const [shotSettings, setShotSettings] = useState<TargetShotCountTable>(() =>
@@ -453,7 +463,7 @@ export default function UtilizationPage() {
   const yearMonth =
     typeof state.extra?.yearMonth === "string" && state.extra.yearMonth
       ? state.extra.yearMonth
-      : yearMonthFromDate(filters.startDate) || defaultYearMonth();
+      : defaultYearMonth();
   const equipmentType = (state.extra?.equipmentType as EqTypeFilter) || "전체";
 
   const rawWorkPattern =
@@ -483,10 +493,9 @@ export default function UtilizationPage() {
     });
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** 생산 DATA 드릴다운에서 남은 설비·단일일 기간 등이 전역 필터에 남지 않게 정리 */
+  /** 생산 DATA 드릴다운에서 남은 설비 등이 전역 필터에 남지 않게 정리 (조회기간은 유지) */
   useEffect(() => {
     if (!ready || pathname !== "/utilization") return;
-    const range = monthDateRange(yearMonth);
     setFilters({
       equipmentIds: [],
       partIds: [],
@@ -494,11 +503,8 @@ export default function UtilizationPage() {
       moldIds: [],
       shiftType: "전체",
       downtimeReason: "전체",
-      datePreset: "custom",
-      startDate: range.startDate,
-      endDate: range.endDate,
     });
-  }, [ready, pathname, yearMonth, setFilters]);
+  }, [ready, pathname, setFilters]);
 
   const matrix = useMemo(
     () =>
@@ -611,31 +617,22 @@ export default function UtilizationPage() {
   };
 
   const applyYearMonth = (ym: string) => {
-    const range = monthDateRange(ym);
     setExtra({ yearMonth: ym });
-    setFilters({
-      datePreset: "custom",
-      startDate: range.startDate,
-      endDate: range.endDate,
-    });
   };
 
   const openEquipmentDetail = (equipmentId: string) => {
     const range = monthDateRange(yearMonth);
-    const nextFilters: GlobalFilters = {
-      ...filters,
-      datePreset: "custom",
-      startDate: range.startDate,
-      endDate: range.endDate,
-    };
     setExtra({ yearMonth });
-    setFilters({
-      datePreset: "custom",
-      startDate: range.startDate,
-      endDate: range.endDate,
-    });
-    saveFilters(nextFilters);
-    router.push(withFromParam(`/equipment/${equipmentId}`, "utilization"));
+    router.push(
+      withFromParam(
+        withPeriodParams(
+          `/equipment/${encodeURIComponent(equipmentId)}`,
+          range.startDate,
+          range.endDate,
+        ),
+        "utilization",
+      ),
+    );
   };
 
   const handleExcel = () => {
@@ -664,10 +661,17 @@ export default function UtilizationPage() {
     pushToast("목표 작업판수 설정을 저장했습니다.", "success");
   };
 
-  const updateTargetMinutes = (key: WorkPattern, raw: string) => {
-    const next = {
+  const updateTargetMinutes = (
+    dayKind: TargetDayKind,
+    key: WorkPattern,
+    raw: string,
+  ) => {
+    const next: TargetMinutesSettings = {
       ...targetSettings,
-      [key]: Math.max(1, Number(raw) || 1),
+      [dayKind]: {
+        ...targetSettings[dayKind],
+        [key]: Math.max(1, Number(raw) || 1),
+      },
     };
     setTargetSettings(next);
     saveTargetMinutes(next);
@@ -786,7 +790,7 @@ export default function UtilizationPage() {
             </p>
             <div className="filter-pills">
               {(metric === "time"
-                ? (["전체", "주간+야간", "연장", "주간"] as const)
+                ? (["전체", "주간+야간", "주간", "야간"] as const)
                 : (["전체", "주간+야간", "단일 교대"] as const)
               ).map((opt) => (
                 <button
@@ -846,30 +850,36 @@ export default function UtilizationPage() {
               <div>
                 <h2 className="text-base font-bold">목표 가동시간 기준</h2>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                  변경 값은 바로 저장되며 히트맵에 반영됩니다.
+                  평일·주말과 주간/야간/주간+야간에 따라 적용됩니다. 변경 값은
+                  바로 저장되며 히트맵에 반영됩니다.
                 </p>
-                <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                  <span>
-                    주간+야간{" "}
-                    <strong className="num">
-                      {formatNumber(targetSettings["주간+야간"])}분
-                    </strong>
-                  </span>
-                  <span>
-                    연장{" "}
-                    <strong className="num">
-                      {formatNumber(targetSettings["연장"])}분
-                    </strong>
-                    <span className="ml-1 text-xs text-[var(--text-secondary)]">
-                      (근무계획 연동 시)
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    <span className="w-10 shrink-0 font-medium text-[var(--text-secondary)]">
+                      평일
                     </span>
-                  </span>
-                  <span>
-                    주간{" "}
-                    <strong className="num">
-                      {formatNumber(targetSettings["주간"])}분
-                    </strong>
-                  </span>
+                    {WORK_PATTERN_KEYS.map((key) => (
+                      <span key={`wd-${key}`}>
+                        {key}{" "}
+                        <strong className="num">
+                          {formatNumber(targetSettings.weekday[key])}분
+                        </strong>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    <span className="w-10 shrink-0 font-medium text-[var(--text-secondary)]">
+                      주말
+                    </span>
+                    {WORK_PATTERN_KEYS.map((key) => (
+                      <span key={`we-${key}`}>
+                        {key}{" "}
+                        <strong className="num">
+                          {formatNumber(targetSettings.weekend[key])}분
+                        </strong>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
               <button
@@ -881,32 +891,46 @@ export default function UtilizationPage() {
               </button>
             </div>
             {editTargets ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                {(["주간+야간", "연장", "주간"] as WorkPattern[]).map((key) => (
-                  <label key={key} className="text-sm">
-                    <span className="mb-1 block text-xs text-[var(--text-secondary)]">
-                      {key} (분)
-                    </span>
-                    <input
-                      type="number"
-                      min={1}
-                      className="w-full rounded-[10px] border border-[var(--border)] bg-transparent px-3 py-2"
-                      value={targetSettings[key]}
-                      onChange={(e) =>
-                        updateTargetMinutes(key, e.target.value)
-                      }
-                    />
-                  </label>
+              <div className="mt-4 space-y-4">
+                {(
+                  [
+                    { kind: "weekday" as const, label: "평일" },
+                    { kind: "weekend" as const, label: "주말(토·일)" },
+                  ] as const
+                ).map((section) => (
+                  <div key={section.kind}>
+                    <p className="mb-2 text-sm font-semibold">{section.label}</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {WORK_PATTERN_KEYS.map((key) => (
+                        <label key={`${section.kind}-${key}`} className="text-sm">
+                          <span className="mb-1 block text-xs text-[var(--text-secondary)]">
+                            {key} (분)
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            className="w-full rounded-[10px] border border-[var(--border)] bg-transparent px-3 py-2"
+                            value={targetSettings[section.kind][key]}
+                            onChange={(e) =>
+                              updateTargetMinutes(
+                                section.kind,
+                                key,
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-                <div className="sm:col-span-3">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={saveTargets}
-                  >
-                    저장 후 닫기
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={saveTargets}
+                >
+                  저장 후 닫기
+                </button>
               </div>
             ) : null}
           </>

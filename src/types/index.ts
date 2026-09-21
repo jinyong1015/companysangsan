@@ -1,8 +1,10 @@
 export type Factory = "본사" | "2공장";
 export type ProductType = "GROMMET" | "SEAL";
 export type ShiftType = "주간" | "야간";
-/** 시간가동률 목표시간 적용용 근무형태 (주·야 구분과 별개) */
-export type WorkPattern = "주간+야간" | "연장" | "주간";
+/** 시간가동률 목표시간 적용용 근무형태 */
+export type WorkPattern = "주간+야간" | "주간" | "야간";
+/** 평일 / 주말 (토·일) 구분 — 목표 가동시간 적용용 */
+export type TargetDayKind = "weekday" | "weekend";
 /** 성능가동률 목표 작업판수 적용용 교대 구분 */
 export type PerformanceShiftPattern = "주간+야간" | "단일 교대";
 export type UtilizationMetric = "time" | "performance";
@@ -19,10 +21,16 @@ export type Grain = "day" | "week" | "month";
 export type ThemeMode = "light" | "dark";
 export type ThemePreference = ThemeMode;
 
-export interface TargetMinutesSettings {
+export interface TargetMinutesByPattern {
   "주간+야간": number;
-  연장: number;
   주간: number;
+  야간: number;
+}
+
+/** 평일·주말 × 근무형태별 목표 가동시간(분) */
+export interface TargetMinutesSettings {
+  weekday: TargetMinutesByPattern;
+  weekend: TargetMinutesByPattern;
 }
 
 /** 제품유형 × 설비유형 × 교대 구분별 목표 작업판수 (미설정은 null) */
