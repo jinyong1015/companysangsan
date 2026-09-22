@@ -75,12 +75,12 @@ export function saveThemePreference(preference: ThemePreference) {
   localStorage.setItem(THEME_KEY, preference);
 }
 
-/** @deprecated use loadThemePreference */
+/** @deprecated use `@/lib/theme` saveTheme */
 export function loadTheme(): ThemeMode {
   return loadThemePreference();
 }
 
-/** @deprecated use saveThemePreference */
+/** @deprecated use `@/lib/theme` saveTheme */
 export function saveTheme(theme: ThemeMode) {
   saveThemePreference(theme);
 }

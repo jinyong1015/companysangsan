@@ -20,8 +20,14 @@ import {
   X,
 } from "lucide-react";
 import { useAdmin, type SettingsTab } from "@/context/AdminContext";
-import { useTheme } from "@/context/ThemeContext";
 import { useToast } from "@/context/ToastContext";
+import {
+  THEME_CHANGE_EVENT,
+  THEME_STORAGE_KEY,
+  dispatchThemeChange,
+  getInitialTheme,
+  saveTheme,
+} from "@/lib/theme";
 import type { ThemeMode } from "@/types";
 import { clsx } from "@/lib/format";
 
@@ -46,7 +52,26 @@ const THEME_OPTIONS: Array<{
 ];
 
 function DisplayModePanel() {
-  const { preference, setPreference } = useTheme();
+  const [preference, setPreference] = useState<ThemeMode>(() => getInitialTheme());
+
+  useEffect(() => {
+    const sync = (event: Event) => {
+      const detail = (event as CustomEvent<ThemeMode>).detail;
+      if (detail === "light" || detail === "dark") setPreference(detail);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== THEME_STORAGE_KEY) return;
+      if (event.newValue === "light" || event.newValue === "dark") {
+        setPreference(event.newValue);
+      }
+    };
+    window.addEventListener(THEME_CHANGE_EVENT, sync);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(THEME_CHANGE_EVENT, sync);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   return (
     <div className="settings-panel">
@@ -76,7 +101,11 @@ function DisplayModePanel() {
                 `settings-theme-card-${option.value}`,
                 selected && "settings-theme-card-active",
               )}
-              onClick={() => setPreference(option.value)}
+              onClick={() => {
+                setPreference(option.value);
+                saveTheme(option.value);
+                dispatchThemeChange(option.value);
+              }}
             >
               <span
                 className={clsx(

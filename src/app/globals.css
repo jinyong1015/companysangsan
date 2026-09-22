@@ -1,72 +1,5 @@
 @import "tailwindcss";
 
-/* 테마 색상 변수 보간을 위해 등록 — data-theme 전환 시 부드럽게 색이 바뀜 */
-@property --app-bg {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #f4f7fe;
-}
-@property --card {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #ffffff;
-}
-@property --elevated {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #ffffff;
-}
-@property --accent {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #3b82f6;
-}
-@property --accent-soft {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #eff6ff;
-}
-@property --text {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #111827;
-}
-@property --text-secondary {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #6b7280;
-}
-@property --border {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #e8eef7;
-}
-@property --header-bg {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #ffffff;
-}
-@property --success {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #16a34a;
-}
-@property --warning {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #d97706;
-}
-@property --error {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #dc2626;
-}
-@property --ring {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #3b82f6;
-}
-
 :root,
 [data-theme="light"] {
   --app-bg: #f4f7fe;
@@ -105,8 +38,8 @@
   --elevated: #1b1e27;
   --accent: #8bb4ff;
   --accent-soft: #121826;
-  --accent-fill: color-mix(in srgb, #8bb4ff 18%, #14161c);
-  --accent-fill-border: color-mix(in srgb, #8bb4ff 42%, transparent);
+  --accent-fill: #1a2333;
+  --accent-fill-border: #3d5278;
   --text: #f0f2f7;
   --text-secondary: #8b93a7;
   --border: #2c313c;
@@ -172,48 +105,11 @@
 
 html {
   color-scheme: light;
-  /* CSS 변수 자체가 보간되도록 — 하위 요소는 var()만 써도 색이 부드럽게 바뀜 */
-  transition:
-    --app-bg 200ms ease,
-    --card 200ms ease,
-    --elevated 200ms ease,
-    --accent 200ms ease,
-    --accent-soft 200ms ease,
-    --text 200ms ease,
-    --text-secondary 200ms ease,
-    --border 200ms ease,
-    --header-bg 200ms ease,
-    --success 200ms ease,
-    --warning 200ms ease,
-    --error 200ms ease,
-    --ring 200ms ease;
 }
 
-html[data-theme="dark"] {
+html[data-theme="dark"],
+html.dark {
   color-scheme: dark;
-}
-
-/*
-  하드코딩된 [data-theme="dark"] 규칙·카드 배경 등 변수 외 색상도
-  전환 순간에만 짧게 보간 (layout/transform 은 제외해 밀림·버벅임 방지)
-*/
-html.theme-transitioning,
-html.theme-transitioning *:not(canvas):not(svg):not(svg *) {
-  transition-property: background-color, color, border-color, outline-color,
-    fill, stroke, box-shadow, caret-color, text-decoration-color !important;
-  transition-duration: 200ms !important;
-  transition-timing-function: ease !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    transition: none;
-  }
-
-  html.theme-transitioning,
-  html.theme-transitioning * {
-    transition: none !important;
-  }
 }
 
 body {

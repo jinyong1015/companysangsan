@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  const themeBootScript = `(function(){try{var k="production-analytics-color-theme";var raw=localStorage.getItem(k);var theme=raw==="dark"?"dark":"light";document.documentElement.setAttribute("data-theme",theme);}catch(e){document.documentElement.setAttribute("data-theme","light");}})();`;
+  const themeBootScript = `(function(){try{var k="production-analytics-color-theme";var raw=localStorage.getItem(k);var theme=raw==="dark"?"dark":"light";var root=document.documentElement;root.setAttribute("data-theme",theme);root.classList.toggle("dark",theme==="dark");root.style.colorScheme=theme;}catch(e){var r=document.documentElement;r.setAttribute("data-theme","light");r.classList.remove("dark");r.style.colorScheme="light";}})();`;
 
   return (
     <html lang="ko" className={`${noto.variable} h-full antialiased`} suppressHydrationWarning>

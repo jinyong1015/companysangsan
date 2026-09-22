@@ -2,17 +2,23 @@
 
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { ThemeMode } from "@/types";
-import { loadThemePreference, saveThemePreference } from "@/lib/storage";
+import {
+  THEME_CHANGE_EVENT,
+  THEME_STORAGE_KEY,
+  applyTheme,
+  dispatchThemeChange,
+  getInitialTheme,
+  saveTheme,
+  type ColorTheme,
+} from "@/lib/theme";
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -23,82 +29,46 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-/** 색상 전환 시간 — CSS `.theme-transitioning` / html @property 와 맞출 것 */
-const THEME_TRANSITION_MS = 200;
-
-function applyTheme(theme: ThemeMode) {
-  const root = document.documentElement;
-  root.setAttribute("data-theme", theme);
-  root.style.colorScheme = theme;
-}
-
-function readTheme(): ThemeMode {
-  if (typeof window === "undefined") return "light";
-  return loadThemePreference();
-}
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<ThemeMode>(readTheme);
-  const clearTransitionTimer = useRef<number | null>(null);
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
 
   useEffect(() => {
     applyTheme(theme);
-    return () => {
-      if (clearTransitionTimer.current != null) {
-        window.clearTimeout(clearTransitionTimer.current);
+
+    const onThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<ColorTheme>).detail;
+      if (detail === "light" || detail === "dark") {
+        setTheme(detail);
       }
-      document.documentElement.classList.remove("theme-transitioning");
     };
-    // 마운트 시 DOM만 동기화 (boot script와 일치). theme 변경 시마다 재실행하지 않음.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only hydrate
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== THEME_STORAGE_KEY) return;
+      if (event.newValue === "light" || event.newValue === "dark") {
+        applyTheme(event.newValue);
+        setTheme(event.newValue);
+      }
+    };
+
+    window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange);
+      window.removeEventListener("storage", onStorage);
+    };
+    // 마운트 시 DOM 동기화 + 구독만
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only
   }, []);
 
-  const runThemeChange = useCallback((next: ThemeMode) => {
-    const root = document.documentElement;
-    const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
-    if (next === current && next === theme) return;
-
-    if (clearTransitionTimer.current != null) {
-      window.clearTimeout(clearTransitionTimer.current);
-      clearTransitionTimer.current = null;
-    }
-
-    const allowMotion = !prefersReducedMotion();
-    if (allowMotion) {
-      root.classList.add("theme-transitioning");
-    }
-
-    // DOM 테마를 먼저 바꿔 브라우저가 색상 보간을 즉시 시작하게 함
-    applyTheme(next);
-    saveThemePreference(next);
-
-    // React 구독 UI(설정 선택 상태)는 transition으로 낮춰 페인트를 막지 않음
-    startTransition(() => {
-      setTheme(next);
-    });
-
-    if (allowMotion) {
-      clearTransitionTimer.current = window.setTimeout(() => {
-        root.classList.remove("theme-transitioning");
-        clearTransitionTimer.current = null;
-      }, THEME_TRANSITION_MS);
-    }
-  }, [theme]);
-
-  const setPreference = useCallback(
-    (next: ThemeMode) => {
-      runThemeChange(next);
-    },
-    [runThemeChange],
-  );
+  const setPreference = useCallback((next: ThemeMode) => {
+    saveTheme(next);
+    dispatchThemeChange(next);
+    setTheme(next);
+  }, []);
 
   const toggleTheme = useCallback(() => {
-    runThemeChange(theme === "light" ? "dark" : "light");
-  }, [runThemeChange, theme]);
+    setPreference(theme === "light" ? "dark" : "light");
+  }, [setPreference, theme]);
 
   const value = useMemo(
     () => ({
