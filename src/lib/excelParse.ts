@@ -4,6 +4,7 @@ import {
   normalizeFactory,
   normalizeProductType,
   normalizeShift,
+  parseShiftValue,
   slugId,
 } from "@/lib/dimensions";
 
@@ -27,14 +28,15 @@ const HEADER_ALIASES: Record<string, string[]> = {
   workDate: ["작업일자", "작업일", "일자", "날짜", "date"],
   factory: ["공장", "공장명", "사업장"],
   equipmentName: ["설비명", "설비", "호기", "machine"],
-  productType: ["구분3", "제품유형", "제품구분", "유형", "구분", "product"],
+  productType: ["구분3", "제품유형", "제품구분", "유형", "product"],
   partNumber: ["품번", "품명코드", "part"],
   cavity: ["캐비티", "cavity", "캐비티수"],
   shotCount: ["작업판수", "판수", "shot", "샷수"],
   defectQuantity: ["불량수량", "불량", "defect"],
   productionQuantity: ["실적수량", "생산수량", "생산량", "실적"],
   operatorName: ["작업자", "작업자명", "성명", "operator"],
-  shiftType: ["주야", "근무구분", "교대", "주야구분"],
+  // MES '구분' = 주간/야간 (제품유형은 구분3·제품유형 등)
+  shiftType: ["구분", "주야", "근무구분", "교대", "주야구분", "주/야"],
   moldNumber: ["금형번호", "금형", "mold"],
   startedAt: ["시작시간", "시작", "start"],
   endedAt: ["종료시간", "종료", "end"],
@@ -111,9 +113,9 @@ function mapColumns(headerRow: unknown[]) {
   });
 
   // 더 구체적인(점수 높은) 매칭을 우선하고, 한 컬럼은 한 필드만 사용
-  // 동점이면 productType을 shiftType보다 우선 (MES '구분' = G/S 제품유형)
+  // 동점이면 shiftType을 productType보다 우선 (MES '구분' = 주/야)
   const fieldPriority = (field: keyof typeof HEADER_ALIASES) =>
-    field === "productType" ? 0 : field === "shiftType" ? 2 : 1;
+    field === "shiftType" ? 0 : field === "productType" ? 2 : 1;
   candidates.sort(
     (a, b) =>
       b.score - a.score ||
@@ -131,6 +133,72 @@ function mapColumns(headerRow: unknown[]) {
     throw new Error("필수 컬럼(작업일자, 설비명, 실적수량)을 찾지 못했습니다.");
   }
   return map;
+}
+
+/**
+ * 헤더로 구분(주/야)을 못 찾았거나, 매핑된 열에 주간/야간 값이 거의 없으면
+ * 데이터 셀에 주간·야간이 들어 있는 열을 자동으로 인식한다.
+ */
+function resolveShiftTypeColumn(
+  rows: unknown[][],
+  headerRowIndex: number,
+  colMap: Partial<Record<keyof typeof HEADER_ALIASES, number>>,
+): void {
+  const sampleEnd = Math.min(rows.length, headerRowIndex + 1 + 120);
+  const usedByOther = new Set(
+    Object.entries(colMap)
+      .filter(([field]) => field !== "shiftType")
+      .map(([, idx]) => idx)
+      .filter((idx): idx is number => idx != null),
+  );
+
+  const scoreColumn = (idx: number) => {
+    let hits = 0;
+    let nonEmpty = 0;
+    let dayHits = 0;
+    let nightHits = 0;
+    for (let r = headerRowIndex + 1; r < sampleEnd; r++) {
+      const raw = cell(rows[r] ?? [], idx);
+      if (!raw) continue;
+      nonEmpty += 1;
+      const parsed = parseShiftValue(raw);
+      if (parsed == null) continue;
+      hits += 1;
+      if (parsed === "주간") dayHits += 1;
+      else nightHits += 1;
+    }
+    if (nonEmpty < 2 || hits < 2) return 0;
+    const ratio = hits / nonEmpty;
+    if (ratio < 0.5) return 0;
+    // 주간·야간이 둘 다 있으면 교대 열일 가능성↑
+    const both = dayHits > 0 && nightHits > 0 ? 20 : 0;
+    return hits + ratio * 40 + both;
+  };
+
+  const mapped = colMap.shiftType;
+  if (mapped != null && scoreColumn(mapped) > 0) {
+    return;
+  }
+
+  let bestIdx: number | null = null;
+  let bestScore = 0;
+  const width = Math.max(
+    0,
+    ...rows.slice(headerRowIndex, sampleEnd).map((row) => (row ?? []).length),
+  );
+
+  for (let idx = 0; idx < width; idx++) {
+    if (usedByOther.has(idx)) continue;
+    const score = scoreColumn(idx);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = idx;
+    }
+  }
+
+  if (bestIdx != null && bestScore > 0) {
+    colMap.shiftType = bestIdx;
+  }
 }
 
 function cell(row: unknown[], idx: number | undefined) {
@@ -259,6 +327,7 @@ export async function parseProductionExcel(
 
   const headerRowIndex = findHeaderRow(rows);
   const colMap = mapColumns(rows[headerRowIndex] ?? []);
+  resolveShiftTypeColumn(rows, headerRowIndex, colMap);
   const batchId = `batch-${Date.now()}`;
   const records: ProductionRecord[] = [];
 
@@ -289,7 +358,9 @@ export async function parseProductionExcel(
     const partNumber = cell(row, colMap.partNumber) || "-";
     const operatorName = cell(row, colMap.operatorName) || "-";
     const moldNumber = cell(row, colMap.moldNumber) || "-";
-    const shiftType = normalizeShift(cell(row, colMap.shiftType));
+    // 주간/야간 값이 있으면 그 기준으로 구분 인식, 없으면 기본 주간
+    const shiftRaw = cell(row, colMap.shiftType);
+    const shiftType = normalizeShift(shiftRaw);
 
     const productionQuantity = parseNumber(cell(row, colMap.productionQuantity));
     const defectQuantity = parseNumber(cell(row, colMap.defectQuantity)) ?? 0;
@@ -425,7 +496,7 @@ export function buildSampleWorkbookBuffer(seedRecords: ProductionRecord[]) {
     "불량수량",
     "실적수량",
     "작업자",
-    "주야",
+    "구분",
     "금형번호",
     "시작",
     "종료",

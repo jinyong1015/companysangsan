@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 기준 문서 | `prd.md` V1.5, `화면설계서.md` V1.5 |
+| 기준 문서 | `prd.md` V1.6, `화면설계서.md` V1.6 |
 | 브랜딩 | Hyundai / Hyundaecorp |
 | 기준 타임존 | `Asia/Seoul` |
 | 현재 상태 | **프론트엔드 UI + Mock/업로드 데이터 + 관리자 세션 API 프로토타입** |
@@ -35,8 +35,11 @@ npm run dev
 1. 우측 상단 **설정** → `화면 모드` / `관리자 모드` 탭
 2. 관리자 비밀번호는 서버에서만 검증 (프런트 번들에 평문 없음)
 3. 화면 모드 기본값: **라이트** (`localStorage` `production-analytics-color-theme`)
+   - 구현: `src/lib/theme.ts` — `getInitialTheme` / `applyTheme` / `saveTheme`
+   - DOM: `data-theme` + `dark` 클래스. **즉시 적용** (전환 애니메이션 없음)
    - 다크: 깊은 검정 배경(`#08090c`) · 활성 칩 soft fill · 히트맵 갈·앰버 스케일
    - 설정 다크 옵션 문구: “깊은 검정 배경과 밝은 글자”
+   - 다른 탭: `storage` 이벤트로 동기화
 4. 관리자 세션: HttpOnly 쿠키 `pa_admin_session` · 유휴 30분 · 절대 8시간 · 탭 종료 시 삭제
 5. 해시 생성:
 
@@ -94,7 +97,7 @@ npm run admin:hash -- "새비밀번호"
 
 ## 화면 · 라우트
 
-주 메뉴 순서와 더보기 구성은 `화면설계서.md` V1.5 / `prd.md` V1.5와 동일합니다.
+주 메뉴 순서와 더보기 구성은 `화면설계서.md` V1.6 / `prd.md` V1.6와 동일합니다.
 
 | 화면 ID | 메뉴 | 라우트 | 구현 |
 |---|---|---|---|
@@ -153,11 +156,13 @@ npm run admin:hash -- "새비밀번호"
 - Hyundaecorp 브랜딩 sticky 헤더
 - 반응형 pill 내비게이션 + `더보기` (작업자 우선 유지, 설비·품번·비가동 우선 이동)
 - 우측 **설정** (화면 모드 · 관리자 모드). 헤더 직접 테마 토글은 설정으로 통합
-- 라이트 / 다크 테마 (`production-analytics-color-theme`, 기본 라이트, ~200ms 전환)
+- 라이트 / 다크 테마 (`production-analytics-color-theme`, 기본 라이트, **즉시 적용**)
+  - `src/lib/theme.ts` + 설정 DisplayModePanel · ThemeContext(이벤트/storage 동기화)
   - 다크 팔레트: bg `#08090c` · card `#14161c` · elevated `#1b1e27` · accent `#8bb4ff`
-  - 활성 내비·필터·페이지·설정 탭·primary: soft accent fill (밝은 solid 채우기 지양)
+  - 활성 내비·필터·페이지·설정 탭·primary: soft accent fill
   - 비가동 히트맵 다크: 어두운 갈·앰버 스케일. 상세 링크 색은 유지
   - 조회조건·필터 카드·제품유형 탭·입력·Recharts 다크 보정
+  - 전환 CSS 보간·View Transition 미사용 (버벅임 방지)
 - 카드형 공장 · 제품유형 · 기간 필터 + DemoDataBanner(가데이터 시)
 - 상세 조회조건 / QueryFilterShell(조회월)
 - `PageHeader`, KPI 카드, Toast, EmptyState, BackBanner, `WorkPartSelect`
@@ -271,7 +276,7 @@ src/
 ├─ hooks/                  # usePageState · usePreserveGlobalPeriod
 ├─ lib/
 │  ├─ admin/               # password · session · audit · clientUpdate
-│  ├─ metrics · utilization · dimensions · downtime* · dates · excel · navigation …
+│  ├─ metrics · utilization · dimensions · downtime* · dates · excel · navigation · theme …
 └─ types/
 scripts/
 └─ hash-admin-password.mjs
@@ -294,8 +299,8 @@ data/                      # 로컬 감사 로그 (gitignore)
 
 ## 참고 문서
 
-- [`prd.md`](./prd.md) V1.5 — 제품 요구사항, 계산식, API, 인수 기준, 관리자 모드
-- [`화면설계서.md`](./화면설계서.md) V1.5 — 메뉴별 UI/기능, 사용 매뉴얼, 상태 키
+- [`prd.md`](./prd.md) V1.6 — 제품 요구사항, 계산식, API, 인수 기준, 관리자 모드
+- [`화면설계서.md`](./화면설계서.md) V1.6 — 메뉴별 UI/기능, 사용 매뉴얼, 상태 키
 
 ---
 
