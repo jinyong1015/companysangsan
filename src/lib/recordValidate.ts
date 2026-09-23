@@ -189,6 +189,11 @@ export function revalidateRecord(
     const rate = defect / (prod ?? 1);
     if (rate >= 0.05) warningCodes.push("HIGH_DEFECT_RATE");
   }
+  if (prod === 0 && defect > 0) {
+    const zeroIdx = errorCodes.indexOf("PRODUCTION_ZERO");
+    if (zeroIdx >= 0) errorCodes.splice(zeroIdx, 1);
+    warningCodes.push("DEFECT_WITH_ZERO_PRODUCTION");
+  }
 
   let startedAt = combineDateAndTime(workDate, draft.startedAt);
   let endedAt = combineDateAndTime(workDate, draft.endedAt);

@@ -396,6 +396,11 @@ export async function parseProductionExcel(
       const rate = defectQuantity / (productionQuantity ?? 1);
       if (rate >= 0.05) warningCodes.push("HIGH_DEFECT_RATE");
     }
+    if (productionQuantity === 0 && defectQuantity > 0) {
+      const zeroIdx = errorCodes.indexOf("PRODUCTION_ZERO");
+      if (zeroIdx >= 0) errorCodes.splice(zeroIdx, 1);
+      warningCodes.push("DEFECT_WITH_ZERO_PRODUCTION");
+    }
 
     const uniqueErrors = [...new Set(errorCodes)];
     const isAnalysisEligible = uniqueErrors.length === 0;

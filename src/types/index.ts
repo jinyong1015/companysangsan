@@ -71,10 +71,15 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
 };
 
 /** 분석에는 포함되나 품질 경고로 표시되는 코드 */
-export type WarningCode = "HIGH_DEFECT_RATE";
+export type WarningCode =
+  | "HIGH_DEFECT_RATE"
+  | "DEFECT_WITH_ZERO_PRODUCTION"
+  | "ZERO_PRODUCTION_WITH_DOWNTIME";
 
 export const WARNING_MESSAGES: Record<WarningCode, string> = {
   HIGH_DEFECT_RATE: "불량률이 5% 이상입니다.",
+  DEFECT_WITH_ZERO_PRODUCTION: "실적수량이 0인데 불량수량이 있습니다.",
+  ZERO_PRODUCTION_WITH_DOWNTIME: "실적수량이 0이지만 비가동시간이 상한 이내입니다.",
 };
 
 export const WARNING_CODES = Object.keys(WARNING_MESSAGES) as WarningCode[];
