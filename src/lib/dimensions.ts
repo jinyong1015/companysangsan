@@ -165,8 +165,46 @@ export function normalizeProductType(raw: string): ProductType | null {
   return null;
 }
 
-export function normalizeShift(raw: string): ShiftType {
+/** 셀 값이 주간/야간인지 판별. 불명확하면 null */
+export function parseShiftValue(raw: string): ShiftType | null {
   const v = raw.trim();
-  if (v.includes("야")) return "야간";
-  return "주간";
+  if (!v) return null;
+
+  const upper = v.toUpperCase();
+  const compact = v.replace(/\s+/g, "");
+
+  // 야간
+  if (
+    compact === "야" ||
+    compact === "야간" ||
+    compact === "야근" ||
+    compact === "특야" ||
+    upper === "N" ||
+    upper === "NIGHT" ||
+    compact.includes("야간")
+  ) {
+    return "야간";
+  }
+
+  // 주간
+  if (
+    compact === "주" ||
+    compact === "주간" ||
+    compact === "주근" ||
+    upper === "D" ||
+    upper === "DAY" ||
+    compact.includes("주간")
+  ) {
+    return "주간";
+  }
+
+  return null;
+}
+
+export function isShiftLabel(raw: string): boolean {
+  return parseShiftValue(raw) != null;
+}
+
+export function normalizeShift(raw: string): ShiftType {
+  return parseShiftValue(raw) ?? "주간";
 }
