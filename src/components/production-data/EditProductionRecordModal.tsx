@@ -102,9 +102,12 @@ function formToDraft(
 export function EditProductionRecordModal({
   record,
   onClose,
+  source = "production",
 }: {
   record: ProductionRecord;
   onClose: () => void;
+  /** production = 생산 DATA에서 수정 / error = 오류 DATA에서 수정 */
+  source?: "production" | "error";
 }) {
   const { updateRecord } = useDataSource();
   const { setHasUnsavedEdits, markSessionExpired, openLogin } = useAdmin();
@@ -114,6 +117,8 @@ export function EditProductionRecordModal({
   const [averageShotManual, setAverageShotManual] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const isErrorSource = source === "error";
+  const title = isErrorSource ? "오류 DATA 수정" : "생산 DATA 수정";
 
   useEffect(() => {
     setHasUnsavedEdits(dirty);
@@ -218,12 +223,23 @@ export function EditProductionRecordModal({
           .map((c) => ERROR_MESSAGES[c] ?? c)
           .join(" · ");
         pushToast(
-          `생산 DATA가 수정되었습니다. 검증 오류로 분석에서 제외됩니다.${reasons ? ` (${reasons})` : ""} 오류 DATA 메뉴에서 확인하세요.`,
+          isErrorSource
+            ? `저장했습니다. 오류 조건이 남아 오류 DATA에 유지됩니다.${reasons ? ` (${reasons})` : ""}`
+            : `생산 DATA가 수정되었습니다. 검증 오류로 분석에서 제외됩니다.${reasons ? ` (${reasons})` : ""} 오류 DATA 메뉴에서 확인하세요.`,
           "error",
+        );
+      } else if (updated.warningCodes.length > 0) {
+        pushToast(
+          isErrorSource
+            ? "오류가 해소되어 경고 상태로 생산 DATA에 반영되었습니다."
+            : "생산 DATA가 수정되었습니다. 경고 상태로 전체 분석 메뉴에 반영되었습니다.",
+          "success",
         );
       } else {
         pushToast(
-          "생산 DATA가 수정되었습니다. 변경 내용이 전체 분석 메뉴에 반영되었습니다.",
+          isErrorSource
+            ? "오류가 해소되어 정상 상태로 생산 DATA에 반영되었습니다."
+            : "생산 DATA가 수정되었습니다. 변경 내용이 전체 분석 메뉴에 반영되었습니다.",
           "success",
         );
       }
@@ -250,20 +266,32 @@ export function EditProductionRecordModal({
         className="util-modal util-modal-wide"
         role="dialog"
         aria-modal="true"
-        aria-label="생산 DATA 수정"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold">생산 DATA 수정</h2>
+            <h2 className="text-lg font-bold">{title}</h2>
             <p className="text-sm text-[var(--text-secondary)]">
-              원본 행 {record.sourceRowNumber} · 저장 시 재검증 후 전체 메뉴에 반영
+              원본 행 {record.sourceRowNumber} · 저장 시 재검증 후{" "}
+              {isErrorSource
+                ? "정상·경고면 생산 DATA로 이동"
+                : "전체 메뉴에 반영"}
             </p>
           </div>
           <button type="button" className="btn btn-ghost" onClick={requestClose}>
             닫기
           </button>
         </div>
+
+        {isErrorSource && record.errorCodes.length > 0 ? (
+          <div className="mb-4 rounded-[12px] border border-[color-mix(in_srgb,var(--error)_35%,var(--border))] bg-[color-mix(in_srgb,var(--error)_8%,transparent)] px-3 py-2 text-sm">
+            <p className="font-semibold text-[var(--error)]">현재 오류 사유</p>
+            <p className="mt-1 text-[var(--text-secondary)]">
+              {record.errorCodes.map((c) => ERROR_MESSAGES[c] ?? c).join(" · ")}
+            </p>
+          </div>
+        ) : null}
 
         <div className="pd-edit-grid">
           <label className="pd-edit-field">

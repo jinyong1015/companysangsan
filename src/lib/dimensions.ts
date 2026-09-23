@@ -165,13 +165,16 @@ export function normalizeProductType(raw: string): ProductType | null {
   return null;
 }
 
-/** 셀 값이 주간/야간인지 판별. 불명확하면 null */
+/** 셀 값이 주간/야간인지 판별. 비가동·불명확하면 null (교대 열 자동인식용) */
 export function parseShiftValue(raw: string): ShiftType | null {
   const v = raw.trim();
   if (!v) return null;
 
   const upper = v.toUpperCase();
   const compact = v.replace(/\s+/g, "");
+
+  // 구분이 '비가동'이면 주간/야간으로 보지 않음
+  if (isDowntimeShiftLabel(compact)) return null;
 
   // 야간
   if (
@@ -201,10 +204,16 @@ export function parseShiftValue(raw: string): ShiftType | null {
   return null;
 }
 
+/** 구분(주/야) 셀 값이 '비가동'인지 */
+export function isDowntimeShiftLabel(raw: string): boolean {
+  return raw.trim().replace(/\s+/g, "") === "비가동";
+}
+
 export function isShiftLabel(raw: string): boolean {
   return parseShiftValue(raw) != null;
 }
 
+/** 저장용 구분. 비가동은 오류 처리용으로 주간 placeholder 후 INVALID_SHIFT */
 export function normalizeShift(raw: string): ShiftType {
   return parseShiftValue(raw) ?? "주간";
 }

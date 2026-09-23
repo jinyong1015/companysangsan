@@ -44,11 +44,13 @@ export type ErrorCode =
   | "PRODUCTION_ZERO"
   | "DOWNTIME_GT_WORK_TIME"
   | "OPERATING_TIME_NON_POSITIVE"
+  | "DOWNTIME_REASON_MISSING"
   | "REQUIRED_VALUE_MISSING"
   | "INVALID_DATE"
   | "INVALID_NUMBER"
   | "NEGATIVE_VALUE"
   | "INVALID_PRODUCT_TYPE"
+  | "INVALID_SHIFT"
   | "NA_PLACEHOLDER"
   | "DUPLICATE_RECORD";
 
@@ -57,14 +59,26 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   PRODUCTION_ZERO: "실적수량이 0입니다.",
   DOWNTIME_GT_WORK_TIME: "비가동시간이 작업시간보다 큽니다.",
   OPERATING_TIME_NON_POSITIVE: "계산된 가동시간이 0분 이하입니다.",
+  DOWNTIME_REASON_MISSING: "비가동사유가 없습니다.",
   REQUIRED_VALUE_MISSING: "필수값이 누락되었습니다.",
   INVALID_DATE: "날짜 또는 시간이 올바르지 않습니다.",
   INVALID_NUMBER: "숫자 형식이 올바르지 않습니다.",
   NEGATIVE_VALUE: "음수 값은 사용할 수 없습니다.",
   INVALID_PRODUCT_TYPE: "지원하지 않는 제품유형입니다.",
+  INVALID_SHIFT: "구분이 비가동입니다.",
   NA_PLACEHOLDER: "#N/A 값이 포함되어 있습니다.",
   DUPLICATE_RECORD: "중복 DATA입니다.",
 };
+
+/** 분석에는 포함되나 품질 경고로 표시되는 코드 */
+export type WarningCode = "HIGH_DEFECT_RATE";
+
+export const WARNING_MESSAGES: Record<WarningCode, string> = {
+  HIGH_DEFECT_RATE: "불량률이 5% 이상입니다.",
+};
+
+export const WARNING_CODES = Object.keys(WARNING_MESSAGES) as WarningCode[];
+
 
 export type DowntimeReason =
   | "금형교체"

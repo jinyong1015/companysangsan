@@ -1,10 +1,9 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { DetailFilterCard } from "@/components/filters/FilterCards";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
-import { EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
+import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 
@@ -49,11 +48,10 @@ export default function MoldsPage() {
   return (
     <>
       <PageHeader title="금형 분석" description="금형별 생산·불량·비가동 분석" />
-      <DetailFilterCard showMolds={false} />
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}
-        searchPlaceholder="금형번호, 품번, 설비명 검색"
+        searchPlaceholder="금형 / 설비 / 품번 검색"
         sort={state.sort}
         onSort={(sort) => patch({ sort })}
         order={state.order}
@@ -67,6 +65,7 @@ export default function MoldsPage() {
           { value: "downtime", label: "비가동시간" },
           { value: "usage", label: "사용 횟수" },
         ]}
+        resultTitle="금형 내역"
         onExcel={() =>
           downloadExcel(
             "금형분석.xlsx",
@@ -84,65 +83,66 @@ export default function MoldsPage() {
             })),
           )
         }
-      />
-      {rows.length === 0 ? (
-        <EmptyState
-          title="검색 결과가 없습니다."
-          description="검색어나 상세 조건을 변경해 주세요."
-          actionLabel="조회조건 초기화"
-          onAction={resetGlobal}
-        />
-      ) : (
-        <SectionCard>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>금형번호</th>
-                  <th>대표 품번</th>
-                  <th>제품유형</th>
-                  <th className="num">사용 설비 수</th>
-                  <th className="num">작업 건수</th>
-                  <th className="num">작업판수</th>
-                  <th className="num">생산량</th>
-                  <th className="num">불량수량</th>
-                  <th className="num">생산불량률</th>
-                  <th className="num">비가동시간</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.items.map((m) => (
-                  <tr key={m.id}>
-                    <td>
-                      <Link
-                        href={withFromParam(`/molds/${m.id}`, "molds")}
-                        className="linkish"
-                      >
-                        {m.moldNumber}
-                      </Link>
-                    </td>
-                    <td>{m.representativePart}</td>
-                    <td>{m.productType}</td>
-                    <td className="num">{m.equipmentCount}</td>
-                    <td className="num">{formatNumber(m.workCount)}</td>
-                    <td className="num">{formatNumber(m.shotCount)}</td>
-                    <td className="num">{formatQuantity(m.kpi.productionQuantity)}</td>
-                    <td className="num">{formatQuantity(m.kpi.defectQuantity)}</td>
-                    <td className="num">{formatPercent(m.kpi.defectRatePercent, 2)}</td>
-                    <td className="num">{formatMinutes(m.kpi.downtimeMinutes)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <NumberPagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            total={paged.total}
-            onPage={(page) => patch({ page })}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            title="검색 결과가 없습니다."
+            description="검색어나 상단 조회조건을 변경해 주세요."
+            actionLabel="조회조건 초기화"
+            onAction={resetGlobal}
           />
-        </SectionCard>
-      )}
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>금형번호</th>
+                    <th>대표 품번</th>
+                    <th>제품유형</th>
+                    <th className="num">사용 설비 수</th>
+                    <th className="num">작업 건수</th>
+                    <th className="num">작업판수</th>
+                    <th className="num">생산량</th>
+                    <th className="num">불량수량</th>
+                    <th className="num">생산불량률</th>
+                    <th className="num">비가동시간</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.items.map((m) => (
+                    <tr key={m.id}>
+                      <td>
+                        <Link
+                          href={withFromParam(`/molds/${m.id}`, "molds")}
+                          className="linkish"
+                        >
+                          {m.moldNumber}
+                        </Link>
+                      </td>
+                      <td>{m.representativePart}</td>
+                      <td>{m.productType}</td>
+                      <td className="num">{m.equipmentCount}</td>
+                      <td className="num">{formatNumber(m.workCount)}</td>
+                      <td className="num">{formatNumber(m.shotCount)}</td>
+                      <td className="num">{formatQuantity(m.kpi.productionQuantity)}</td>
+                      <td className="num">{formatQuantity(m.kpi.defectQuantity)}</td>
+                      <td className="num">{formatPercent(m.kpi.defectRatePercent, 2)}</td>
+                      <td className="num">{formatMinutes(m.kpi.downtimeMinutes)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <NumberPagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              total={paged.total}
+              onPage={(page) => patch({ page })}
+            />
+          </>
+        )}
+      </SearchSortBar>
     </>
   );
 }

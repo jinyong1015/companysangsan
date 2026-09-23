@@ -1,12 +1,14 @@
 import * as XLSX from "xlsx";
 import type { ErrorCode, ProductionRecord, UploadBatch } from "@/types";
 import {
+  isDowntimeShiftLabel,
   normalizeFactory,
   normalizeProductType,
   normalizeShift,
   parseShiftValue,
   slugId,
 } from "@/lib/dimensions";
+import { applyWorkDowntimeMismatchRules } from "@/lib/workDowntimeRules";
 
 export type UploadSummary = {
   total: number;
@@ -356,6 +358,9 @@ export async function parseProductionExcel(
     const moldNumber = cell(row, colMap.moldNumber) || "-";
     // 주간/야간 값이 있으면 그 기준으로 구분 인식, 없으면 기본 주간
     const shiftRaw = cell(row, colMap.shiftType);
+    if (isDowntimeShiftLabel(shiftRaw)) {
+      errorCodes.push("INVALID_SHIFT");
+    }
     const shiftType = normalizeShift(shiftRaw);
 
     const productionQuantity = parseNumber(cell(row, colMap.productionQuantity));
@@ -372,23 +377,20 @@ export async function parseProductionExcel(
     if (elapsedMinutes != null && elapsedMinutes < 0) errorCodes.push("NEGATIVE_VALUE");
 
     if (productionQuantity === 0) errorCodes.push("PRODUCTION_ZERO");
-    if (elapsedMinutes === 0) errorCodes.push("WORK_TIME_ZERO");
 
-    const operating =
-      elapsedMinutes != null ? elapsedMinutes - downtimeMinutes : null;
-    if (elapsedMinutes != null && downtimeMinutes > elapsedMinutes) {
-      errorCodes.push("DOWNTIME_GT_WORK_TIME");
-    }
-    if (operating != null && operating <= 0) {
-      errorCodes.push("OPERATING_TIME_NON_POSITIVE");
-    }
+    applyWorkDowntimeMismatchRules(errorCodes, warningCodes, {
+      elapsedMinutes,
+      downtimeMinutes,
+      workDate,
+      shiftType,
+    });
 
     const downtimeReasonRaw = cell(row, colMap.downtimeReasonRaw) || null;
     const reasonTokens = tokenize(downtimeReasonRaw);
     const hasEquipmentFailure = reasonTokens.includes("설비이상");
 
     if (downtimeMinutes > 0 && !downtimeReasonRaw) {
-      warningCodes.push("DOWNTIME_REASON_MISSING");
+      errorCodes.push("DOWNTIME_REASON_MISSING");
     }
     if (defectQuantity > 0 && (productionQuantity ?? 0) > 0) {
       const rate = defectQuantity / (productionQuantity ?? 1);

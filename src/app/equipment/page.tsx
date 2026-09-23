@@ -1,10 +1,9 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { DetailFilterCard } from "@/components/filters/FilterCards";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
-import { EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
+import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 
@@ -54,7 +53,6 @@ export default function EquipmentListPage() {
   return (
     <>
       <PageHeader title="설비 분석" description="설비별 생산성·가동률·신뢰성 비교" />
-      <DetailFilterCard showOperators={false} showMolds={false} />
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}
@@ -75,6 +73,7 @@ export default function EquipmentListPage() {
           { value: "uph", label: "UPH" },
           { value: "defect", label: "불량수량" },
         ]}
+        resultTitle="설비 내역"
         onExcel={() =>
           downloadExcel(
             "설비분석.xlsx",
@@ -96,86 +95,86 @@ export default function EquipmentListPage() {
             })),
           )
         }
-      />
-
-      {rows.length === 0 ? (
-        <EmptyState
-          title="검색 결과가 없습니다."
-          description="검색어나 상세 조건을 변경해 주세요."
-          actionLabel="조회조건 초기화"
-          onAction={resetGlobal}
-        />
-      ) : (
-        <SectionCard>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>설비명</th>
-                  <th>공장</th>
-                  <th>제품유형 구성</th>
-                  <th className="num">생산 품번 수</th>
-                  <th className="num">생산량</th>
-                  <th className="num">불량수량</th>
-                  <th className="num">작업시간</th>
-                  <th className="num">비가동시간</th>
-                  <th className="num">가동률</th>
-                  <th className="num">UPH</th>
-                  <th className="num">고장 건수</th>
-                  <th className="num">MTTR</th>
-                  <th className="num">참고 MTBF</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.items.map((e) => (
-                  <tr key={e.id}>
-                    <td>
-                      <Link
-                        href={withFromParam(`/equipment/${e.id}`, "equipment")}
-                        className="linkish"
-                      >
-                        {e.name}
-                      </Link>
-                    </td>
-                    <td>{e.factory}</td>
-                    <td>
-                      GROMMET {formatNumber(e.productMix.grommetPercent, 0)}% · SEAL{" "}
-                      {formatNumber(e.productMix.sealPercent, 0)}%
-                    </td>
-                    <td className="num">{e.partCount}</td>
-                    <td className="num">{formatQuantity(e.kpi.productionQuantity)}</td>
-                    <td className="num">{formatQuantity(e.kpi.defectQuantity)}</td>
-                    <td className="num">{formatMinutes(e.kpi.elapsedMinutes)}</td>
-                    <td className="num">{formatMinutes(e.kpi.downtimeMinutes)}</td>
-                    <td className="num">{formatPercent(e.kpi.utilizationRatePercent)}</td>
-                    <td className="num">{formatUph(e.kpi.uph)}</td>
-                    <td className="num">
-                      <Link
-                        href={`/downtime?equipment=${e.id}`}
-                        className="linkish"
-                      >
-                        {formatNumber(e.kpi.failureCount)}
-                      </Link>
-                    </td>
-                    <td className="num">
-                      {e.kpi.mttrMinutes == null
-                        ? "-"
-                        : `${formatNumber(e.kpi.mttrMinutes, 1)}분`}
-                    </td>
-                    <td className="num">{formatHours(e.kpi.referenceMtbfHours)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <NumberPagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            total={paged.total}
-            onPage={(page) => patch({ page })}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            title="검색 결과가 없습니다."
+            description="검색어나 상단 조회조건을 변경해 주세요."
+            actionLabel="조회조건 초기화"
+            onAction={resetGlobal}
           />
-        </SectionCard>
-      )}
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>설비명</th>
+                    <th>공장</th>
+                    <th>제품유형 구성</th>
+                    <th className="num">생산 품번 수</th>
+                    <th className="num">생산량</th>
+                    <th className="num">불량수량</th>
+                    <th className="num">작업시간</th>
+                    <th className="num">비가동시간</th>
+                    <th className="num">가동률</th>
+                    <th className="num">UPH</th>
+                    <th className="num">고장 건수</th>
+                    <th className="num">MTTR</th>
+                    <th className="num">참고 MTBF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.items.map((e) => (
+                    <tr key={e.id}>
+                      <td>
+                        <Link
+                          href={withFromParam(`/equipment/${e.id}`, "equipment")}
+                          className="linkish"
+                        >
+                          {e.name}
+                        </Link>
+                      </td>
+                      <td>{e.factory}</td>
+                      <td>
+                        GROMMET {formatNumber(e.productMix.grommetPercent, 0)}% · SEAL{" "}
+                        {formatNumber(e.productMix.sealPercent, 0)}%
+                      </td>
+                      <td className="num">{e.partCount}</td>
+                      <td className="num">{formatQuantity(e.kpi.productionQuantity)}</td>
+                      <td className="num">{formatQuantity(e.kpi.defectQuantity)}</td>
+                      <td className="num">{formatMinutes(e.kpi.elapsedMinutes)}</td>
+                      <td className="num">{formatMinutes(e.kpi.downtimeMinutes)}</td>
+                      <td className="num">{formatPercent(e.kpi.utilizationRatePercent)}</td>
+                      <td className="num">{formatUph(e.kpi.uph)}</td>
+                      <td className="num">
+                        <Link
+                          href={`/downtime?equipment=${e.id}`}
+                          className="linkish"
+                        >
+                          {formatNumber(e.kpi.failureCount)}
+                        </Link>
+                      </td>
+                      <td className="num">
+                        {e.kpi.mttrMinutes == null
+                          ? "-"
+                          : `${formatNumber(e.kpi.mttrMinutes, 1)}분`}
+                      </td>
+                      <td className="num">{formatHours(e.kpi.referenceMtbfHours)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <NumberPagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              total={paged.total}
+              onPage={(page) => patch({ page })}
+            />
+          </>
+        )}
+      </SearchSortBar>
     </>
   );
 }

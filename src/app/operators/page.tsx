@@ -1,13 +1,12 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { DetailFilterCard } from "@/components/filters/FilterCards";
 import { OperatorProductionTopChart } from "@/components/operators/OperatorProductionTopChart";
 import type { OperatorProdTopView } from "@/components/operators/OperatorProductionTopChart";
 import type { ProductTab } from "@/components/production/ProductPerformanceSummary";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
-import { EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
+import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 
@@ -108,8 +107,6 @@ export default function OperatorsPage() {
         tabCounts={tabCounts}
       />
 
-      <DetailFilterCard showOperators={false} />
-
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}
@@ -128,6 +125,7 @@ export default function OperatorsPage() {
           { value: "elapsed", label: "작업시간" },
           { value: "utilization", label: "가동률" },
         ]}
+        resultTitle="작업자 내역"
         onExcel={() =>
           downloadExcel(
             "작업자분석.xlsx",
@@ -146,67 +144,68 @@ export default function OperatorsPage() {
             })),
           )
         }
-      />
-      {rows.length === 0 ? (
-        <EmptyState
-          title="검색 결과가 없습니다."
-          description="검색어나 상세 조건을 변경해 주세요."
-          actionLabel="조회조건 초기화"
-          onAction={resetGlobal}
-        />
-      ) : (
-        <SectionCard>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>작업자</th>
-                  <th>공장</th>
-                  <th>주/야간 구성</th>
-                  <th className="num">작업 품번 수</th>
-                  <th className="num">설비 수</th>
-                  <th className="num">생산량</th>
-                  <th className="num">불량수량</th>
-                  <th className="num">생산불량률</th>
-                  <th className="num">작업시간</th>
-                  <th className="num">UPH</th>
-                  <th className="num">가동률</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.items.map((o) => (
-                  <tr key={o.id}>
-                    <td>
-                      <Link
-                        href={withFromParam(`/operators/${o.id}`, "operators")}
-                        className="linkish"
-                      >
-                        {o.name}
-                      </Link>
-                    </td>
-                    <td>{o.factory}</td>
-                    <td>{o.shiftMix}</td>
-                    <td className="num">{o.partCount}</td>
-                    <td className="num">{o.equipmentCount}</td>
-                    <td className="num">{formatQuantity(o.kpi.productionQuantity)}</td>
-                    <td className="num">{formatQuantity(o.kpi.defectQuantity)}</td>
-                    <td className="num">{formatPercent(o.kpi.defectRatePercent, 2)}</td>
-                    <td className="num">{formatMinutes(o.kpi.elapsedMinutes)}</td>
-                    <td className="num">{formatUph(o.kpi.uph)}</td>
-                    <td className="num">{formatPercent(o.kpi.utilizationRatePercent)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <NumberPagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            total={paged.total}
-            onPage={(page) => patch({ page })}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            title="검색 결과가 없습니다."
+            description="검색어나 상단 조회조건을 변경해 주세요."
+            actionLabel="조회조건 초기화"
+            onAction={resetGlobal}
           />
-        </SectionCard>
-      )}
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>작업자</th>
+                    <th>공장</th>
+                    <th>주/야간 구성</th>
+                    <th className="num">작업 품번 수</th>
+                    <th className="num">설비 수</th>
+                    <th className="num">생산량</th>
+                    <th className="num">불량수량</th>
+                    <th className="num">생산불량률</th>
+                    <th className="num">작업시간</th>
+                    <th className="num">UPH</th>
+                    <th className="num">가동률</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.items.map((o) => (
+                    <tr key={o.id}>
+                      <td>
+                        <Link
+                          href={withFromParam(`/operators/${o.id}`, "operators")}
+                          className="linkish"
+                        >
+                          {o.name}
+                        </Link>
+                      </td>
+                      <td>{o.factory}</td>
+                      <td>{o.shiftMix}</td>
+                      <td className="num">{o.partCount}</td>
+                      <td className="num">{o.equipmentCount}</td>
+                      <td className="num">{formatQuantity(o.kpi.productionQuantity)}</td>
+                      <td className="num">{formatQuantity(o.kpi.defectQuantity)}</td>
+                      <td className="num">{formatPercent(o.kpi.defectRatePercent, 2)}</td>
+                      <td className="num">{formatMinutes(o.kpi.elapsedMinutes)}</td>
+                      <td className="num">{formatUph(o.kpi.uph)}</td>
+                      <td className="num">{formatPercent(o.kpi.utilizationRatePercent)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <NumberPagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              total={paged.total}
+              onPage={(page) => patch({ page })}
+            />
+          </>
+        )}
+      </SearchSortBar>
     </>
   );
 }

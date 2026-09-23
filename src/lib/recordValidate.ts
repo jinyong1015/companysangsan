@@ -1,10 +1,12 @@
 import type { ErrorCode, ProductionRecord } from "@/types";
 import {
+  isDowntimeShiftLabel,
   normalizeFactory,
   normalizeProductType,
   normalizeShift,
   slugId,
 } from "@/lib/dimensions";
+import { applyWorkDowntimeMismatchRules } from "@/lib/workDowntimeRules";
 import {
   normalizeReasonFlags,
   type UploadSummary,
@@ -141,6 +143,9 @@ export function revalidateRecord(
   const partNumber = draft.partNumber.trim() || "-";
   const operatorName = draft.operatorName.trim() || "-";
   const moldNumber = draft.moldNumber.trim() || "-";
+  if (isDowntimeShiftLabel(draft.shiftType)) {
+    errorCodes.push("INVALID_SHIFT");
+  }
   const shiftType = normalizeShift(draft.shiftType);
 
   const productionQuantity = Number(draft.productionQuantity);
@@ -166,21 +171,19 @@ export function revalidateRecord(
   if (elapsed != null && elapsed < 0) errorCodes.push("NEGATIVE_VALUE");
 
   if (prod === 0) errorCodes.push("PRODUCTION_ZERO");
-  if (elapsed === 0) errorCodes.push("WORK_TIME_ZERO");
 
-  const operating = elapsed != null ? elapsed - downtime : null;
-  if (elapsed != null && downtime > elapsed) {
-    errorCodes.push("DOWNTIME_GT_WORK_TIME");
-  }
-  if (operating != null && operating <= 0) {
-    errorCodes.push("OPERATING_TIME_NON_POSITIVE");
-  }
+  applyWorkDowntimeMismatchRules(errorCodes, warningCodes, {
+    elapsedMinutes: elapsed,
+    downtimeMinutes: downtime,
+    workDate: /^\d{4}-\d{2}-\d{2}$/.test(workDate) ? workDate : null,
+    shiftType,
+  });
 
   const downtimeReasonRaw = draft.downtimeReasonRaw?.trim() || null;
   const reasonTokens = tokenize(downtimeReasonRaw);
 
   if (downtime > 0 && !downtimeReasonRaw) {
-    warningCodes.push("DOWNTIME_REASON_MISSING");
+    errorCodes.push("DOWNTIME_REASON_MISSING");
   }
   if (defect > 0 && (prod ?? 0) > 0) {
     const rate = defect / (prod ?? 1);

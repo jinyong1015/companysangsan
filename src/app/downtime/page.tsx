@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -581,58 +581,60 @@ export default function DowntimePage() {
         onProductTypeChange={setReliabilityProductTab}
       />
 
-      <SectionCard title="비가동 상세 내역" className="mb-4" id="downtime-detail">
-        {heatmapSelection ? (
-          <div className="dt-heat-chips mb-3" aria-label="히트맵 선택 필터">
-            <span className="dt-heat-chip">{heatmapSelection.workDate}</span>
-            <span className="dt-heat-chip">{heatmapSelection.equipmentName}</span>
-            <span className="dt-heat-chip">{heatmapSelection.productType}</span>
-            <button
-              type="button"
-              className="dt-heat-chip-clear"
-              onClick={() => setHeatmapSelection(null)}
-            >
-              필터 해제
-            </button>
-          </div>
-        ) : null}
-        <SearchSortBar
-          search={state.search}
-          onSearch={(search) => patch({ search })}
-          searchPlaceholder="설비명·품번·비가동내역 검색"
-          sort={state.sort}
-          onSort={(sort) => patch({ sort })}
-          order={state.order}
-          onOrder={(order) => patch({ order })}
-          pageSize={state.pageSize}
-          onPageSize={(pageSize) => patch({ pageSize })}
-          sortOptions={[
-            { value: "downtime", label: "비가동시간" },
-            { value: "date", label: "작업일자" },
-            { value: "failure", label: "고장 후보" },
-          ]}
-          onExcel={() =>
-            downloadExcel(
-              "비가동상세내역.xlsx",
-              events.map((r) => ({
-                작업일자: r.workDate,
-                공장: r.factory,
-                설비명: r.equipmentName,
-                제품유형: r.productType,
-                품번: r.partNumber,
-                구분: r.shiftType,
-                작업자: r.operatorName,
-                작업시간분: r.elapsedMinutes,
-                비가동시간분: r.downtimeMinutes,
-                가동시간분: r.operatingMinutes,
-                비가동내역: r.downtimeReasonRaw ?? "",
-                고장후보: r.isFailureCandidate ? "예" : "아니오",
-                MTTR포함: r.isMttrEligible ? "포함" : "",
-              })),
-            )
-          }
-        />
-
+      <SearchSortBar
+        id="downtime-detail"
+        search={state.search}
+        onSearch={(search) => patch({ search })}
+        searchPlaceholder="설비명·품번·비가동내역 검색"
+        sort={state.sort}
+        onSort={(sort) => patch({ sort })}
+        order={state.order}
+        onOrder={(order) => patch({ order })}
+        pageSize={state.pageSize}
+        onPageSize={(pageSize) => patch({ pageSize })}
+        sortOptions={[
+          { value: "downtime", label: "비가동시간" },
+          { value: "date", label: "작업일자" },
+          { value: "failure", label: "고장 후보" },
+        ]}
+        resultTitle="비가동 상세 내역"
+        extra={
+          heatmapSelection ? (
+            <div className="dt-heat-chips" aria-label="히트맵 선택 필터">
+              <span className="dt-heat-chip">{heatmapSelection.workDate}</span>
+              <span className="dt-heat-chip">{heatmapSelection.equipmentName}</span>
+              <span className="dt-heat-chip">{heatmapSelection.productType}</span>
+              <button
+                type="button"
+                className="dt-heat-chip-clear"
+                onClick={() => setHeatmapSelection(null)}
+              >
+                필터 해제
+              </button>
+            </div>
+          ) : null
+        }
+        onExcel={() =>
+          downloadExcel(
+            "비가동상세내역.xlsx",
+            events.map((r) => ({
+              작업일자: r.workDate,
+              공장: r.factory,
+              설비명: r.equipmentName,
+              제품유형: r.productType,
+              품번: r.partNumber,
+              구분: r.shiftType,
+              작업자: r.operatorName,
+              작업시간분: r.elapsedMinutes,
+              비가동시간분: r.downtimeMinutes,
+              가동시간분: r.operatingMinutes,
+              비가동내역: r.downtimeReasonRaw ?? "",
+              고장후보: r.isFailureCandidate ? "예" : "아니오",
+              MTTR포함: r.isMttrEligible ? "포함" : "",
+            })),
+          )
+        }
+      >
         {events.length === 0 ? (
           <EmptyState
             title="표시할 비가동 내역이 없습니다."
@@ -714,7 +716,7 @@ export default function DowntimePage() {
             />
           </>
         )}
-      </SectionCard>
+      </SearchSortBar>
     </>
   );
 }

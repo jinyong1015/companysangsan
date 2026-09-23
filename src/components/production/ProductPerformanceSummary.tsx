@@ -425,26 +425,28 @@ export function ProductPerformanceSummary({
           { value: "productType", label: "제품유형" },
         ]}
         onExcel={exportExcel}
-      />
-
-      {filteredSorted.length === 0 ? (
-        <EmptyState
-          title="선택한 조회조건에 해당하는 제품별 생산실적이 없습니다."
-          description="조회기간·공장·설비·제품유형 조건을 변경해 보세요."
-          actionLabel={onResetFilters ? "조회조건 초기화" : undefined}
-          onAction={onResetFilters}
-        />
-      ) : (
-        <>
-          {tableBody}
-          <NumberPagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            total={paged.total}
-            onPage={onPage}
+        embedded
+        resultTitle="제품별 생산 종합 실적"
+      >
+        {filteredSorted.length === 0 ? (
+          <EmptyState
+            title="선택한 조회조건에 해당하는 제품별 생산실적이 없습니다."
+            description="조회기간·공장·설비·제품유형 조건을 변경해 보세요."
+            actionLabel={onResetFilters ? "조회조건 초기화" : undefined}
+            onAction={onResetFilters}
           />
-        </>
-      )}
+        ) : (
+          <>
+            {tableBody}
+            <NumberPagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              total={paged.total}
+              onPage={onPage}
+            />
+          </>
+        )}
+      </SearchSortBar>
 
       <FullscreenShell
         open={fullscreen}

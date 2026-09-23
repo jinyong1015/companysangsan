@@ -1,15 +1,14 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { DetailFilterCard } from "@/components/filters/FilterCards";
 import {
   PartProductionTopChart,
   type PartProdTopView,
 } from "@/components/production/PartProductionTopChart";
 import type { ProductTab } from "@/components/production/ProductPerformanceSummary";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
-import { EmptyState, PageHeader, SectionCard } from "@/components/ui/PageBits";
+import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 
@@ -108,8 +107,6 @@ export default function PartsPage() {
         from="parts"
       />
 
-      <DetailFilterCard showParts={false} showMolds showOperators />
-
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}
@@ -128,6 +125,7 @@ export default function PartsPage() {
           { value: "utilization", label: "가동률" },
           { value: "downtime", label: "비가동시간" },
         ]}
+        resultTitle="품번 내역"
         onExcel={() =>
           downloadExcel(
             "품번분석.xlsx",
@@ -147,67 +145,68 @@ export default function PartsPage() {
             })),
           )
         }
-      />
-      {rows.length === 0 ? (
-        <EmptyState
-          title="검색 결과가 없습니다."
-          description="검색어나 상세 조건을 변경해 주세요."
-          actionLabel="조회조건 초기화"
-          onAction={resetGlobal}
-        />
-      ) : (
-        <SectionCard>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>품번</th>
-                  <th>제품유형</th>
-                  <th>생산 공장</th>
-                  <th className="num">설비 수</th>
-                  <th className="num">금형 수</th>
-                  <th className="num">생산량</th>
-                  <th className="num">불량수량</th>
-                  <th className="num">생산불량률</th>
-                  <th className="num">작업시간</th>
-                  <th className="num">가동률</th>
-                  <th className="num">UPH</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.items.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <Link
-                        href={withFromParam(`/parts/${p.id}`, "parts")}
-                        className="linkish"
-                      >
-                        {p.partNumber}
-                      </Link>
-                    </td>
-                    <td>{p.productType}</td>
-                    <td>{p.factories.join(", ")}</td>
-                    <td className="num">{p.equipmentCount}</td>
-                    <td className="num">{p.moldCount}</td>
-                    <td className="num">{formatQuantity(p.kpi.productionQuantity)}</td>
-                    <td className="num">{formatQuantity(p.kpi.defectQuantity)}</td>
-                    <td className="num">{formatPercent(p.kpi.defectRatePercent, 2)}</td>
-                    <td className="num">{formatMinutes(p.kpi.elapsedMinutes)}</td>
-                    <td className="num">{formatPercent(p.kpi.utilizationRatePercent)}</td>
-                    <td className="num">{formatUph(p.kpi.uph)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <NumberPagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            total={paged.total}
-            onPage={(page) => patch({ page })}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            title="검색 결과가 없습니다."
+            description="검색어나 상단 조회조건을 변경해 주세요."
+            actionLabel="조회조건 초기화"
+            onAction={resetGlobal}
           />
-        </SectionCard>
-      )}
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>품번</th>
+                    <th>제품유형</th>
+                    <th>생산 공장</th>
+                    <th className="num">설비 수</th>
+                    <th className="num">금형 수</th>
+                    <th className="num">생산량</th>
+                    <th className="num">불량수량</th>
+                    <th className="num">생산불량률</th>
+                    <th className="num">작업시간</th>
+                    <th className="num">가동률</th>
+                    <th className="num">UPH</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.items.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <Link
+                          href={withFromParam(`/parts/${p.id}`, "parts")}
+                          className="linkish"
+                        >
+                          {p.partNumber}
+                        </Link>
+                      </td>
+                      <td>{p.productType}</td>
+                      <td>{p.factories.join(", ")}</td>
+                      <td className="num">{p.equipmentCount}</td>
+                      <td className="num">{p.moldCount}</td>
+                      <td className="num">{formatQuantity(p.kpi.productionQuantity)}</td>
+                      <td className="num">{formatQuantity(p.kpi.defectQuantity)}</td>
+                      <td className="num">{formatPercent(p.kpi.defectRatePercent, 2)}</td>
+                      <td className="num">{formatMinutes(p.kpi.elapsedMinutes)}</td>
+                      <td className="num">{formatPercent(p.kpi.utilizationRatePercent)}</td>
+                      <td className="num">{formatUph(p.kpi.uph)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <NumberPagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              total={paged.total}
+              onPage={(page) => patch({ page })}
+            />
+          </>
+        )}
+      </SearchSortBar>
     </>
   );
 }
