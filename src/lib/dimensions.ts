@@ -1,4 +1,9 @@
-import type { Factory, ProductionRecord, ProductType, ShiftType } from "@/types";
+import type {
+  Factory,
+  ProductionRecord,
+  ProductType,
+  ShiftType,
+} from "@/types";
 
 export type FilterOption = {
   id: string;
@@ -37,10 +42,18 @@ export function buildFilterOptions(records: ProductionRecord[]) {
   }
 
   return {
-    equipment: [...equipment.values()].sort((a, b) => a.label.localeCompare(b.label, "ko")),
-    parts: [...parts.values()].sort((a, b) => a.label.localeCompare(b.label, "ko")),
-    operators: [...operators.values()].sort((a, b) => a.label.localeCompare(b.label, "ko")),
-    molds: [...molds.values()].sort((a, b) => a.label.localeCompare(b.label, "ko")),
+    equipment: [...equipment.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, "ko"),
+    ),
+    parts: [...parts.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, "ko"),
+    ),
+    operators: [...operators.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, "ko"),
+    ),
+    molds: [...molds.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, "ko"),
+    ),
   };
 }
 
@@ -58,7 +71,11 @@ export function resolveEquipment(
 export function resolvePart(
   id: string,
   records: ProductionRecord[],
-  fallback?: { id: string; partNumber: string; productType: ProductType } | null,
+  fallback?: {
+    id: string;
+    partNumber: string;
+    productType: ProductType;
+  } | null,
 ) {
   if (fallback) return fallback;
   const r = records.find((x) => x.partId === id);
@@ -74,9 +91,7 @@ export function resolveOperator(
   if (fallback) return fallback;
   const target = resolveRouteParamId(id);
   if (!target) return null;
-  const r = records.find(
-    (x) => resolveRouteParamId(x.operatorId) === target,
-  );
+  const r = records.find((x) => resolveRouteParamId(x.operatorId) === target);
   if (!r) return null;
   return { id: r.operatorId, name: r.operatorName };
 }
@@ -93,7 +108,10 @@ export function resolveMold(
 }
 
 export function dateRangeFromRecords(records: ProductionRecord[]) {
-  const dates = records.map((r) => r.workDate).filter(Boolean).sort();
+  const dates = records
+    .map((r) => r.workDate)
+    .filter(Boolean)
+    .sort();
   if (dates.length === 0) return null;
   return { startDate: dates[0]!, endDate: dates[dates.length - 1]! };
 }
@@ -141,7 +159,8 @@ export function slugId(prefix: string, value: string) {
 
 export function normalizeFactory(raw: string): Factory {
   const v = raw.trim();
-  if (v.includes("2") || v.includes("구지") || v.includes("제2")) return "2공장";
+  if (v.includes("2") || v.includes("구지") || v.includes("제2"))
+    return "2공장";
   return "본사";
 }
 

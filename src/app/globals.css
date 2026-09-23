@@ -3438,14 +3438,31 @@ select {
   box-shadow: 0 8px 18px color-mix(in srgb, var(--error) 28%, transparent);
 }
 
-.data-edit-btn[data-tone="error"]:not([data-locked="true"]):not([data-ready="true"]) {
-  border-color: color-mix(in srgb, var(--error) 30%, var(--border));
+.data-edit-btn[data-tone="error"]:not([data-ready="true"]) {
+  border-color: color-mix(in srgb, var(--error) 35%, var(--border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--error) 9%, var(--elevated)),
+      var(--elevated)
+    );
+  color: var(--error);
 }
 
-.data-edit-btn[data-tone="error"]:not([data-locked="true"]):not([data-ready="true"])
-  .data-edit-btn-icon {
+.data-edit-btn[data-tone="error"]:not([data-ready="true"]) .data-edit-btn-icon {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--error);
+}
+
+.data-edit-btn[data-tone="error"]:not([data-ready="true"]) .data-edit-btn-badge {
   background: color-mix(in srgb, var(--error) 12%, transparent);
   color: var(--error);
+}
+
+.data-edit-btn[data-tone="error"]:hover:not(:disabled):not([data-ready="true"]) {
+  border-color: var(--error);
+  color: var(--error);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--error) 18%, transparent);
 }
 
 .data-edit-btn[data-locked="true"] {
