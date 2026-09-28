@@ -27,7 +27,7 @@ export type ParseExcelResult = {
 };
 
 const HEADER_ALIASES: Record<string, string[]> = {
-  workDate: ["작업일자", "작업일", "일자", "날짜", "date"],
+  workDate: ["작업일자", "지시일자", "작업일", "지시일", "일자", "날짜", "date"],
   factory: ["공장", "공장명", "사업장"],
   equipmentName: ["설비명", "설비", "호기", "machine"],
   productType: ["구분3", "제품유형", "제품구분", "유형", "product"],
@@ -132,7 +132,7 @@ function mapColumns(headerRow: unknown[]) {
   }
 
   if (map.workDate == null || map.equipmentName == null || map.productionQuantity == null) {
-    throw new Error("필수 컬럼(작업일자, 설비명, 실적수량)을 찾지 못했습니다.");
+    throw new Error("필수 컬럼(작업일자/지시일자, 설비명, 실적수량)을 찾지 못했습니다.");
   }
   return map;
 }
