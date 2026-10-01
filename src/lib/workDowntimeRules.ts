@@ -7,6 +7,14 @@ export const DOWNTIME_SOFT_CAP_MINUTES = {
   weekend: { 주간: 540, 야간: 750 },
 } as const;
 
+/** 유효 가동시간 = 작업시간 + 비가동시간 */
+export function computeOperatingMinutes(
+  elapsedMinutes: number,
+  downtimeMinutes: number,
+): number {
+  return Math.max(0, elapsedMinutes + downtimeMinutes);
+}
+
 function resolveDayKind(workDate: string): TargetDayKind {
   const day = getDay(parseISO(workDate));
   return day === 0 || day === 6 ? "weekend" : "weekday";
@@ -60,7 +68,9 @@ export function applyWorkDowntimeMismatchRules(
     if (workZero) errorCodes.push("WORK_TIME_ZERO");
     if (downtimeExceedsWork) errorCodes.push("DOWNTIME_GT_WORK_TIME");
     const operating =
-      elapsedMinutes != null ? elapsedMinutes - downtimeMinutes : null;
+      elapsedMinutes != null
+        ? computeOperatingMinutes(elapsedMinutes, downtimeMinutes)
+        : null;
     if (operating != null && operating <= 0) {
       errorCodes.push("OPERATING_TIME_NON_POSITIVE");
     }
@@ -73,7 +83,9 @@ export function applyWorkDowntimeMismatchRules(
   if (workZero) errorCodes.push("WORK_TIME_ZERO");
   if (downtimeExceedsWork) errorCodes.push("DOWNTIME_GT_WORK_TIME");
   const operating =
-    elapsedMinutes != null ? elapsedMinutes - downtimeMinutes : null;
+    elapsedMinutes != null
+      ? computeOperatingMinutes(elapsedMinutes, downtimeMinutes)
+      : null;
   if (operating != null && operating <= 0) {
     errorCodes.push("OPERATING_TIME_NON_POSITIVE");
   }

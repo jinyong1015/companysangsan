@@ -8,7 +8,7 @@ import {
   parseShiftValue,
   slugId,
 } from "@/lib/dimensions";
-import { applyWorkDowntimeMismatchRules } from "@/lib/workDowntimeRules";
+import { applyWorkDowntimeMismatchRules, computeOperatingMinutes } from "@/lib/workDowntimeRules";
 
 export type UploadSummary = {
   total: number;
@@ -436,7 +436,10 @@ export async function parseProductionExcel(
       endedAt: excelTimeToIso(resolvedDate, cell(row, colMap.endedAt)),
       elapsedMinutes: elapsedMinutes ?? 0,
       downtimeMinutes: downtimeMinutes || 0,
-      operatingMinutes: Math.max(0, (elapsedMinutes ?? 0) - (downtimeMinutes || 0)),
+      operatingMinutes: computeOperatingMinutes(
+        elapsedMinutes ?? 0,
+        downtimeMinutes || 0,
+      ),
       downtimeReasonRaw,
       reasonTokens,
       isFailureCandidate,
