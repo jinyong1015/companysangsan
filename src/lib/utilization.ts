@@ -85,7 +85,7 @@ export interface UtilizationCell {
   defectQuantity: number;
   failureCount: number;
   downtimeReasons: string[];
-  /** 시간가동률 = 유효 가동시간 ÷ 목표 가동시간 × 100 */
+  /** 시간가동률 = 유효 가동시간(작업시간) ÷ 목표 가동시간 × 100 */
   timeUtilizationPercent: number | null;
   /** 성능가동률 = 작업판수 ÷ 목표 작업판수 × 100 */
   performanceUtilizationPercent: number | null;

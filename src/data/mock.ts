@@ -108,7 +108,7 @@ function buildRecord(
   const mold = MOLDS[index % MOLDS.length]!;
   const elapsed = overrides.elapsedMinutes ?? 480;
   const downtime = overrides.downtimeMinutes ?? 0;
-  const operating = elapsed - downtime;
+  const operating = elapsed;
   const reasonRaw = overrides.downtimeReasonRaw ?? null;
   const tokens = tokenize(reasonRaw);
   const isFailure = tokens.includes("설비이상");
@@ -271,7 +271,7 @@ function generateDataset(): {
     })),
     {
       codes: ["OPERATING_TIME_NON_POSITIVE"] as ErrorCode[],
-      patch: { elapsedMinutes: 120, downtimeMinutes: 120, productionQuantity: 200 },
+      patch: { elapsedMinutes: 0, downtimeMinutes: 120, productionQuantity: 200 },
     },
   ];
 
@@ -291,7 +291,7 @@ function generateDataset(): {
         partId: part.id,
         partNumber: part.partNumber,
         ...spec.patch,
-        operatingMinutes: elapsed - downtime,
+        operatingMinutes: elapsed,
         errorCodes: spec.codes,
         isAnalysisEligible: false,
         isFailureCandidate: false,

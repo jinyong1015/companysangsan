@@ -59,9 +59,8 @@ export function applyWorkDowntimeMismatchRules(
   if (!mismatch) {
     if (workZero) errorCodes.push("WORK_TIME_ZERO");
     if (downtimeExceedsWork) errorCodes.push("DOWNTIME_GT_WORK_TIME");
-    const operating =
-      elapsedMinutes != null ? elapsedMinutes - downtimeMinutes : null;
-    if (operating != null && operating <= 0) {
+    // 유효 가동시간 = 작업시간
+    if (elapsedMinutes != null && elapsedMinutes <= 0) {
       errorCodes.push("OPERATING_TIME_NON_POSITIVE");
     }
     return;
@@ -72,9 +71,7 @@ export function applyWorkDowntimeMismatchRules(
 
   if (workZero) errorCodes.push("WORK_TIME_ZERO");
   if (downtimeExceedsWork) errorCodes.push("DOWNTIME_GT_WORK_TIME");
-  const operating =
-    elapsedMinutes != null ? elapsedMinutes - downtimeMinutes : null;
-  if (operating != null && operating <= 0) {
+  if (elapsedMinutes != null && elapsedMinutes <= 0) {
     errorCodes.push("OPERATING_TIME_NON_POSITIVE");
   }
 }

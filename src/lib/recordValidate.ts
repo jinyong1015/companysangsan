@@ -246,7 +246,7 @@ export function revalidateRecord(
     endedAt,
     elapsedMinutes: elapsed ?? 0,
     downtimeMinutes: downtime,
-    operatingMinutes: Math.max(0, (elapsed ?? 0) - downtime),
+    operatingMinutes: Math.max(0, elapsed ?? 0),
     downtimeReasonRaw,
     reasonTokens,
     isFailureCandidate: false,
