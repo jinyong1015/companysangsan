@@ -22,7 +22,7 @@ import { usePageState } from "@/hooks/usePageState";
 import { formatMinutes, formatNumber, formatQuantity } from "@/lib/format";
 import { filterRecords, paginate, sortBy } from "@/lib/metrics";
 import { withFromParam } from "@/lib/navigation";
-import { downloadExcel } from "@/lib/excelParse";
+import { downloadStyledTableExcel } from "@/lib/excelStyledExport";
 import { WARNING_MESSAGES } from "@/types";
 import type { ProductionRecord } from "@/types";
 
@@ -163,9 +163,35 @@ export default function ProductionDataPage() {
         ]}
         resultTitle="생산 DATA 내역"
         onExcel={() =>
-          downloadExcel(
-            "생산DATA.xlsx",
-            rows.map((r) => ({
+          void downloadStyledTableExcel({
+            fileName: "생산DATA.xlsx",
+            sheetName: "생산DATA",
+            title: "생산 DATA",
+            subtitle: "분석 대상 정상 DATA",
+            columns: [
+              { key: "상태", header: "상태", width: 10, align: "center" },
+              { key: "작업일자", header: "작업일자", width: 12, align: "center" },
+              { key: "공장", header: "공장", width: 10, align: "center" },
+              { key: "설비명", header: "설비명", width: 12 },
+              { key: "제품유형", header: "제품유형", width: 12, align: "center" },
+              { key: "품번", header: "품번", width: 18 },
+              { key: "Cavity", header: "Cavity", width: 10, align: "right", numFmt: "#,##0" },
+              { key: "작업판수", header: "작업판수", width: 10, align: "right", numFmt: "#,##0" },
+              { key: "불량수량", header: "불량수량", width: 10, align: "right", numFmt: "#,##0" },
+              { key: "실적수량", header: "실적수량", width: 12, align: "right", numFmt: "#,##0" },
+              { key: "작업자", header: "작업자", width: 12 },
+              { key: "구분", header: "구분", width: 8, align: "center" },
+              { key: "금형번호", header: "금형번호", width: 12 },
+              { key: "시작시간", header: "시작시간", width: 10, align: "center" },
+              { key: "종료시간", header: "종료시간", width: 10, align: "center" },
+              { key: "작업시간분", header: "작업시간(분)", width: 12, align: "right", numFmt: "#,##0" },
+              { key: "비가동시간분", header: "비가동시간(분)", width: 13, align: "right", numFmt: "#,##0" },
+              { key: "가동시간분", header: "가동시간(분)", width: 12, align: "right", numFmt: "#,##0" },
+              { key: "비가동내역", header: "비가동내역", width: 22 },
+              { key: "평균샷", header: "평균샷", width: 10, align: "right", numFmt: "0.0" },
+              { key: "경고사유", header: "경고사유", width: 28 },
+            ],
+            rows: rows.map((r) => ({
               상태: recordQuality(r).label,
               작업일자: r.workDate,
               공장: r.factory,
@@ -190,7 +216,7 @@ export default function ProductionDataPage() {
                 .map((c) => WARNING_LABELS[c] ?? c)
                 .join(", "),
             })),
-          )
+          })
         }
       >
         {rows.length === 0 ? (

@@ -17,7 +17,7 @@ import { usePageState } from "@/hooks/usePageState";
 import { ERROR_MESSAGES } from "@/types";
 import { formatMinutes, formatQuantity } from "@/lib/format";
 import { paginate, sortBy } from "@/lib/metrics";
-import { downloadExcel } from "@/lib/excelParse";
+import { downloadStyledTableExcel } from "@/lib/excelStyledExport";
 
 export default function DataErrorsPage() {
   const { filters } = useFilters();
@@ -132,9 +132,27 @@ export default function DataErrorsPage() {
         excelLabel="오류 DATA Excel"
         resultTitle="오류 내역"
         onExcel={() =>
-          downloadExcel(
-            "오류DATA.xlsx",
-            errorRows.map((r) => ({
+          void downloadStyledTableExcel({
+            fileName: "오류DATA.xlsx",
+            sheetName: "오류DATA",
+            title: "오류 DATA",
+            subtitle: "분석 제외 오류 행",
+            columns: [
+              { key: "원본행", header: "원본 행", width: 10, align: "right", numFmt: "#,##0" },
+              { key: "오류사유", header: "오류 사유", width: 36 },
+              { key: "작업일자", header: "작업일자", width: 12, align: "center" },
+              { key: "공장", header: "공장", width: 10, align: "center" },
+              { key: "설비명", header: "설비명", width: 12 },
+              { key: "제품유형", header: "제품유형", width: 12, align: "center" },
+              { key: "품번", header: "품번", width: 18 },
+              { key: "실적수량", header: "실적수량", width: 12, align: "right", numFmt: "#,##0" },
+              { key: "불량수량", header: "불량수량", width: 10, align: "right", numFmt: "#,##0" },
+              { key: "작업시간분", header: "작업시간(분)", width: 12, align: "right", numFmt: "#,##0" },
+              { key: "비가동시간분", header: "비가동시간(분)", width: 13, align: "right", numFmt: "#,##0" },
+              { key: "계산가동시간분", header: "계산 가동시간(분)", width: 14, align: "right", numFmt: "#,##0" },
+              { key: "비가동내역", header: "비가동내역", width: 22 },
+            ],
+            rows: errorRows.map((r) => ({
               원본행: r.sourceRowNumber,
               오류사유: r.errorCodes.map((c) => ERROR_MESSAGES[c]).join(", "),
               작업일자: r.workDate,
@@ -149,7 +167,7 @@ export default function DataErrorsPage() {
               계산가동시간분: r.operatingMinutes,
               비가동내역: r.downtimeReasonRaw ?? "",
             })),
-          )
+          })
         }
       >
         {errorRows.length === 0 ? (
