@@ -6,7 +6,7 @@ import {
   normalizeShift,
   slugId,
 } from "@/lib/dimensions";
-import { applyWorkDowntimeMismatchRules, computeOperatingMinutes } from "@/lib/workDowntimeRules";
+import { applyWorkDowntimeMismatchRules } from "@/lib/workDowntimeRules";
 import {
   normalizeReasonFlags,
   type UploadSummary,
@@ -246,7 +246,7 @@ export function revalidateRecord(
     endedAt,
     elapsedMinutes: elapsed ?? 0,
     downtimeMinutes: downtime,
-    operatingMinutes: computeOperatingMinutes(elapsed ?? 0, downtime),
+    operatingMinutes: Math.max(0, (elapsed ?? 0) - downtime),
     downtimeReasonRaw,
     reasonTokens,
     isFailureCandidate: false,

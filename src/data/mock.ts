@@ -7,7 +7,6 @@ import type {
   UploadBatch,
 } from "@/types";
 import { toDateString, todaySeoul } from "@/lib/dates";
-import { computeOperatingMinutes } from "@/lib/workDowntimeRules";
 import { subDays } from "date-fns";
 
 const EQUIPMENT = [
@@ -109,7 +108,7 @@ function buildRecord(
   const mold = MOLDS[index % MOLDS.length]!;
   const elapsed = overrides.elapsedMinutes ?? 480;
   const downtime = overrides.downtimeMinutes ?? 0;
-  const operating = computeOperatingMinutes(elapsed, downtime);
+  const operating = elapsed - downtime;
   const reasonRaw = overrides.downtimeReasonRaw ?? null;
   const tokens = tokenize(reasonRaw);
   const isFailure = tokens.includes("설비이상");
@@ -292,7 +291,7 @@ function generateDataset(): {
         partId: part.id,
         partNumber: part.partNumber,
         ...spec.patch,
-        operatingMinutes: computeOperatingMinutes(elapsed, downtime),
+        operatingMinutes: elapsed - downtime,
         errorCodes: spec.codes,
         isAnalysisEligible: false,
         isFailureCandidate: false,
