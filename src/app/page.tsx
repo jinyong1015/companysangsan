@@ -15,6 +15,7 @@ import {
   type UtilizationMonthCompareSnapshot,
 } from "@/components/utilization/UtilizationMonthCompareModal";
 import { UtilizationOverviewPanel } from "@/components/utilization/UtilizationOverviewPanel";
+import { PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useToast } from "@/context/ToastContext";
@@ -225,20 +226,14 @@ export default function DashboardPage() {
   if (invalidRange) {
     return (
       <>
-        <div className="month-kpi-heading mb-4">
-          <h1 className="month-kpi-heading-title">월별 KPI</h1>
-          <div className="month-kpi-heading-bar" aria-hidden />
-        </div>
+        <PageHeader title="월별 KPI" />
       </>
     );
   }
 
   return (
     <>
-      <div className="month-kpi-heading mb-4">
-        <h1 className="month-kpi-heading-title">월별 KPI</h1>
-        <div className="month-kpi-heading-bar" aria-hidden />
-      </div>
+      <PageHeader title="월별 KPI" />
 
       <QueryFilterShell
         title="조회조건"

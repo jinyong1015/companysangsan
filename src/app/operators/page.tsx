@@ -44,7 +44,7 @@ export default function OperatorsPage() {
 
   return (
     <>
-      <PageHeader title="작업자 분석" description="작업자별 생산실적·UPH 분석" />
+      <PageHeader title="작업자 분석" />
       <div className="card mb-4 border-[var(--warning)]/30 px-4 py-3 text-sm text-[var(--text-secondary)]">
         작업자별 지표는 담당 품번과 설비 구성의 영향을 받습니다. 단순 순위만으로 평가하지 마세요.
       </div>

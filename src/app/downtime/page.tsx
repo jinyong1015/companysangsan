@@ -384,10 +384,7 @@ export default function DowntimePage() {
 
   return (
     <>
-      <PageHeader
-        title="비가동 분석"
-        description={`${monthLabel} 기준 비가동 사유와 고장 이력 분석`}
-      />
+      <PageHeader title="비가동 분석" />
 
       <aside
         className="card mb-4 border-[var(--accent)]/35 bg-[color-mix(in_srgb,var(--accent-soft)_55%,var(--card))] px-4 py-4 md:px-5"

@@ -47,7 +47,7 @@ export default function MoldsPage() {
 
   return (
     <>
-      <PageHeader title="금형 분석" description="금형별 생산·불량·비가동 분석" />
+      <PageHeader title="금형 분석" />
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}

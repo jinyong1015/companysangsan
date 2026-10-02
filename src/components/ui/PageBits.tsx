@@ -16,77 +16,59 @@ import { useToast } from "@/context/ToastContext";
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
   onExcel?: () => void | Promise<void>;
   excelName?: string;
   showTimestamp?: boolean;
-  titleClassName?: string;
-  descriptionClassName?: string;
   actions?: React.ReactNode;
 }
 
 export function PageHeader({
   title,
-  description,
   onExcel,
   excelName,
   showTimestamp = false,
-  titleClassName,
-  descriptionClassName,
   actions,
 }: PageHeaderProps) {
   const { pushToast } = useToast();
 
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <h1
-          className={
-            titleClassName ??
-            "text-[20px] font-bold leading-tight md:text-[24px]"
-          }
-        >
-          {title}
-        </h1>
-        {description ? (
-          <p
-            className={
-              descriptionClassName ??
-              "mt-1 text-sm text-[var(--text-secondary)]"
-            }
-          >
-            {description}
-          </p>
-        ) : null}
-        {showTimestamp ? (
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">기준 {nowLabel()}</p>
-        ) : null}
+    <div className="menu-page-heading mb-4">
+      <div className="menu-page-heading-row">
+        <div className="min-w-0">
+          <h1 className="menu-page-heading-title">{title}</h1>
+          {showTimestamp ? (
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              기준 {nowLabel()}
+            </p>
+          ) : null}
+        </div>
+        <div className="menu-page-heading-actions">
+          {actions}
+          {onExcel ? (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    await onExcel();
+                    pushToast(
+                      `Excel 파일 생성을 시작했습니다.${excelName ? ` (${excelName})` : ""}`,
+                      "success",
+                    );
+                  } catch {
+                    pushToast("Excel 다운로드에 실패했습니다.", "error");
+                  }
+                })();
+              }}
+            >
+              <Download size={16} />
+              <span>Excel 다운로드</span>
+            </button>
+          ) : null}
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {actions}
-        {onExcel ? (
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              void (async () => {
-                try {
-                  await onExcel();
-                  pushToast(
-                    `Excel 파일 생성을 시작했습니다.${excelName ? ` (${excelName})` : ""}`,
-                    "success",
-                  );
-                } catch {
-                  pushToast("Excel 다운로드에 실패했습니다.", "error");
-                }
-              })();
-            }}
-          >
-            <Download size={16} />
-            <span>Excel 다운로드</span>
-          </button>
-        ) : null}
-      </div>
+      <div className="menu-page-heading-bar" aria-hidden />
     </div>
   );
 }

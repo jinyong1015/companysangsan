@@ -752,10 +752,7 @@ export default function UtilizationPage() {
 
   return (
     <>
-      <PageHeader
-        title="가동률 분석"
-        description="전체 종합 현황·제품·설비 요약 → 날짜 × 설비 히트맵"
-      />
+      <PageHeader title="가동률 분석" />
 
       <QueryFilterShell
         title="조회조건"

@@ -86,7 +86,7 @@ export default function ProductionPage() {
   if (allRows.length === 0) {
     return (
       <>
-        <PageHeader title="생산 분석" description="품번별 생산 종합 실적을 확인합니다." />
+        <PageHeader title="생산 분석" />
         <EmptyState
           title="분석 가능한 DATA가 없습니다."
           description="선택한 조건에 정상 생산 DATA가 없습니다."
@@ -99,10 +99,7 @@ export default function ProductionPage() {
 
   return (
     <>
-      <PageHeader
-        title="생산 분석"
-        description="품번별 생산 종합 실적을 확인합니다."
-      />
+      <PageHeader title="생산 분석" />
 
       <ProductionVariationTrend grain="month" lastMonths={12} />
 

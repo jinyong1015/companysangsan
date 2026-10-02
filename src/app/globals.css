@@ -2624,12 +2624,22 @@ select {
   gap: 14px;
 }
 
-/* 월별 KPI 섹션 제목 (조회조건 위) */
+/* 메뉴 페이지 제목 (제목 + 강조 바, 부제목 없음) */
+.menu-page-heading,
 .month-kpi-heading {
   display: grid;
   gap: 8px;
 }
 
+.menu-page-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.menu-page-heading-title,
 .month-kpi-heading-title {
   margin: 0;
   font-size: 22px;
@@ -2639,6 +2649,14 @@ select {
   line-height: 1.2;
 }
 
+.menu-page-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-page-heading-bar,
 .month-kpi-heading-bar {
   height: 8px;
   width: 100%;

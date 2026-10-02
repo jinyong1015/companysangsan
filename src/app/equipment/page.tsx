@@ -52,7 +52,7 @@ export default function EquipmentListPage() {
 
   return (
     <>
-      <PageHeader title="설비 분석" description="설비별 생산성·가동률·신뢰성 비교" />
+      <PageHeader title="설비 분석" />
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}

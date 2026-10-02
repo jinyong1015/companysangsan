@@ -44,7 +44,7 @@ export default function PartsPage() {
 
   return (
     <>
-      <PageHeader title="품번 분석" description="품번별 생산량·불량·UPH 분석" />
+      <PageHeader title="품번 분석" />
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}

@@ -17,6 +17,7 @@ import {
 import { useDataSource } from "@/context/DataSourceContext";
 import { useFilters } from "@/context/FilterContext";
 import { useToast } from "@/context/ToastContext";
+import { PageHeader } from "@/components/ui/PageBits";
 import { ALL_RECORDS } from "@/data/mock";
 import { dateRangeFromRecords } from "@/lib/dimensions";
 import {
@@ -174,36 +175,31 @@ export default function ManagePage() {
 
   return (
     <div className="manage-page">
-      <header className="manage-page-header">
-        <div className="min-w-0">
-          <p className="manage-page-kicker">DATA MANAGEMENT</p>
-          <h1 className="manage-page-title">데이터 업로드</h1>
-          <p className="manage-page-desc">
-            MES 성형작업일보 엑셀을 업로드하면 검증·집계 후 전체 분석 메뉴에
-            반영됩니다.
-          </p>
-        </div>
-        <div className="manage-page-actions">
-          <button
-            type="button"
-            onClick={handleSampleDownload}
-            className="manage-action-btn"
-          >
-            <Download size={14} />
-            샘플 엑셀
-          </button>
-          {hasUploadedData ? (
+      <PageHeader
+        title="데이터 업로드"
+        actions={
+          <div className="manage-page-actions">
             <button
               type="button"
-              onClick={() => void handleRestoreSeed()}
+              onClick={handleSampleDownload}
               className="manage-action-btn"
             >
-              <RotateCcw size={14} />
-              시드 복원
+              <Download size={14} />
+              샘플 엑셀
             </button>
-          ) : null}
-        </div>
-      </header>
+            {hasUploadedData ? (
+              <button
+                type="button"
+                onClick={() => void handleRestoreSeed()}
+                className="manage-action-btn"
+              >
+                <RotateCcw size={14} />
+                시드 복원
+              </button>
+            ) : null}
+          </div>
+        }
+      />
 
       <div className="manage-notice" role="note">
         <Megaphone size={18} className="manage-notice-icon" aria-hidden />
