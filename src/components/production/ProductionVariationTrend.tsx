@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { startOfMonth, subMonths } from "date-fns";
+import { format, parseISO, startOfMonth, subMonths } from "date-fns";
+import { ArrowLeftRight } from "lucide-react";
 import { PeriodProductSplitTrendCharts } from "@/components/charts/Charts";
+import { ProductionMonthCompareModal } from "@/components/production/ProductionMonthCompareModal";
 import { SectionCard } from "@/components/ui/PageBits";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useFilters } from "@/context/FilterContext";
@@ -37,6 +39,8 @@ type Props = {
   lastMonths?: number;
   /** 섹션 설명 (미지정 시 lastMonths 안내 또는 없음) */
   description?: string;
+  /** true면 헤더에 월별 비교(생산 요약표) 표시 */
+  showMonthCompare?: boolean;
 };
 
 const METRIC_OPTIONS: { key: ProductionTrendMetric; label: string }[] = [
@@ -64,10 +68,12 @@ export function ProductionVariationTrend({
   filtersOverride,
   lastMonths,
   description,
+  showMonthCompare = false,
 }: Props) {
   const { filters: globalFilters } = useFilters();
   const { records } = useDataSource();
   const [metric, setMetric] = useState<ProductionTrendMetric>("production");
+  const [monthCompareOpen, setMonthCompareOpen] = useState(false);
 
   const filters: GlobalFilters = useMemo(() => {
     const base = { ...globalFilters, ...filtersOverride };
@@ -80,6 +86,14 @@ export function ProductionVariationTrend({
       endDate: range.endDate,
     };
   }, [filtersOverride, globalFilters, lastMonths]);
+
+  const initialCompareMonth = useMemo(() => {
+    try {
+      return format(parseISO(filters.startDate), "yyyy-MM");
+    } catch {
+      return format(todaySeoul(), "yyyy-MM");
+    }
+  }, [filters.startDate]);
 
   const invalidRange = filters.endDate < filters.startDate;
   const grainLabel = grain === "day" ? "일별" : "월별";
@@ -281,41 +295,67 @@ export function ProductionVariationTrend({
   if (invalidRange) return null;
 
   return (
-    <SectionCard
-      title={title}
-      description={sectionDescription}
-      className={["pvt-section", className].filter(Boolean).join(" ")}
-      action={
-        <div
-          className="pvt-metric-tabs"
-          role="tablist"
-          aria-label={`${grainLabel} 생산변동 지표`}
-        >
-          {METRIC_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              role="tab"
-              aria-selected={metric === opt.key}
-              className="pvt-metric-tab"
-              data-active={metric === opt.key}
-              data-metric={opt.key}
-              onClick={() => setMetric(opt.key)}
+    <>
+      <SectionCard
+        title={title}
+        description={sectionDescription}
+        className={["pvt-section", className].filter(Boolean).join(" ")}
+        action={
+          <div className="pvt-section-actions">
+            <div
+              className="pvt-metric-tabs"
+              role="tablist"
+              aria-label={`${grainLabel} 생산변동 지표`}
             >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      }
-    >
-      <PeriodProductSplitTrendCharts
-        data={chart.data}
-        periodLabel={periodLabel}
-        metricLabel={chart.metricLabel}
-        formatValue={chart.formatValue}
-        height={260}
-        summaries={monthSummaries}
-      />
-    </SectionCard>
+              {METRIC_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={metric === opt.key}
+                  className="pvt-metric-tab"
+                  data-active={metric === opt.key}
+                  data-metric={opt.key}
+                  onClick={() => setMetric(opt.key)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {showMonthCompare ? (
+              <button
+                type="button"
+                className="pvt-month-compare-btn"
+                onClick={() => setMonthCompareOpen(true)}
+              >
+                <span className="pvt-month-compare-btn-icon" aria-hidden>
+                  <ArrowLeftRight size={15} strokeWidth={2.25} />
+                </span>
+                <span>월별 비교</span>
+              </button>
+            ) : null}
+          </div>
+        }
+      >
+        <PeriodProductSplitTrendCharts
+          data={chart.data}
+          periodLabel={periodLabel}
+          metricLabel={chart.metricLabel}
+          formatValue={chart.formatValue}
+          height={260}
+          summaries={monthSummaries}
+        />
+      </SectionCard>
+
+      {showMonthCompare ? (
+        <ProductionMonthCompareModal
+          open={monthCompareOpen}
+          onClose={() => setMonthCompareOpen(false)}
+          initialMonth={initialCompareMonth}
+          records={records}
+          filters={filters}
+        />
+      ) : null}
+    </>
   );
 }

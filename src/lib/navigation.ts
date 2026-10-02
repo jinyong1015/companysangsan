@@ -26,7 +26,7 @@ const BACK_BY_SOURCE: Record<
   DetailBackSource,
   { href: string; label: string; icon: LucideIcon }
 > = {
-  home: { href: "/", label: "대시보드", icon: LayoutDashboard },
+  home: { href: "/", label: "월별 KPI", icon: LayoutDashboard },
   downtime: { href: "/downtime", label: "비가동 분석", icon: PauseCircle },
   utilization: { href: "/utilization", label: "가동률 분석", icon: Grid3x3 },
   parts: { href: "/parts", label: "품번 분석", icon: Package },

@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
+import { Lock } from "lucide-react";
 import { QueryFilterShell } from "@/components/filters/FilterCards";
 import { UtilizationOverviewPanel } from "@/components/utilization/UtilizationOverviewPanel";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
@@ -28,6 +29,7 @@ import {
   formatMonthLabel,
   getCell,
   getDateWeekdayClass,
+  inferEquipmentType,
   loadTargetMinutes,
   loadTargetShotCounts,
   monthDateRange,
@@ -842,6 +844,7 @@ export default function UtilizationPage() {
         equipmentByProduct={equipmentByProduct}
         grommetEmphasized={grommetEmphasized}
         sealEmphasized={sealEmphasized}
+        showScopeTabs={false}
       />
 
       <div className="util-metric-tabs mb-4" role="tablist" aria-label="가동률 구분">
@@ -920,7 +923,14 @@ export default function UtilizationPage() {
                     : "설정 변경은 관리자 모드에서만 가능합니다."
                 }
               >
-                {editTargets ? "닫기" : isAdmin ? "설정 변경" : "설정 변경 (관리자)"}
+                {editTargets ? (
+                  "닫기"
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    {!isAdmin ? <Lock size={14} aria-hidden /> : null}
+                    설정 변경
+                  </span>
+                )}
               </button>
             </div>
             {editTargets && isAdmin ? (
@@ -989,7 +999,14 @@ export default function UtilizationPage() {
                     : "설정 변경은 관리자 모드에서만 가능합니다."
                 }
               >
-                {editTargets ? "닫기" : isAdmin ? "설정 변경" : "설정 변경 (관리자)"}
+                {editTargets ? (
+                  "닫기"
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    {!isAdmin ? <Lock size={14} aria-hidden /> : null}
+                    설정 변경
+                  </span>
+                )}
               </button>
             </div>
             <div className="mt-3 overflow-x-auto">

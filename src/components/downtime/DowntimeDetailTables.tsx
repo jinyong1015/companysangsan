@@ -683,6 +683,8 @@ export function PeriodReasonOccurrenceView({
               <span className="dt-occur-dash-title-dot" aria-hidden />
               비가동 발생 현황
             </h2>
+          </div>
+          <div className="dt-occur-dash-head-aside">
             {showProductTabs ? (
               <ProductTypeTabs
                 value={productTab}
@@ -690,25 +692,25 @@ export function PeriodReasonOccurrenceView({
                 label="비가동 발생 현황 GROMMET/SEAL 구분"
               />
             ) : null}
+            {hasData ? (
+              <div className="dt-occur-dash-stats" aria-label="합계 요약">
+                <div className="dt-occur-dash-stat">
+                  <span className="dt-occur-dash-stat-label">합계 시간</span>
+                  <strong className="dt-occur-dash-stat-value num">
+                    {formatNumber(Math.round(table.summary.totalMinutes))}
+                    <span className="dt-occur-dash-stat-unit">min</span>
+                  </strong>
+                </div>
+                <div className="dt-occur-dash-stat">
+                  <span className="dt-occur-dash-stat-label">합계 횟수</span>
+                  <strong className="dt-occur-dash-stat-value num">
+                    {formatNumber(table.summary.totalCount)}
+                    <span className="dt-occur-dash-stat-unit">회</span>
+                  </strong>
+                </div>
+              </div>
+            ) : null}
           </div>
-          {hasData ? (
-            <div className="dt-occur-dash-stats" aria-label="합계 요약">
-              <div className="dt-occur-dash-stat">
-                <span className="dt-occur-dash-stat-label">합계 시간</span>
-                <strong className="dt-occur-dash-stat-value num">
-                  {formatNumber(Math.round(table.summary.totalMinutes))}
-                  <span className="dt-occur-dash-stat-unit">min</span>
-                </strong>
-              </div>
-              <div className="dt-occur-dash-stat">
-                <span className="dt-occur-dash-stat-label">합계 횟수</span>
-                <strong className="dt-occur-dash-stat-value num">
-                  {formatNumber(table.summary.totalCount)}
-                  <span className="dt-occur-dash-stat-unit">회</span>
-                </strong>
-              </div>
-            </div>
-          ) : null}
         </div>
       ) : (
         <div className="dt-occur-banner">비가동 발생 현황</div>
@@ -1053,10 +1055,13 @@ export function EquipmentReliabilitySection({
 export function EquipmentFamilyMttrMtbfSummaryTableView({
   table,
   variant = "full",
+  productScope = "전체",
 }: {
   table: EquipmentFamilyMttrMtbfSummaryTable;
   /** full: 탭+Press/Injection 표 / overall: GROMMET·SEAL 전체 평균만 */
   variant?: "full" | "overall";
+  /** overall일 때 표시 범위 */
+  productScope?: "전체" | "GROMMET" | "SEAL";
 }) {
   const [tab, setTab] = useState<"GROMMET" | "SEAL">("GROMMET");
   const [detailOpen, setDetailOpen] = useState<"GROMMET" | "SEAL" | null>(null);
@@ -1144,13 +1149,37 @@ export function EquipmentFamilyMttrMtbfSummaryTableView({
   );
 
   if (variant === "overall") {
+    const showGrommet = productScope === "전체" || productScope === "GROMMET";
+    const showSeal = productScope === "전체" || productScope === "SEAL";
     return (
       <>
         <div className="util-eq-by-product">
           <h2 className="util-overview-section-title">
             설비별 MTTR · MTBF
           </h2>
-          {overallCards(true)}
+          <div
+            className="util-eq-overall-avg-grid"
+            data-single={showGrommet !== showSeal || undefined}
+          >
+            {showGrommet
+              ? renderOverallCard(
+                  "grommet",
+                  "GROMMET",
+                  grommetMttr,
+                  grommetMtbf,
+                  true,
+                )
+              : null}
+            {showSeal
+              ? renderOverallCard(
+                  "seal",
+                  "SEAL",
+                  sealMttr,
+                  sealMtbf,
+                  true,
+                )
+              : null}
+          </div>
         </div>
         <FullscreenTableShell
           title={`${detailOpen ?? "GROMMET"} 호기 평균 MTTR · MTBF 상세`}

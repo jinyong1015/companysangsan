@@ -35,7 +35,7 @@ const PRIMARY_MENUS: Array<{
   label: string;
   Icon: IconComp;
 }> = [
-  { href: "/", label: "대시보드", Icon: LayoutDashboard },
+  { href: "/", label: "월별 KPI", Icon: LayoutDashboard },
   { href: "/production", label: "생산 분석", Icon: BarChart3 },
   { href: "/utilization", label: "가동률 분석", Icon: Grid3x3 },
   { href: "/downtime", label: "비가동 분석", Icon: PauseCircle },

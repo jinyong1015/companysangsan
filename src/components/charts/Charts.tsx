@@ -271,7 +271,10 @@ function periodChartAxisWidth(values: number[]) {
 function formatCompact(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 10_000) return `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}k`;
-  return value.toLocaleString("ko-KR");
+  return value.toLocaleString("ko-KR", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+    maximumFractionDigits: 1,
+  });
 }
 
 const periodTooltipStyle = {
@@ -806,7 +809,7 @@ function ProductTrendPanel({
                     // 마지막은 항상, 나머지는 step 간격으로 표시
                     if (!isLast && index % labelStep !== 0) return null;
 
-                    const text = formatCompact(n);
+                    const text = formatValue(n);
 
                     if (!isLast) {
                       return (

@@ -138,7 +138,7 @@ export interface KpiSummary {
   downtimeMinutes: number;
   operatingMinutes: number;
   utilizationRatePercent: number | null;
-  /** 생산수량 ÷ 가동시간(hr) — EA/h */
+  /** 작업판수(SHOT) ÷ 가동시간(hr) — 시간당 판수 */
   uph: number | null;
   failureCount: number;
   mttrEligibleCount: number;
@@ -239,7 +239,7 @@ export interface ProductPerformanceRow {
   productionQuantity: number;
   defectQuantity: number;
   goodQuantity: number;
-  /** 생산수량 ÷ 가동시간(hr) */
+  /** 작업판수(SHOT) ÷ 가동시간(hr) — 시간당 판수 */
   uph: number | null;
 }
 

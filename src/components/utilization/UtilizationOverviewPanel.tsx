@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { ArrowLeftRight, X } from "lucide-react";
 import { formatPercent } from "@/lib/format";
 import { EquipmentFamilyMttrMtbfSummaryTableView } from "@/components/downtime/DowntimeDetailTables";
 import {
@@ -278,8 +278,14 @@ function MetricStatCard({
       <div className="util-overview-metric-top">
         <span className="util-overview-metric-label">
           {label}
-          {editable && isManual ? (
-            <span className="util-gauge-edit-hint">수기</span>
+          {editable ? (
+            <span
+              className="util-gauge-edit-hint"
+              data-visible={isManual ? "true" : "false"}
+              aria-hidden={!isManual}
+            >
+              수기
+            </span>
           ) : null}
         </span>
         <MiniSparkline values={spark} color={color} />
@@ -304,10 +310,14 @@ function MetricStatCard({
             }}
           />
           <span className="util-gauge-input-suffix">%</span>
-          {isManual && onReset ? (
+          {onReset ? (
             <button
               type="button"
               className="util-gauge-reset"
+              data-visible={isManual ? "true" : "false"}
+              aria-hidden={!isManual}
+              tabIndex={isManual ? 0 : -1}
+              disabled={!isManual}
               onClick={onReset}
             >
               자동
@@ -557,12 +567,18 @@ function EquipmentRateTable({
 
 function EquipmentByProductBlock({
   equipmentByProduct,
+  productScope = "전체",
 }: {
   equipmentByProduct: EquipmentUtilizationByProduct;
+  productScope?: "전체" | "GROMMET" | "SEAL";
 }) {
   const [tab, setTab] = useState<"GROMMET" | "SEAL">("GROMMET");
+  const activeTab: "GROMMET" | "SEAL" =
+    productScope === "전체" ? tab : productScope;
   const group: EquipmentUtilizationGroup =
-    tab === "GROMMET" ? equipmentByProduct.grommet : equipmentByProduct.seal;
+    activeTab === "GROMMET"
+      ? equipmentByProduct.grommet
+      : equipmentByProduct.seal;
   const hasPress = group.press.length > 0;
   const hasInjection = group.injection.length > 0;
   const empty = !hasPress && !hasInjection;
@@ -577,41 +593,43 @@ function EquipmentByProductBlock({
     <div className="util-eq-by-product">
       <div className="util-eq-by-product-head">
         <h2 className="util-overview-section-title">설비별 가동률</h2>
-        <div
-          className="util-eq-product-tabs"
-          role="tablist"
-          aria-label="GROMMET/SEAL 설비 가동률"
-        >
-          {(
-            [
-              {
-                value: "GROMMET" as const,
-                label: "GROMMET",
-                count: grommetCount,
-              },
-              { value: "SEAL" as const, label: "SEAL", count: sealCount },
-            ] as const
-          ).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              role="tab"
-              aria-selected={tab === opt.value}
-              className="util-eq-product-tab"
-              data-active={tab === opt.value}
-              data-tone={opt.value === "GROMMET" ? "grommet" : "seal"}
-              onClick={() => setTab(opt.value)}
-            >
-              {opt.label}
-              <span className="util-eq-product-tab-count">{opt.count}</span>
-            </button>
-          ))}
-        </div>
+        {productScope === "전체" ? (
+          <div
+            className="util-eq-product-tabs"
+            role="tablist"
+            aria-label="GROMMET/SEAL 설비 가동률"
+          >
+            {(
+              [
+                {
+                  value: "GROMMET" as const,
+                  label: "GROMMET",
+                  count: grommetCount,
+                },
+                { value: "SEAL" as const, label: "SEAL", count: sealCount },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="tab"
+                aria-selected={tab === opt.value}
+                className="util-eq-product-tab"
+                data-active={tab === opt.value}
+                data-tone={opt.value === "GROMMET" ? "grommet" : "seal"}
+                onClick={() => setTab(opt.value)}
+              >
+                {opt.label}
+                <span className="util-eq-product-tab-count">{opt.count}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {empty ? (
         <p className="util-eq-by-product-empty">
-          조회월에 {tab} 설비 가동 데이터가 없습니다.
+          조회월에 {activeTab} 설비 가동 데이터가 없습니다.
         </p>
       ) : (
         <div
@@ -648,6 +666,12 @@ export function UtilizationOverviewPanel({
   mttrMtbfSummary,
   variant = "full",
   showEquipmentBlock = true,
+  readOnly = false,
+  embedded = false,
+  onMonthCompare,
+  onYieldChange,
+  productScope: productScopeProp,
+  showScopeTabs = true,
 }: {
   monthLabel: string;
   overview: UtilizationOverview;
@@ -661,6 +685,18 @@ export function UtilizationOverviewPanel({
   variant?: "full" | "overall";
   /** false면 설비별 가동률은 현황 상세 버튼으로만 연다 (대시보드) */
   showEquipmentBlock?: boolean;
+  /** true면 양품률 수기 입력 비활성 (월별 비교 등) */
+  readOnly?: boolean;
+  /** true면 바깥 여백·월별 비교 버튼 없이 중첩 표시 */
+  embedded?: boolean;
+  /** 종합 현황 헤더 오른쪽 월별 비교 */
+  onMonthCompare?: () => void;
+  /** 양품률 수기 저장/초기화 직후 */
+  onYieldChange?: () => void;
+  /** 외부에서 제어하는 제품 범위 (월별 비교 공통 탭 등) */
+  productScope?: "전체" | "GROMMET" | "SEAL";
+  /** false면 내부 전체/GROMMET/SEAL 탭 숨김 */
+  showScopeTabs?: boolean;
 }) {
   const grommetYieldKey = `${monthLabel}::GROMMET`;
   const sealYieldKey = `${monthLabel}::SEAL`;
@@ -671,7 +707,11 @@ export function UtilizationOverviewPanel({
   const [equipmentDetail, setEquipmentDetail] = useState<
     "GROMMET" | "SEAL" | null
   >(null);
-
+  const [internalProductScope, setInternalProductScope] = useState<
+    "전체" | "GROMMET" | "SEAL"
+  >("전체");
+  const productScope = productScopeProp ?? internalProductScope;
+  const setProductScope = setInternalProductScope;
   useEffect(() => {
     setGrommetManualYield(loadManualYieldPercent(grommetYieldKey));
     setSealManualYield(loadManualYieldPercent(sealYieldKey));
@@ -695,6 +735,72 @@ export function UtilizationOverviewPanel({
       overallYield,
     ),
   };
+  const grommetSummary: UtilizationMetricSummary = {
+    ...overview.grommet,
+    yieldPercent: grommetYield,
+    oeePercent: computeOeePercent(
+      overview.grommet.timePercent,
+      overview.grommet.performancePercent,
+      grommetYield,
+    ),
+  };
+  const sealSummary: UtilizationMetricSummary = {
+    ...overview.seal,
+    yieldPercent: sealYield,
+    oeePercent: computeOeePercent(
+      overview.seal.timePercent,
+      overview.seal.performancePercent,
+      sealYield,
+    ),
+  };
+
+  const showOverall = productScope === "전체";
+  const showGrommet =
+    productScope === "전체" || productScope === "GROMMET";
+  const showSeal = productScope === "전체" || productScope === "SEAL";
+  const productSectionTitle = "GROMMET / SEAL 현황";
+  const primarySectionTitle =
+    productScope === "GROMMET"
+      ? "GROMMET 현황"
+      : productScope === "SEAL"
+        ? "SEAL 현황"
+        : "전체 종합 현황";
+  const showSectionActions =
+    (variant === "full" && showScopeTabs) ||
+    (!embedded && Boolean(onMonthCompare));
+
+  const scopeTabs = (
+    <div
+      className="dt-product-tabs util-overview-scope-tabs"
+      role="tablist"
+      aria-label="종합 현황 제품 범위"
+    >
+      {(
+        [
+          { value: "전체" as const, label: "전체", tone: "all" },
+          {
+            value: "GROMMET" as const,
+            label: "GROMMET",
+            tone: "grommet",
+          },
+          { value: "SEAL" as const, label: "SEAL", tone: "seal" },
+        ] as const
+      ).map((tab) => (
+        <button
+          key={tab.value}
+          type="button"
+          role="tab"
+          aria-selected={productScope === tab.value}
+          className="dt-product-tab"
+          data-tone={tab.tone}
+          data-active={productScope === tab.value}
+          onClick={() => setProductScope(tab.value)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
 
   const detailGroup: EquipmentUtilizationGroup | null =
     equipmentByProduct == null || equipmentDetail == null
@@ -706,71 +812,133 @@ export function UtilizationOverviewPanel({
   const detailHasInjection = (detailGroup?.injection.length ?? 0) > 0;
 
   return (
-    <section className="util-overview mb-4" aria-label="종합 가동률 요약">
-      <p className="util-overview-month-label">{monthLabel} 종합 현황</p>
+    <section
+      className={embedded ? "util-overview" : "util-overview mb-4"}
+      aria-label="종합 가동률 요약"
+      data-embedded={embedded || undefined}
+    >
+      <div className="util-overview-month-head">
+        <p className="util-overview-month-label">{monthLabel} 종합 현황</p>
+      </div>
 
       <div className="util-viz-card">
-        <h2 className="util-overview-section-title">전체 종합 현황</h2>
-        <div className="util-gauge-split" data-single="true">
-          <GaugeBlock
-            title="전체(GROMMET + SEAL)"
-            summary={overallSummary}
-            metrics={FULL_METRICS}
-          />
+        <div className="util-overview-section-head">
+          <h2 className="util-overview-section-title">
+            {primarySectionTitle}
+          </h2>
+          {showSectionActions ? (
+            <div className="util-overview-section-head-actions">
+              {variant === "full" && showScopeTabs ? scopeTabs : null}
+              {!embedded && onMonthCompare ? (
+                <button
+                  type="button"
+                  className="util-overview-compare-btn"
+                  onClick={onMonthCompare}
+                >
+                  <span className="util-overview-compare-btn-icon" aria-hidden>
+                    <ArrowLeftRight size={15} strokeWidth={2.25} />
+                  </span>
+                  <span className="util-overview-compare-btn-text">월별 비교</span>
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
+        {showOverall ? (
+          <div className="util-gauge-split" data-single="true">
+            <GaugeBlock
+              title="전체(GROMMET + SEAL)"
+              summary={overallSummary}
+              metrics={FULL_METRICS}
+            />
+          </div>
+        ) : null}
+
         {variant === "full" ? (
-          <div className="util-overview-products-block util-overview-products-block--in-card">
-            <h2 className="util-overview-section-title">
-              GROMMET / SEAL 현황
-            </h2>
-            <div className="util-overview-products">
-              <ProductOverviewCard
-                title="GROMMET 현황"
-                tone="grommet"
-                summary={overview.grommet}
-                daily={trends.grommet}
-                emphasized={grommetEmphasized}
-                muted={!grommetEmphasized}
-                editableYield
-                manualYield={grommetManualYield}
-                onYieldCommit={(next) => {
-                  setGrommetManualYield(next);
-                  saveManualYieldPercent(grommetYieldKey, next);
-                }}
-                onYieldReset={() => {
-                  setGrommetManualYield(null);
-                  saveManualYieldPercent(grommetYieldKey, null);
-                }}
-                onDetail={
-                  equipmentByProduct
-                    ? () => setEquipmentDetail("GROMMET")
-                    : undefined
-                }
-              />
-              <ProductOverviewCard
-                title="SEAL 현황"
-                tone="seal"
-                summary={overview.seal}
-                daily={trends.seal}
-                emphasized={sealEmphasized}
-                muted={!sealEmphasized}
-                editableYield
-                manualYield={sealManualYield}
-                onYieldCommit={(next) => {
-                  setSealManualYield(next);
-                  saveManualYieldPercent(sealYieldKey, next);
-                }}
-                onYieldReset={() => {
-                  setSealManualYield(null);
-                  saveManualYieldPercent(sealYieldKey, null);
-                }}
-                onDetail={
-                  equipmentByProduct
-                    ? () => setEquipmentDetail("SEAL")
-                    : undefined
-                }
-              />
+          <div
+            className="util-overview-products-block util-overview-products-block--in-card"
+            data-first={!showOverall || undefined}
+          >
+            {showOverall ? (
+              <h2 className="util-overview-section-title">
+                {productSectionTitle}
+              </h2>
+            ) : null}
+            <div
+              className="util-overview-products"
+              data-single={!showGrommet || !showSeal || undefined}
+            >
+              {showGrommet ? (
+                <ProductOverviewCard
+                  title="GROMMET 현황"
+                  tone="grommet"
+                  summary={grommetSummary}
+                  daily={trends.grommet}
+                  emphasized={grommetEmphasized}
+                  muted={!grommetEmphasized}
+                  editableYield={!readOnly}
+                  manualYield={grommetManualYield}
+                  onYieldCommit={
+                    readOnly
+                      ? undefined
+                      : (next) => {
+                          setGrommetManualYield(next);
+                          saveManualYieldPercent(grommetYieldKey, next);
+                          onYieldChange?.();
+                        }
+                  }
+                  onYieldReset={
+                    readOnly
+                      ? undefined
+                      : () => {
+                          setGrommetManualYield(null);
+                          saveManualYieldPercent(grommetYieldKey, null);
+                          onYieldChange?.();
+                        }
+                  }
+                  onDetail={
+                    !readOnly && equipmentByProduct
+                      ? () => setEquipmentDetail("GROMMET")
+                      : undefined
+                  }
+                />
+              ) : null}
+              {showSeal ? (
+                <ProductOverviewCard
+                  title="SEAL 현황"
+                  tone="seal"
+                  summary={sealSummary}
+                  daily={trends.seal}
+                  emphasized={sealEmphasized}
+                  muted={!sealEmphasized}
+                  editableYield={!readOnly}
+                  manualYield={sealManualYield}
+                  onYieldCommit={
+                    readOnly
+                      ? undefined
+                      : (next) => {
+                          setSealManualYield(next);
+                          saveManualYieldPercent(sealYieldKey, next);
+                          onYieldChange?.();
+                        }
+                  }
+                  onYieldReset={
+                    readOnly
+                      ? undefined
+                      : () => {
+                          setSealManualYield(null);
+                          saveManualYieldPercent(sealYieldKey, null);
+                          onYieldChange?.();
+                        }
+                  }
+                  onDetail={
+                    !readOnly && equipmentByProduct
+                      ? () => setEquipmentDetail("SEAL")
+                      : undefined
+                  }
+                />
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -780,12 +948,16 @@ export function UtilizationOverviewPanel({
             <EquipmentFamilyMttrMtbfSummaryTableView
               table={mttrMtbfSummary}
               variant="overall"
+              productScope={productScope}
             />
           </div>
         ) : null}
 
         {variant === "full" && equipmentByProduct && showEquipmentBlock ? (
-          <EquipmentByProductBlock equipmentByProduct={equipmentByProduct} />
+          <EquipmentByProductBlock
+            equipmentByProduct={equipmentByProduct}
+            productScope={productScope}
+          />
         ) : null}
       </div>
 

@@ -71,7 +71,7 @@ export function aggregateParts(
 /**
  * PROD-01 제품별 생산 종합 실적.
  * filterRecords가 정상 데이터만 넘기므로 추가 제외 없이 품번 집계한다.
- * UPH·평균 SHOT은 화면설계서 기준(가동시간)으로 산출한다.
+ * UPH = 작업판수(SHOT) ÷ 가동시간(hr) = 시간당 판수.
  */
 export function aggregateProductPerformance(
   records: ProductionRecord[],
@@ -115,7 +115,7 @@ export function aggregateProductPerformance(
       productionQuantity,
       defectQuantity,
       goodQuantity: productionQuantity - defectQuantity,
-      uph: operatingHours > 0 ? productionQuantity / operatingHours : null,
+      uph: operatingHours > 0 ? shotCount / operatingHours : null,
     };
   });
 }

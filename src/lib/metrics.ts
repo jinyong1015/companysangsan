@@ -36,6 +36,7 @@ export function computeKpi(records: ProductionRecord[]): KpiSummary {
   const elapsedMinutes = valid.reduce((s, r) => s + r.elapsedMinutes, 0);
   const downtimeMinutes = valid.reduce((s, r) => s + r.downtimeMinutes, 0);
   const operatingMinutes = valid.reduce((s, r) => s + r.operatingMinutes, 0);
+  const shotCount = valid.reduce((s, r) => s + r.shotCount, 0);
   const failureCount = valid.filter((r) =>
     r.reasonTokens.includes("설비이상"),
   ).length;
@@ -50,8 +51,8 @@ export function computeKpi(records: ProductionRecord[]): KpiSummary {
   const utilizationRatePercent =
     elapsedMinutes > 0 ? (operatingMinutes / elapsedMinutes) * 100 : null;
   const operatingHours = operatingMinutes / 60;
-  const uph =
-    operatingHours > 0 ? productionQuantity / operatingHours : null;
+  /** UPH = 작업판수(SHOT) ÷ 가동시간(hr) = 시간당 판수 */
+  const uph = operatingHours > 0 ? shotCount / operatingHours : null;
   const mttrMinutes = mttrEligibleCount > 0 ? mttrSum / mttrEligibleCount : null;
   const referenceMtbfHours =
     failureCount > 0 ? operatingMinutes / failureCount / 60 : null;

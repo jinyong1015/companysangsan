@@ -75,14 +75,23 @@ function CompactFilterCard({
 
 export function GlobalFilterSection({
   hidePeriod = false,
+  hideProductType = false,
 }: {
   /** 조회월 전용 화면(가동률·비가동)에서는 기간 프리셋을 숨긴다 */
   hidePeriod?: boolean;
+  /** 월별 KPI(홈)에서는 제품유형 필터를 숨긴다 */
+  hideProductType?: boolean;
 }) {
   const { filters, setFilters } = useFilters();
   const dateError =
     filters.startDate && filters.endDate && filters.endDate < filters.startDate;
   const showCustomDates = filters.datePreset === "custom" || dateError;
+
+  useEffect(() => {
+    if (!hideProductType) return;
+    if (filters.productType === "전체") return;
+    setFilters({ productType: "전체" });
+  }, [filters.productType, hideProductType, setFilters]);
 
   return (
     <div className="filter-bar mb-4">
@@ -93,13 +102,15 @@ export function GlobalFilterSection({
           onChange={(factory) => setFilters({ factory })}
         />
       </CompactFilterCard>
-      <CompactFilterCard title="제품유형">
-        <PillGroup
-          options={PRODUCT_OPTIONS}
-          value={filters.productType}
-          onChange={(productType) => setFilters({ productType })}
-        />
-      </CompactFilterCard>
+      {!hideProductType ? (
+        <CompactFilterCard title="제품유형">
+          <PillGroup
+            options={PRODUCT_OPTIONS}
+            value={filters.productType}
+            onChange={(productType) => setFilters({ productType })}
+          />
+        </CompactFilterCard>
+      ) : null}
       {!hidePeriod ? (
         <CompactFilterCard title="조회기간" className="filter-card-period">
           <PillGroup

@@ -12,6 +12,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { ToastProvider } from "@/context/ToastContext";
 
 function shouldShowGlobalFilters(pathname: string) {
+  if (pathname === "/") return false;
   if (pathname.startsWith("/manage")) return false;
   if (pathname === "/utilization") return false;
   if (pathname.startsWith("/downtime/") && pathname !== "/downtime") return false;

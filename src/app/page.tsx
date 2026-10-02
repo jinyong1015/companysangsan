@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { AnalysisGroupComparison } from "@/components/dashboard/AnalysisGroupComparison";
 import { PeriodReasonOccurrenceView } from "@/components/downtime/DowntimeDetailTables";
 import { QueryFilterShell } from "@/components/filters/FilterCards";
 import { OperatorProductionQuantityBoard } from "@/components/operators/OperatorProductionQuantityBoard";
@@ -11,19 +10,15 @@ import { ProductionVariationTrend } from "@/components/production/ProductionVari
 import { ProductShotTopWorst } from "@/components/production/ProductShotTopWorst";
 import { ProductTypeTabs } from "@/components/production/ProductTypeTabs";
 import type { ProductTab } from "@/components/production/ProductPerformanceSummary";
-import { UtilizationOverviewPanel } from "@/components/utilization/UtilizationOverviewPanel";
 import {
-  EmptyState,
-  PageHeader,
-} from "@/components/ui/PageBits";
+  UtilizationMonthCompareModal,
+  type UtilizationMonthCompareSnapshot,
+} from "@/components/utilization/UtilizationMonthCompareModal";
+import { UtilizationOverviewPanel } from "@/components/utilization/UtilizationOverviewPanel";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useToast } from "@/context/ToastContext";
 
-import {
-  buildAnalysisGroupBundle,
-  resolveSelectedAnalysisGroup,
-} from "@/lib/analysisGroups";
 import { aggregateProductPerformance } from "@/lib/aggregates";
 import {
   buildEquipmentFamilyMttrMtbfSummary,
@@ -54,7 +49,7 @@ function defaultYearMonth() {
 }
 
 export default function DashboardPage() {
-  const { filters, resetGlobal } = useFilters();
+  const { filters } = useFilters();
   const { records } = useDataSource();
   const { pushToast } = useToast();
   const [yearMonth, setYearMonth] = useState(
@@ -67,6 +62,7 @@ export default function DashboardPage() {
     useState<ProductTab>("전체");
   const [occurProductTab, setOccurProductTab] =
     useState<"전체" | "GROMMET" | "SEAL">("전체");
+  const [monthCompareOpen, setMonthCompareOpen] = useState(false);
 
   const invalidRange = filters.endDate < filters.startDate;
 
@@ -88,17 +84,6 @@ export default function DashboardPage() {
       return `${monthRange.startDate} ~ ${monthRange.endDate}`;
     }
   }, [monthRange.endDate, monthRange.startDate]);
-
-  const analysisPeriodLabel = useMemo(() => {
-    try {
-      return `${format(parseISO(filters.startDate), "yyyy.MM.dd")} ~ ${format(
-        parseISO(filters.endDate),
-        "yyyy.MM.dd",
-      )}`;
-    } catch {
-      return `${filters.startDate} ~ ${filters.endDate}`;
-    }
-  }, [filters.endDate, filters.startDate]);
 
   const monthScopedFilters = useMemo(
     () => ({
@@ -165,6 +150,43 @@ export default function DashboardPage() {
     [monthRecords],
   );
 
+  const buildMonthCompareSnapshot = useCallback(
+    (ym: string): UtilizationMonthCompareSnapshot => {
+      const range = monthDateRange(ym);
+      const scoped = {
+        ...filters,
+        datePreset: "custom" as const,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      };
+      let list = filterRecords(records, scoped);
+      if (equipmentType !== "전체") {
+        list = list.filter(
+          (r) => inferEquipmentType(r.equipmentName) === equipmentType,
+        );
+      }
+      const bundle = buildUtilizationOverviewBundle(list, scoped, {
+        workPattern,
+        metric: "time",
+        targetSettings: loadTargetMinutes(),
+        targetShotTable: loadTargetShotCounts(),
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+      return {
+        yearMonth: ym,
+        monthLabel: format(parseISO(`${ym}-01`), "yyyy년 M월"),
+        overview: bundle.overview,
+        trends: bundle.trends,
+        equipmentByProduct: bundle.equipmentByProduct,
+        mttrMtbfSummary: buildEquipmentFamilyMttrMtbfSummary(
+          buildEquipmentReliabilityTable(list),
+        ),
+      };
+    },
+    [equipmentType, filters, records, workPattern],
+  );
+
   const periodReasonTable = useMemo(() => {
     let list = filterRecords(records, {
       ...monthScopedFilters,
@@ -189,21 +211,6 @@ export default function DashboardPage() {
     records,
   ]);
 
-  const analysisGroups = useMemo(
-    () =>
-      invalidRange ? null : buildAnalysisGroupBundle(records, filters),
-    [filters, invalidRange, records],
-  );
-
-  const selectedGroup = useMemo(
-    () => resolveSelectedAnalysisGroup(filters),
-    [filters],
-  );
-
-  const headerDescription = selectedGroup
-    ? `${selectedGroup.label} 기준 생산·불량 현황`
-    : "SEAL · GROMMET 기준 생산·불량 현황";
-
   const queryActiveCount =
     (equipmentType !== "전체" ? 1 : 0) + (workPattern !== "전체" ? 1 : 0);
 
@@ -218,30 +225,20 @@ export default function DashboardPage() {
   if (invalidRange) {
     return (
       <>
-        <PageHeader title="대시보드" />
+        <div className="month-kpi-heading mb-4">
+          <h1 className="month-kpi-heading-title">월별 KPI</h1>
+          <div className="month-kpi-heading-bar" aria-hidden />
+        </div>
       </>
     );
   }
 
   return (
     <>
-      <PageHeader title="대시보드" description={headerDescription} />
-
-      {analysisGroups && analysisGroups.total.validRows > 0 ? (
-        <AnalysisGroupComparison
-          bundle={analysisGroups}
-          periodLabel={analysisPeriodLabel}
-        />
-      ) : (
-        <div className="mb-4">
-          <EmptyState
-            title="상단 조회기간에 분석 가능한 DATA가 없습니다."
-            description="아래 조회월 조건으로 월별 현황을 확인할 수 있습니다."
-            actionLabel="조회조건 초기화"
-            onAction={resetGlobal}
-          />
-        </div>
-      )}
+      <div className="month-kpi-heading mb-4">
+        <h1 className="month-kpi-heading-title">월별 KPI</h1>
+        <div className="month-kpi-heading-bar" aria-hidden />
+      </div>
 
       <QueryFilterShell
         title="조회조건"
@@ -319,6 +316,14 @@ export default function DashboardPage() {
         equipmentByProduct={utilizationOverview.equipmentByProduct}
         showEquipmentBlock={false}
         mttrMtbfSummary={mttrMtbfSummary}
+        onMonthCompare={() => setMonthCompareOpen(true)}
+      />
+
+      <UtilizationMonthCompareModal
+        open={monthCompareOpen}
+        onClose={() => setMonthCompareOpen(false)}
+        initialLeftMonth={yearMonth}
+        buildSnapshot={buildMonthCompareSnapshot}
       />
 
       <div className="mb-4">
@@ -333,7 +338,8 @@ export default function DashboardPage() {
       <ProductionVariationTrend
         grain="day"
         filtersOverride={monthScopedFilters}
-        description={`${monthLabel} (${periodLabel}) 일별 추이 · 공장·제품유형은 상단 필터 적용`}
+        description={`${monthLabel} (${periodLabel}) 일별 추이 · 공장은 상단 필터 적용`}
+        showMonthCompare
       />
 
       <PartProductionQuantityBoard

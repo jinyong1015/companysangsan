@@ -18,7 +18,7 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
 
 export function formatUph(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "-";
-  return `${formatNumber(Math.round(value))} EA/h`;
+  return `${formatNumber(Math.round(value))} 판/h`;
 }
 
 export function formatMinutes(minutes: number | null | undefined): string {
