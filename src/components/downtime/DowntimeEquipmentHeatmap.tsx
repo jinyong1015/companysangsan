@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Download } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { formatMinutes, formatPercent } from "@/lib/format";
+import { useToast } from "@/context/ToastContext";
 import {
   buildDowntimeEquipmentHeatmap,
   downtimeHeatTone,
+  exportDowntimeEquipmentHeatmapExcel,
   formatDowntimeHeatDisplay,
   formatDowntimeHeatTotalDisplay,
   type DowntimeHeatCell,
@@ -196,6 +198,57 @@ interface DowntimeEquipmentHeatmapProps {
   selectable?: boolean;
   selection?: DowntimeHeatmapSelection | null;
   onSelectionChange?: (next: DowntimeHeatmapSelection | null) => void;
+}
+
+/** 섹션 제목 줄용 작은 Excel 다운로드 버튼 */
+export function DowntimeHeatmapExcelButton({
+  records,
+  startDate,
+  endDate,
+  productTab,
+  metric,
+}: {
+  records: ProductionRecord[];
+  startDate: string;
+  endDate: string;
+  productTab: DowntimeHeatmapProductTab;
+  metric: DowntimeHeatmapMetric;
+}) {
+  const { pushToast } = useToast();
+  const bundle = useMemo(
+    () =>
+      buildDowntimeEquipmentHeatmap(records, {
+        startDate,
+        endDate,
+        productTab,
+        metric,
+      }),
+    [records, startDate, endDate, productTab, metric],
+  );
+
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost dt-heat-excel-btn"
+      disabled={bundle.rows.length === 0}
+      onClick={() => {
+        void (async () => {
+          try {
+            await exportDowntimeEquipmentHeatmapExcel(bundle, { productTab });
+            pushToast(
+              "Excel 파일 생성을 시작했습니다. (설비별 일자 비가동 현황)",
+              "success",
+            );
+          } catch {
+            pushToast("Excel 다운로드에 실패했습니다.", "error");
+          }
+        })();
+      }}
+    >
+      <Download size={14} aria-hidden />
+      <span>Excel 다운로드</span>
+    </button>
+  );
 }
 
 export function DowntimeEquipmentHeatmap({

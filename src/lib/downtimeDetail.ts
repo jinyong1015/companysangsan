@@ -1,9 +1,8 @@
-import * as XLSX from "xlsx";
 import { eachDayOfInterval, format, getDay, parseISO } from "date-fns";
-import type { Factory, ProductionRecord } from "@/types";
-import { downloadArrayBuffer } from "@/lib/excelParse";
+import type { EquipmentType, Factory, ProductionRecord } from "@/types";
+import { downloadStyledAoaExcel } from "@/lib/excelStyledExport";
 import { toDateString } from "@/lib/dates";
-import { parseGpPgFamily } from "@/lib/utilization";
+import { parseGpPgFamily, isGrommetLineEquipment, inferEquipmentType } from "@/lib/utilization";
 
 /** 사유 기준표에 기본 등록된 비가동 사유 (복합·기타 제외) */
 export const BASE_DOWNTIME_REASON_COLUMNS = [
@@ -56,6 +55,44 @@ export interface PeriodReasonTable {
   summary: PeriodReasonSummary;
 }
 
+/** 막대차트 요약: 사유별 순위·시간·횟수 */
+export interface PeriodReasonOccurrenceRow {
+  rank: number;
+  reason: string;
+  minutes: number;
+  count: number;
+  /** 최다 시간·최다 횟수 행 강조 */
+  highlight: boolean;
+}
+
+/** 사유 컬럼 순서로 발생 현황 행을 만든다. */
+export function buildPeriodReasonOccurrenceRows(
+  table: PeriodReasonTable,
+): PeriodReasonOccurrenceRow[] {
+  const { reasonColumns, summary } = table;
+  let maxMinutes = 0;
+  let maxCount = 0;
+  for (const reason of reasonColumns) {
+    maxMinutes = Math.max(maxMinutes, summary.minutesByReason[reason] ?? 0);
+    maxCount = Math.max(maxCount, summary.countByReason[reason] ?? 0);
+  }
+
+  return reasonColumns.map((reason, index) => {
+    const minutes = summary.minutesByReason[reason] ?? 0;
+    const count = summary.countByReason[reason] ?? 0;
+    const highlight =
+      (maxMinutes > 0 && minutes === maxMinutes) ||
+      (maxCount > 0 && count === maxCount);
+    return {
+      rank: index + 1,
+      reason,
+      minutes,
+      count,
+      highlight,
+    };
+  });
+}
+
 export interface EquipmentReliabilityRow {
   kind: "equipment" | "factorySubtotal" | "grandTotal";
   factory: Factory | "전체";
@@ -98,7 +135,8 @@ export function averageNullable(
 
 /**
  * 가동률 현황 `호기 평균`과 동일하게 GP/PG/PS 계열을 묶어
- * MTTR·MTBF가 있는 호기만 산술 평균한다. 비계열 설비는 "-" 처리용 null.
+ * MTTR·MTBF가 있는 호기만 산술 평균한다.
+ * IN(INJECTION) 라인은 계열이 없어도 해당 설비 MTTR·MTBF를 호기 평균에 그대로 표시한다.
  */
 export function buildEquipmentFamilyAverageSpans(
   equipmentRows: EquipmentReliabilityRow[],
@@ -114,12 +152,14 @@ export function buildEquipmentFamilyAverageSpans(
     }
     const family = parseGpPgFamily(row.equipmentName);
     if (!family) {
+      const isInjection =
+        inferEquipmentType(row.equipmentName) === "INJECTION";
       spans.set(id, {
         equipmentId: id,
         rowSpan: 1,
-        mttrMinutes: null,
-        referenceMtbfHours: null,
-        familyLabel: null,
+        mttrMinutes: isInjection ? row.mttrMinutes : null,
+        referenceMtbfHours: isInjection ? row.referenceMtbfHours : null,
+        familyLabel: isInjection ? row.equipmentName : null,
       });
       i += 1;
       continue;
@@ -160,6 +200,79 @@ export function buildEquipmentFamilyAverageSpans(
     i = j;
   }
   return spans;
+}
+
+export interface EquipmentFamilyMttrMtbfSummaryRow {
+  factory: string;
+  label: string;
+  /** GROMMET/SEAL 분류용 원본 설비명(패밀리 첫 호기) */
+  equipmentName: string;
+  equipmentType: EquipmentType;
+  unitCount: number;
+  mttrMinutes: number | null;
+  referenceMtbfHours: number | null;
+}
+
+export interface EquipmentFamilyMttrMtbfSummaryGroup {
+  press: EquipmentFamilyMttrMtbfSummaryRow[];
+  injection: EquipmentFamilyMttrMtbfSummaryRow[];
+}
+
+export interface EquipmentFamilyMttrMtbfSummaryTable {
+  grommet: EquipmentFamilyMttrMtbfSummaryGroup;
+  seal: EquipmentFamilyMttrMtbfSummaryGroup;
+}
+
+/** 호기 평균 MTTR·MTBF를 GROMMET/SEAL · PRESS/INJECTION으로 나눠 요약한다. */
+export function buildEquipmentFamilyMttrMtbfSummary(
+  table: EquipmentReliabilityTable,
+): EquipmentFamilyMttrMtbfSummaryTable {
+  const equipmentOnly = table.rows.filter((r) => r.kind === "equipment");
+  const spans = buildEquipmentFamilyAverageSpans(equipmentOnly);
+  const rows: EquipmentFamilyMttrMtbfSummaryRow[] = [];
+
+  for (const row of equipmentOnly) {
+    if (!row.equipmentId) continue;
+    const span = spans.get(row.equipmentId);
+    if (!span || span.rowSpan <= 0) continue;
+    if (span.mttrMinutes == null && span.referenceMtbfHours == null) continue;
+    const label = span.familyLabel ?? row.equipmentName;
+    rows.push({
+      factory: String(row.factory),
+      label,
+      equipmentName: row.equipmentName,
+      equipmentType: inferEquipmentType(row.equipmentName),
+      unitCount: span.rowSpan,
+      mttrMinutes: span.mttrMinutes,
+      referenceMtbfHours: span.referenceMtbfHours,
+    });
+  }
+
+  const sortRows = (list: EquipmentFamilyMttrMtbfSummaryRow[]) =>
+    [...list].sort((a, b) => {
+      const fa = a.factory.localeCompare(b.factory, "ko");
+      if (fa !== 0) return fa;
+      return a.label.localeCompare(b.label, "ko");
+    });
+
+  const split = (
+    list: EquipmentFamilyMttrMtbfSummaryRow[],
+  ): EquipmentFamilyMttrMtbfSummaryGroup => ({
+    press: sortRows(list.filter((r) => r.equipmentType === "PRESS")),
+    injection: sortRows(list.filter((r) => r.equipmentType === "INJECTION")),
+  });
+
+  const grommetRows = rows.filter((r) =>
+    isGrommetLineEquipment(r.factory, r.equipmentName),
+  );
+  const sealRows = rows.filter(
+    (r) => !isGrommetLineEquipment(r.factory, r.equipmentName),
+  );
+
+  return {
+    grommet: split(grommetRows),
+    seal: split(sealRows),
+  };
 }
 
 export function isDowntimeEvent(record: ProductionRecord): boolean {
@@ -542,7 +655,8 @@ export interface ProductTypeDowntimeSummaryTable {
 }
 
 /**
- * 제품유형별 비가동 요약.
+ * GROMMET/SEAL 설비 라인별 비가동 요약.
+ * 설비 기준: 본사 GP01·02·04·PG + 구지(2공장) = GROMMET, 본사 나머지 = SEAL.
  * 원본 행 기준(복합 사유 분리 없음): 시간은 행 비가동시간 1회, 횟수는 행 1건.
  */
 export function buildProductTypeDowntimeSummary(
@@ -582,13 +696,9 @@ export function buildProductTypeDowntimeSummary(
     const row = byDate.get(r.workDate);
     if (!row) continue;
 
-    const target =
-      r.productType === "GROMMET"
-        ? "grommet"
-        : r.productType === "SEAL"
-          ? "seal"
-          : null;
-    if (!target) continue;
+    const target = isGrommetLineEquipment(r.factory, r.equipmentName)
+      ? "grommet"
+      : "seal";
 
     row[target].minutes += r.downtimeMinutes;
     row[target].count += 1;
@@ -604,12 +714,7 @@ export function buildProductTypeDowntimeSummary(
   return { days, totals };
 }
 
-function sheetFromAoa(name: string, aoa: (string | number)[][]) {
-  const sheet = XLSX.utils.aoa_to_sheet(aoa);
-  return { name, sheet };
-}
-
-export function exportPeriodReasonExcel(
+export async function exportPeriodReasonExcel(
   table: PeriodReasonTable,
   title: string,
   fileName?: string,
@@ -657,14 +762,16 @@ export function exportPeriodReasonExcel(
   rows.push(["전체 비가동시간(분)", summary.totalMinutes]);
   rows.push(["전체 비가동 발생 횟수", summary.totalCount]);
 
-  const { sheet } = sheetFromAoa(title.slice(0, 31), rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheet, "기간별 비가동");
-  const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
-  downloadArrayBuffer(buffer, fileName ?? `${title}.xlsx`);
+  await downloadStyledAoaExcel({
+    fileName: fileName ?? `${title}.xlsx`,
+    sheetName: "기간별 비가동",
+    title,
+    subtitle: "기간 · 사유별 비가동 집계",
+    aoa: rows,
+  });
 }
 
-export function exportEquipmentReliabilityExcel(
+export async function exportEquipmentReliabilityExcel(
   table: EquipmentReliabilityTable,
   title: string,
   fileName?: string,
@@ -734,9 +841,12 @@ export function exportEquipmentReliabilityExcel(
           : Number(familyMtbf.toFixed(1)),
     ]);
   }
-  const { sheet } = sheetFromAoa(title.slice(0, 31), rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheet, "설비별 신뢰성");
-  const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
-  downloadArrayBuffer(buffer, fileName ?? `${title}.xlsx`);
+
+  await downloadStyledAoaExcel({
+    fileName: fileName ?? `${title}.xlsx`,
+    sheetName: "설비별 신뢰성",
+    title,
+    subtitle: "설비별 비가동 · MTTR · MTBF",
+    aoa: rows,
+  });
 }

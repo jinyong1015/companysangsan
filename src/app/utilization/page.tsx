@@ -24,7 +24,6 @@ import {
   cellDisplay,
   cloneTargetMinutes,
   DEFAULT_TARGET_SHOT_COUNTS,
-  exportUtilizationExcel,
   formatMonthLabel,
   getCell,
   getDateWeekdayClass,
@@ -516,6 +515,7 @@ export default function UtilizationPage() {
         targetShotTable: shotSettings,
         startDate: monthRange.startDate,
         endDate: monthRange.endDate,
+        productLineByEquipment: true,
       }),
     [
       records,
@@ -549,7 +549,7 @@ export default function UtilizationPage() {
     ],
   );
 
-  const { overview, trends: dailyTrends } = useMemo(
+  const { overview, trends: dailyTrends, equipmentByProduct } = useMemo(
     () => buildUtilizationOverviewBundle(records, filters, overviewOptions),
     [records, filters, overviewOptions],
   );
@@ -558,10 +558,6 @@ export default function UtilizationPage() {
   const grommetEmphasized =
     productFilter === "전체" || productFilter === "GROMMET";
   const sealEmphasized = productFilter === "전체" || productFilter === "SEAL";
-  const injectionEmphasized =
-    equipmentType === "전체" || equipmentType === "INJECTION";
-  const pressEmphasized =
-    equipmentType === "전체" || equipmentType === "PRESS";
 
   // 스크롤만 저장. metric 등을 cleanup에서 다시 patch하면 탭 전환 시 이전 값으로 덮어써 루프가 난다.
   useEffect(() => {
@@ -633,20 +629,6 @@ export default function UtilizationPage() {
         "utilization",
       ),
     );
-  };
-
-  const handleExcel = () => {
-    try {
-      exportUtilizationExcel(matrix, metric);
-      pushToast(
-        `Excel 파일 생성을 시작했습니다. (${
-          metric === "time" ? "시간가동률" : "성능가동률"
-        })`,
-        "success",
-      );
-    } catch {
-      pushToast("Excel 다운로드에 실패했습니다.", "error");
-    }
   };
 
   const saveTargets = () => {
@@ -721,11 +703,6 @@ export default function UtilizationPage() {
       <PageHeader
         title="가동률 분석"
         description="전체 종합 현황·제품·설비 요약 → 날짜 × 설비 히트맵"
-        actions={
-          <button type="button" className="btn" onClick={handleExcel}>
-            Excel 다운로드
-          </button>
-        }
       />
 
       <QueryFilterShell
@@ -812,10 +789,9 @@ export default function UtilizationPage() {
         monthLabel={monthLabel}
         overview={overview}
         trends={dailyTrends}
+        equipmentByProduct={equipmentByProduct}
         grommetEmphasized={grommetEmphasized}
         sealEmphasized={sealEmphasized}
-        injectionEmphasized={injectionEmphasized}
-        pressEmphasized={pressEmphasized}
       />
 
       <div className="util-metric-tabs mb-4" role="tablist" aria-label="가동률 구분">

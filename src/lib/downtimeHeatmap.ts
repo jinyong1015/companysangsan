@@ -387,3 +387,81 @@ export function buildDowntimeEquipmentHeatmap(
     metric,
   };
 }
+
+function heatExportCellValue(
+  cell: DowntimeHeatCell,
+  metric: DowntimeHeatmapMetric,
+): string | number {
+  if (!cell.hasData) return "-";
+  if (metric === "minutes") return Math.round(cell.downtimeMinutes);
+  if (metric === "count") return cell.eventCount;
+  return cell.downtimeRatePercent == null
+    ? "-"
+    : Math.round(cell.downtimeRatePercent * 10) / 10;
+}
+
+function heatExportTotalValue(
+  total: DowntimeHeatTotal,
+  metric: DowntimeHeatmapMetric,
+): string | number {
+  if (!total.hasData) return "-";
+  if (metric === "minutes") return Math.round(total.downtimeMinutes);
+  if (metric === "count") return total.eventCount;
+  return total.downtimeRatePercent == null
+    ? "-"
+    : Math.round(total.downtimeRatePercent * 10) / 10;
+}
+
+const METRIC_EXPORT_LABEL: Record<DowntimeHeatmapMetric, string> = {
+  minutes: "비가동시간(분)",
+  count: "발생 건수",
+  rate: "비가동률(%)",
+};
+
+/** 설비별 일자 비가동 히트맵 Excel 내보내기 */
+export async function exportDowntimeEquipmentHeatmapExcel(
+  bundle: DowntimeHeatmapBundle,
+  options?: {
+    productTab?: DowntimeHeatmapProductTab;
+    fileName?: string;
+  },
+): Promise<void> {
+  const { downloadStyledAoaExcel } = await import("@/lib/excelStyledExport");
+  const productTab = options?.productTab ?? "전체";
+  const metricLabel = METRIC_EXPORT_LABEL[bundle.metric];
+  const title = "설비별 일자 비가동 현황";
+  const subtitle = `${productTab} · ${metricLabel}`;
+
+  const header: (string | number)[] = [
+    "설비명",
+    ...bundle.dates,
+    "합계",
+  ];
+  const aoa: (string | number)[][] = [header];
+
+  for (const row of bundle.rows) {
+    aoa.push([
+      row.equipmentName,
+      ...row.cells.map((cell) => heatExportCellValue(cell, bundle.metric)),
+      heatExportTotalValue(row.rowTotal, bundle.metric),
+    ]);
+  }
+
+  aoa.push([
+    "일자 합계",
+    ...bundle.dayTotals.map((t) => heatExportTotalValue(t, bundle.metric)),
+    heatExportTotalValue(bundle.grandTotal, bundle.metric),
+  ]);
+
+  const stamp = bundle.dates[0]?.replace(/-/g, "") ?? "export";
+  await downloadStyledAoaExcel({
+    fileName:
+      options?.fileName ??
+      `${title}_${productTab}_${metricLabel}_${stamp}.xlsx`,
+    sheetName: "설비별 일자 비가동",
+    title,
+    subtitle,
+    aoa,
+    summaryRowKeywords: ["합계", "전체"],
+  });
+}

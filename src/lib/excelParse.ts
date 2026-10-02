@@ -534,31 +534,5 @@ export function buildSampleWorkbookBuffer(seedRecords: ProductionRecord[]) {
   return XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
 }
 
-export function downloadArrayBuffer(buffer: ArrayBuffer, fileName: string) {
-  const blob = new Blob([new Uint8Array(buffer)], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/** JSON 행 배열을 xlsx로 내려받습니다. */
-export function downloadExcel(
-  fileName: string,
-  rows: Record<string, unknown>[],
-  sheetName = "분석",
-) {
-  const sheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
-  const buffer = XLSX.write(workbook, {
-    bookType: "xlsx",
-    type: "array",
-  }) as ArrayBuffer;
-  const safeName = fileName.endsWith(".xlsx") ? fileName : `${fileName}.xlsx`;
-  downloadArrayBuffer(buffer, safeName);
-}
+export { downloadArrayBuffer } from "@/lib/downloadBlob";
+export { downloadExcel } from "@/lib/excelStyledExport";

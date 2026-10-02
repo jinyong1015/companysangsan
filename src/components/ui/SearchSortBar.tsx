@@ -22,7 +22,7 @@ interface SearchSortBarProps {
   onPageSize: (v: number) => void;
   sortOptions: Array<{ value: string; label: string }>;
   excelLabel?: string;
-  onExcel?: () => void;
+  onExcel?: () => void | Promise<void>;
   title?: string;
   /** children이 있으면 조회조건+내역을 한 카드로 연결 */
   resultTitle?: string;
@@ -144,12 +144,14 @@ export function SearchSortBar({
       type="button"
       className="query-filter-action"
       onClick={() => {
-        try {
-          onExcel();
-          pushToast("Excel 파일 생성을 시작했습니다.", "success");
-        } catch {
-          pushToast("Excel 다운로드에 실패했습니다.", "error");
-        }
+        void (async () => {
+          try {
+            await onExcel();
+            pushToast("Excel 파일 생성을 시작했습니다.", "success");
+          } catch {
+            pushToast("Excel 다운로드에 실패했습니다.", "error");
+          }
+        })();
       }}
     >
       <Download size={14} aria-hidden />

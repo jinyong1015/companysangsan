@@ -138,6 +138,7 @@ export interface KpiSummary {
   downtimeMinutes: number;
   operatingMinutes: number;
   utilizationRatePercent: number | null;
+  /** 생산수량 ÷ 가동시간(hr) — EA/h */
   uph: number | null;
   failureCount: number;
   mttrEligibleCount: number;

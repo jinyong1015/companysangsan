@@ -212,7 +212,7 @@ export function ProductPerformanceSummary({
   };
 
   const exportExcel = () => {
-    downloadExcel(
+    void downloadExcel(
       "제품별_생산_종합_실적.xlsx",
       filteredSorted.map((r, i) => ({
         NO: i + 1,

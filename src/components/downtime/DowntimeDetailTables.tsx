@@ -2,16 +2,30 @@
 
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Download, LayoutList, Maximize2, X } from "lucide-react";
+import { BarChart3, Download, LayoutList, Maximize2, X } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { InfoTooltip, SectionCard } from "@/components/ui/PageBits";
 import { useToast } from "@/context/ToastContext";
 import {
   type EquipmentReliabilityTable,
+  type EquipmentFamilyMttrMtbfSummaryRow,
+  type EquipmentFamilyMttrMtbfSummaryTable,
   type PeriodReasonTable,
   type ProductTypeDowntimeSummaryTable,
   type ProductTypeSummaryKey,
   MTTR_UNAVAILABLE_HINT,
+  averageNullable,
   buildEquipmentFamilyAverageSpans,
+  buildEquipmentFamilyMttrMtbfSummary,
+  buildPeriodReasonOccurrenceRows,
   downtimeHeatLevel,
   equipmentReliabilityTitle,
   exportEquipmentReliabilityExcel,
@@ -134,16 +148,24 @@ function heatClass(level: 0 | 1 | 2 | 3 | 4): string {
 }
 
 function TableToolbar({
+  onChart,
   onSummary,
   onExcel,
   onFullscreen,
 }: {
+  onChart?: () => void;
   onSummary?: () => void;
   onExcel: () => void;
   onFullscreen: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {onChart ? (
+        <button type="button" className="btn" onClick={onChart}>
+          <BarChart3 size={16} />
+          <span>막대차트</span>
+        </button>
+      ) : null}
       {onSummary ? (
         <button type="button" className="btn" onClick={onSummary}>
           <LayoutList size={16} />
@@ -564,7 +586,7 @@ const PRODUCT_TABS: Array<"전체" | ProductType> = ["전체", "GROMMET", "SEAL"
 function ProductTypeTabs({
   value,
   onChange,
-  label = "제품유형",
+  label = "GROMMET/SEAL 설비 구분",
 }: {
   value: "전체" | ProductType;
   onChange: (next: "전체" | ProductType) => void;
@@ -589,6 +611,130 @@ function ProductTypeTabs({
   );
 }
 
+function PeriodReasonOccurrenceView({
+  table,
+}: {
+  table: PeriodReasonTable;
+}) {
+  const rows = buildPeriodReasonOccurrenceRows(table);
+  const chartData = rows.map((row) => ({
+    reason: row.reason,
+    minutes: Math.round(row.minutes),
+  }));
+  const hasData = table.summary.totalMinutes > 0 || table.summary.totalCount > 0;
+
+  return (
+    <div className="dt-occur">
+      <div className="dt-occur-banner">비가동 발생 현황</div>
+      {!hasData ? (
+        <p className="dt-occur-empty">표시할 비가동 발생 데이터가 없습니다.</p>
+      ) : (
+        <div className="dt-occur-body">
+          <div className="dt-occur-table-wrap">
+            <table className="dt-occur-table">
+              <thead>
+                <tr>
+                  <th>순위</th>
+                  <th>비가동 요인</th>
+                  <th className="num">비가동 시간(min)</th>
+                  <th className="num">비가동 횟수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={row.reason}
+                    data-highlight={row.highlight || undefined}
+                  >
+                    <td className="num">{row.rank}</td>
+                    <td>{row.reason}</td>
+                    <td className="num">
+                      {row.minutes > 0
+                        ? formatNumber(Math.round(row.minutes))
+                        : "-"}
+                    </td>
+                    <td className="num">
+                      {row.count > 0 ? formatNumber(row.count) : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colSpan={2}>합계</th>
+                  <td className="num">
+                    {formatNumber(Math.round(table.summary.totalMinutes))}
+                  </td>
+                  <td className="num">
+                    {formatNumber(table.summary.totalCount)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div className="dt-occur-chart-wrap">
+            <h3 className="dt-occur-chart-title">비가동 현황 (min)</h3>
+            <div className="dt-occur-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 12, right: 12, left: 4, bottom: 28 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--border)"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="reason"
+                    interval={0}
+                    height={36}
+                    tickMargin={10}
+                    tick={{
+                      fill: "var(--text-secondary)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  />
+                  <YAxis
+                    tick={{
+                      fill: "var(--text-secondary)",
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
+                    tickFormatter={(v) =>
+                      Math.round(Number(v)).toLocaleString("ko-KR")
+                    }
+                    width={56}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--elevated)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 12,
+                    }}
+                    formatter={(value) => [
+                      `${formatNumber(Number(value))}분`,
+                      "비가동 시간",
+                    ]}
+                  />
+                  <Bar
+                    dataKey="minutes"
+                    name="비가동 시간"
+                    fill="#3b82f6"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={42}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PeriodReasonSection({
   table,
   productType,
@@ -606,14 +752,17 @@ export function PeriodReasonSection({
   const title = periodTitle(productType);
   const [fullscreen, setFullscreen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
 
   const handleExcel = () => {
-    try {
-      exportPeriodReasonExcel(table, title);
-      pushToast(`Excel 파일 생성을 시작했습니다. (${title})`, "success");
-    } catch {
-      pushToast("Excel 다운로드에 실패했습니다.", "error");
-    }
+    void (async () => {
+      try {
+        await exportPeriodReasonExcel(table, title);
+        pushToast(`Excel 파일 생성을 시작했습니다. (${title})`, "success");
+      } catch {
+        pushToast("Excel 다운로드에 실패했습니다.", "error");
+      }
+    })();
   };
 
   const body = (
@@ -628,6 +777,7 @@ export function PeriodReasonSection({
         title={title}
         action={
           <TableToolbar
+            onChart={() => setChartOpen(true)}
             onSummary={
               summaryTable ? () => setSummaryOpen(true) : undefined
             }
@@ -640,7 +790,7 @@ export function PeriodReasonSection({
           <ProductTypeTabs
             value={productType}
             onChange={onProductTypeChange}
-            label="기간별 비가동 제품유형"
+            label="기간별 비가동 GROMMET/SEAL 설비 구분"
           />
         </div>
         {body}
@@ -654,10 +804,19 @@ export function PeriodReasonSection({
           <ProductTypeTabs
             value={productType}
             onChange={onProductTypeChange}
-            label="기간별 비가동 제품유형"
+            label="기간별 비가동 GROMMET/SEAL 설비 구분"
           />
         </div>
         {body}
+      </FullscreenTableShell>
+      <FullscreenTableShell
+        title="비가동 발생 현황"
+        open={chartOpen}
+        onClose={() => setChartOpen(false)}
+      >
+        <div className="dt-occur-center">
+          <PeriodReasonOccurrenceView table={table} />
+        </div>
       </FullscreenTableShell>
       {summaryTable ? (
         <FullscreenTableShell
@@ -684,14 +843,18 @@ export function EquipmentReliabilitySection({
   const { pushToast } = useToast();
   const title = equipmentReliabilityTitle(productType);
   const [fullscreen, setFullscreen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const summaryTable = buildEquipmentFamilyMttrMtbfSummary(table);
 
   const handleExcel = () => {
-    try {
-      exportEquipmentReliabilityExcel(table, title);
-      pushToast(`Excel 파일 생성을 시작했습니다. (${title})`, "success");
-    } catch {
-      pushToast("Excel 다운로드에 실패했습니다.", "error");
-    }
+    void (async () => {
+      try {
+        await exportEquipmentReliabilityExcel(table, title);
+        pushToast(`Excel 파일 생성을 시작했습니다. (${title})`, "success");
+      } catch {
+        pushToast("Excel 다운로드에 실패했습니다.", "error");
+      }
+    })();
   };
 
   const body = (
@@ -705,6 +868,7 @@ export function EquipmentReliabilitySection({
         title={title}
         action={
           <TableToolbar
+            onSummary={() => setSummaryOpen(true)}
             onExcel={handleExcel}
             onFullscreen={() => setFullscreen(true)}
           />
@@ -714,7 +878,7 @@ export function EquipmentReliabilitySection({
           <ProductTypeTabs
             value={productType}
             onChange={onProductTypeChange}
-            label="설비별 비가동·신뢰성 제품유형"
+            label="설비별 비가동·신뢰성 GROMMET/SEAL 설비 구분"
           />
         </div>
         <p className="mb-3 text-xs text-[var(--text-secondary)]">
@@ -731,12 +895,200 @@ export function EquipmentReliabilitySection({
           <ProductTypeTabs
             value={productType}
             onChange={onProductTypeChange}
-            label="설비별 비가동·신뢰성 제품유형"
+            label="설비별 비가동·신뢰성 GROMMET/SEAL 설비 구분"
           />
         </div>
         {body}
       </FullscreenTableShell>
+      <FullscreenTableShell
+        title="호기 평균 MTTR · MTBF 요약"
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+      >
+        <EquipmentFamilyMttrMtbfSummaryTableView table={summaryTable} />
+      </FullscreenTableShell>
     </>
+  );
+}
+
+function EquipmentFamilyMttrMtbfSummaryTableView({
+  table,
+}: {
+  table: EquipmentFamilyMttrMtbfSummaryTable;
+}) {
+  const [tab, setTab] = useState<"GROMMET" | "SEAL">("GROMMET");
+  const group = tab === "GROMMET" ? table.grommet : table.seal;
+  const allRows = [...group.press, ...group.injection];
+  const hasPress = group.press.length > 0;
+  const hasInjection = group.injection.length > 0;
+  const empty = !hasPress && !hasInjection;
+  const grommetCount = table.grommet.press.length + table.grommet.injection.length;
+  const sealCount = table.seal.press.length + table.seal.injection.length;
+  const overallMttr = averageNullable(allRows.map((r) => r.mttrMinutes));
+  const overallMtbf = averageNullable(allRows.map((r) => r.referenceMtbfHours));
+
+  return (
+    <div className="util-eq-by-product">
+      <div className="util-eq-by-product-head">
+        <h2 className="util-overview-section-title">호기 평균 MTTR · MTBF</h2>
+        <div
+          className="util-eq-product-tabs"
+          role="tablist"
+          aria-label="GROMMET/SEAL 호기 평균 요약"
+        >
+          {(
+            [
+              {
+                value: "GROMMET" as const,
+                label: "GROMMET",
+                count: grommetCount,
+              },
+              { value: "SEAL" as const, label: "SEAL", count: sealCount },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="tab"
+              aria-selected={tab === opt.value}
+              className="util-eq-product-tab"
+              data-active={tab === opt.value}
+              data-tone={opt.value === "GROMMET" ? "grommet" : "seal"}
+              onClick={() => setTab(opt.value)}
+            >
+              {opt.label}
+              <span className="util-eq-product-tab-count">{opt.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {empty ? (
+        <p className="util-eq-by-product-empty">
+          {tab} 라인에 표시할 호기 평균 MTTR·MTBF가 없습니다.
+        </p>
+      ) : (
+        <>
+          <div
+            className="util-eq-overall-avg"
+            data-tone={tab === "GROMMET" ? "grommet" : "seal"}
+          >
+            <div className="util-eq-overall-avg-label">
+              {tab} 전체 평균
+              <span className="util-eq-overall-avg-count">
+                {allRows.length}대
+              </span>
+            </div>
+            <div className="util-eq-overall-avg-metrics">
+              <div className="util-eq-overall-avg-metric">
+                <span className="util-eq-overall-avg-metric-label">
+                  호기 평균 MTTR
+                </span>
+                <span className="util-eq-overall-avg-metric-value">
+                  {overallMttr == null ? "-" : formatNumber(overallMttr, 1)}
+                  <span className="util-eq-overall-avg-unit">min</span>
+                </span>
+              </div>
+              <div className="util-eq-overall-avg-metric">
+                <span className="util-eq-overall-avg-metric-label">
+                  호기 평균 MTBF
+                </span>
+                <span className="util-eq-overall-avg-metric-value">
+                  {overallMtbf == null ? "-" : formatNumber(overallMtbf, 1)}
+                  <span className="util-eq-overall-avg-unit">hr</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div
+            className="util-eq-rate-grid"
+            data-single={!hasPress || !hasInjection}
+          >
+            {hasPress ? (
+              <FamilyMttrMtbfRateTable
+                title="Press 설비"
+                rows={group.press}
+                tone="press"
+              />
+            ) : null}
+            {hasInjection ? (
+              <FamilyMttrMtbfRateTable
+                title="Injection 설비"
+                rows={group.injection}
+                tone="injection"
+              />
+            ) : null}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FamilyMttrMtbfRateTable({
+  title,
+  rows,
+  tone,
+}: {
+  title: string;
+  rows: EquipmentFamilyMttrMtbfSummaryRow[];
+  tone: "press" | "injection";
+}) {
+  const avgMttr = averageNullable(rows.map((r) => r.mttrMinutes));
+  const avgMtbf = averageNullable(rows.map((r) => r.referenceMtbfHours));
+
+  return (
+    <div className="util-eq-rate-table-wrap" data-tone={tone}>
+      <table className="util-eq-rate-table">
+        <thead>
+          <tr>
+            <th colSpan={4}>
+              {title}
+              <span className="util-eq-rate-title-count">{rows.length}대</span>
+            </th>
+          </tr>
+          <tr>
+            <th>공정</th>
+            <th className="num">호기 수</th>
+            <th className="num">호기 평균 MTTR (min)</th>
+            <th className="num">호기 평균 MTBF (hr)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.factory}-${row.label}`}>
+              <td>
+                {row.label}
+                <span className="dt-family-sum-factory"> · {row.factory}</span>
+              </td>
+              <td className="num">{formatNumber(row.unitCount)}</td>
+              <td className="num">
+                {row.mttrMinutes == null
+                  ? "-"
+                  : formatNumber(row.mttrMinutes, 1)}
+              </td>
+              <td className="num">
+                {row.referenceMtbfHours == null
+                  ? "-"
+                  : formatNumber(row.referenceMtbfHours, 1)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">평균</th>
+            <td className="num">-</td>
+            <td className="num">
+              {avgMttr == null ? "-" : formatNumber(avgMttr, 1)}
+            </td>
+            <td className="num">
+              {avgMtbf == null ? "-" : formatNumber(avgMtbf, 1)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 

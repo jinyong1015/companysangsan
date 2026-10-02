@@ -17,8 +17,7 @@ import { useToast } from "@/context/ToastContext";
 interface PageHeaderProps {
   title: string;
   description?: string;
-  /** 제공 시에만 Excel 버튼을 표시합니다. */
-  onExcel?: () => void;
+  onExcel?: () => void | Promise<void>;
   excelName?: string;
   showTimestamp?: boolean;
   titleClassName?: string;
@@ -70,15 +69,17 @@ export function PageHeader({
             type="button"
             className="btn"
             onClick={() => {
-              try {
-                onExcel();
-                pushToast(
-                  `Excel 파일 생성을 시작했습니다.${excelName ? ` (${excelName})` : ""}`,
-                  "success",
-                );
-              } catch {
-                pushToast("Excel 다운로드에 실패했습니다.", "error");
-              }
+              void (async () => {
+                try {
+                  await onExcel();
+                  pushToast(
+                    `Excel 파일 생성을 시작했습니다.${excelName ? ` (${excelName})` : ""}`,
+                    "success",
+                  );
+                } catch {
+                  pushToast("Excel 다운로드에 실패했습니다.", "error");
+                }
+              })();
             }}
           >
             <Download size={16} />

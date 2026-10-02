@@ -49,7 +49,9 @@ export function computeKpi(records: ProductionRecord[]): KpiSummary {
   const defectRatePercent = denom > 0 ? (defectQuantity / denom) * 100 : null;
   const utilizationRatePercent =
     elapsedMinutes > 0 ? (operatingMinutes / elapsedMinutes) * 100 : null;
-  const uph = elapsedMinutes > 0 ? (productionQuantity / elapsedMinutes) * 60 : null;
+  const operatingHours = operatingMinutes / 60;
+  const uph =
+    operatingHours > 0 ? productionQuantity / operatingHours : null;
   const mttrMinutes = mttrEligibleCount > 0 ? mttrSum / mttrEligibleCount : null;
   const referenceMtbfHours =
     failureCount > 0 ? operatingMinutes / failureCount / 60 : null;

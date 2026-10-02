@@ -9,7 +9,10 @@ import {
   EquipmentReliabilitySection,
   PeriodReasonSection,
 } from "@/components/downtime/DowntimeDetailTables";
-import { DowntimeEquipmentHeatmap } from "@/components/downtime/DowntimeEquipmentHeatmap";
+import {
+  DowntimeEquipmentHeatmap,
+  DowntimeHeatmapExcelButton,
+} from "@/components/downtime/DowntimeEquipmentHeatmap";
 import { DowntimeReasonDetailList } from "@/components/downtime/DowntimeReasonDetailList";
 import { DowntimeTopPartsChart } from "@/components/downtime/DowntimeTopPartsChart";
 import { QueryFilterShell } from "@/components/filters/FilterCards";
@@ -50,7 +53,7 @@ import {
   paginate,
   sortBy,
 } from "@/lib/metrics";
-import { inferEquipmentType, monthDateRange } from "@/lib/utilization";
+import { inferEquipmentType, monthDateRange, filterByEquipmentProductLine } from "@/lib/utilization";
 import { withFromParam, withPeriodParams } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
 import type { EquipmentType, GlobalFilters, ProductType, ProductionRecord } from "@/types";
@@ -238,24 +241,30 @@ export default function DowntimePage() {
 
   const periodAnalysisRecords = useMemo(
     () =>
-      filterByEquipmentType(
-        filterRecords(records, {
-          ...queryFilters,
-          productType: periodProductTab,
-        }),
-        equipmentType,
+      filterByEquipmentProductLine(
+        filterByEquipmentType(
+          filterRecords(records, {
+            ...queryFilters,
+            productType: "전체",
+          }),
+          equipmentType,
+        ),
+        periodProductTab,
       ),
     [records, queryFilters, periodProductTab, equipmentType],
   );
 
   const reliabilityAnalysisRecords = useMemo(
     () =>
-      filterByEquipmentType(
-        filterRecords(records, {
-          ...queryFilters,
-          productType: reliabilityProductTab,
-        }),
-        equipmentType,
+      filterByEquipmentProductLine(
+        filterByEquipmentType(
+          filterRecords(records, {
+            ...queryFilters,
+            productType: "전체",
+          }),
+          equipmentType,
+        ),
+        reliabilityProductTab,
       ),
     [records, queryFilters, reliabilityProductTab, equipmentType],
   );
@@ -544,6 +553,15 @@ export default function DowntimePage() {
         <SectionCard
           title="설비별 일자 비가동 현황"
           className="dt-overview-heatmap"
+          action={
+            <DowntimeHeatmapExcelButton
+              records={baseAnalysisRecords}
+              startDate={monthRange.startDate}
+              endDate={monthRange.endDate}
+              productTab={heatmapProductTab}
+              metric={heatmapMetric}
+            />
+          }
         >
           <DowntimeEquipmentHeatmap
             records={baseAnalysisRecords}

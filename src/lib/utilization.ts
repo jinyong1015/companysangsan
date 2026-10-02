@@ -127,6 +127,26 @@ export interface UtilizationOverview {
   press: UtilizationMetricSummary;
 }
 
+/** 제품유형별 · 설비별 가동률 (전체 종합 현황 하위 표) */
+export interface EquipmentUtilizationRow {
+  equipmentId: string;
+  equipmentName: string;
+  equipmentType: EquipmentType;
+  factory: string;
+  performancePercent: number | null;
+  timePercent: number | null;
+}
+
+export interface EquipmentUtilizationGroup {
+  press: EquipmentUtilizationRow[];
+  injection: EquipmentUtilizationRow[];
+}
+
+export interface EquipmentUtilizationByProduct {
+  grommet: EquipmentUtilizationGroup;
+  seal: EquipmentUtilizationGroup;
+}
+
 export type UtilizationTrendSegment =
   | "allProducts"
   | "grommet"
@@ -213,6 +233,56 @@ export function parseGpPgFamily(name: string): string | null {
   const m = name.trim().toUpperCase().match(/^(GP|PG|PS)(\d+)-\d+$/);
   if (!m) return null;
   return `${m[1]}${m[2]}`;
+}
+
+/** 설비별 가동률 표 제품유형 분류
+ * - GROMMET: 본사(1공장) GP01·GP02·GP04 + PG 전체 + 2공장(구지) 전체
+ * - SEAL: 그 외 (본사 나머지). 2공장에는 SEAL 없음
+ */
+const GROMMET_GP_FAMILIES = new Set(["GP01", "GP02", "GP04"]);
+
+export function isGrommetLineEquipment(
+  factory: string,
+  equipmentName: string,
+): boolean {
+  if (factory === "2공장") return true;
+  if (factory !== "본사") return false;
+
+  const family = parseGpPgFamily(equipmentName);
+  if (family) {
+    if (family.startsWith("PG")) return true;
+    return GROMMET_GP_FAMILIES.has(family);
+  }
+
+  const upper = equipmentName.trim().toUpperCase();
+  if (/^PG(\d|$|-)/.test(upper) || upper === "PG") return true;
+  return [...GROMMET_GP_FAMILIES].some(
+    (f) => upper === f || upper.startsWith(`${f}-`),
+  );
+}
+
+/** 설비 기준 GROMMET / SEAL 라인 */
+export function resolveEquipmentProductLine(
+  factory: string,
+  equipmentName: string,
+): ProductType {
+  return isGrommetLineEquipment(factory, equipmentName) ? "GROMMET" : "SEAL";
+}
+
+export function matchesEquipmentProductLine(
+  record: { factory: string; equipmentName: string },
+  productLine: "전체" | ProductType,
+): boolean {
+  if (productLine === "전체") return true;
+  return resolveEquipmentProductLine(record.factory, record.equipmentName) ===
+    productLine;
+}
+
+export function filterByEquipmentProductLine<
+  T extends { factory: string; equipmentName: string },
+>(records: T[], productLine: "전체" | ProductType): T[] {
+  if (productLine === "전체") return records;
+  return records.filter((r) => matchesEquipmentProductLine(r, productLine));
 }
 
 /**
@@ -344,6 +414,45 @@ export function computeOeePercent(
   }
   const perfCapped = Math.min(performancePercent, 100);
   return (timePercent / 100) * (perfCapped / 100) * (yieldPercent / 100) * 100;
+}
+
+const MANUAL_YIELD_STORAGE_KEY = "production-analytics-manual-yield-v1";
+
+/** 전체 종합 현황 양품률 수기 값 (기간 키별). null이면 자동 계산값 사용 */
+export function loadManualYieldPercent(periodKey: string): number | null {
+  if (typeof window === "undefined" || !periodKey) return null;
+  try {
+    const raw = localStorage.getItem(MANUAL_YIELD_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed[periodKey];
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export function saveManualYieldPercent(
+  periodKey: string,
+  value: number | null,
+): void {
+  if (typeof window === "undefined" || !periodKey) return;
+  try {
+    const raw = localStorage.getItem(MANUAL_YIELD_STORAGE_KEY);
+    const parsed =
+      raw != null
+        ? (JSON.parse(raw) as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    if (value == null) {
+      delete parsed[periodKey];
+    } else {
+      parsed[periodKey] = value;
+    }
+    localStorage.setItem(MANUAL_YIELD_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 /** 기존 가동률: 총 가동시간 ÷ 총 작업시간 × 100 */
@@ -896,6 +1005,11 @@ export function buildUtilizationMatrix(
     /** 미지정 시 filters.startDate ~ endDate (조회기간) 사용 */
     startDate?: string;
     endDate?: string;
+    /**
+     * true면 GROMMET/SEAL을 품번 제품유형이 아니라 설비 라인 기준으로 필터한다.
+     * 가동률 분석 메뉴에서 사용.
+     */
+    productLineByEquipment?: boolean;
   },
 ): UtilizationMatrix {
   const metric = options.metric ?? "time";
@@ -903,6 +1017,7 @@ export function buildUtilizationMatrix(
   const shotTable = options.targetShotTable ?? DEFAULT_TARGET_SHOT_COUNTS;
   const startDate = options.startDate ?? filters.startDate;
   const endDate = options.endDate ?? filters.endDate;
+  const productLineByEquipment = options.productLineByEquipment ?? false;
   const rangeFilters: GlobalFilters = {
     ...filters,
     startDate,
@@ -915,9 +1030,14 @@ export function buildUtilizationMatrix(
     moldIds: [],
     shiftType: "전체",
     downtimeReason: "전체",
+    // 설비 라인 모드에서는 품번 제품유형 필터를 끄고 아래에서 설비 기준으로 적용
+    productType: productLineByEquipment ? "전체" : filters.productType,
   };
 
-  const filtered = filterRecords(records, rangeFilters);
+  let filtered = filterRecords(records, rangeFilters);
+  if (productLineByEquipment) {
+    filtered = filterByEquipmentProductLine(filtered, filters.productType);
+  }
   const dates =
     startDate && endDate && startDate <= endDate
       ? eachDayOfInterval({
@@ -1076,6 +1196,8 @@ function collectOverviewCellGroups(
   sealCells: UtilizationCell[];
   injectionCells: UtilizationCell[];
   pressCells: UtilizationCell[];
+  /** 설비별 가동률 표용 — 제품유형 무관 전체 설비 셀 */
+  equipmentCells: UtilizationCell[];
   startDate: string;
   endDate: string;
 } {
@@ -1138,12 +1260,32 @@ function collectOverviewCellGroups(
     return cells;
   };
 
-  // 제품유형은 각각 집계한 뒤 합산 (혼합 셀에서 목표 작업판수가 null이 되는 문제 방지)
+  // GROMMET/SEAL은 생산 품번 제품유형이 아니라 설비 라인 기준으로 나눈다.
+  const equipmentCells = collectCells("전체", "전체");
+  const grommetCells = equipmentCells.filter((c) =>
+    isGrommetLineEquipment(c.factory, c.equipmentName),
+  );
+  const sealCells = equipmentCells.filter(
+    (c) => !isGrommetLineEquipment(c.factory, c.equipmentName),
+  );
+
+  const productLine = rangeFilters.productType;
+  const matchesLine = (c: UtilizationCell) =>
+    matchesEquipmentProductLine(
+      { factory: c.factory, equipmentName: c.equipmentName },
+      productLine,
+    );
+
   return {
-    grommetCells: collectCells("GROMMET", "전체"),
-    sealCells: collectCells("SEAL", "전체"),
-    injectionCells: collectCells(rangeFilters.productType, "INJECTION"),
-    pressCells: collectCells(rangeFilters.productType, "PRESS"),
+    grommetCells,
+    sealCells,
+    injectionCells: equipmentCells.filter(
+      (c) => c.equipmentType === "INJECTION" && matchesLine(c),
+    ),
+    pressCells: equipmentCells.filter(
+      (c) => c.equipmentType === "PRESS" && matchesLine(c),
+    ),
+    equipmentCells,
     startDate,
     endDate,
   };
@@ -1183,8 +1325,8 @@ function dailySeriesFromCells(
 
 /**
  * 상단 종합 지표.
- * - 제품유형(GROMMET/SEAL): 제품유형 필터와 무관하게 각각 합계 집계 (강조만 필터 반영)
- * - 설비유형(INJECTION/PRESS): 제품유형·근무형태는 반영, 설비유형 필터는 무시 (카드 클릭으로 매트릭스 필터)
+ * - GROMMET/SEAL: 설비 라인 기준(본사 GP01·02·04·PG + 구지 전체 = GROMMET, 본사 나머지 = SEAL)
+ * - 설비유형(INJECTION/PRESS): 설비 라인·근무형태는 반영, 설비유형 필터는 무시 (카드 클릭으로 매트릭스 필터)
  * - 일별·설비별 % 단순 평균 금지. 분자·분모 합계 후 비율 계산.
  */
 export function buildUtilizationOverview(
@@ -1243,12 +1385,17 @@ export function buildUtilizationOverviewBundle(
   records: ProductionRecord[],
   filters: GlobalFilters,
   options: OverviewBuildOptions,
-): { overview: UtilizationOverview; trends: UtilizationDailyTrends } {
+): {
+  overview: UtilizationOverview;
+  trends: UtilizationDailyTrends;
+  equipmentByProduct: EquipmentUtilizationByProduct;
+} {
   const {
     grommetCells,
     sealCells,
     injectionCells,
     pressCells,
+    equipmentCells,
     startDate,
     endDate,
   } = collectOverviewCellGroups(records, filters, options);
@@ -1278,6 +1425,164 @@ export function buildUtilizationOverviewBundle(
       injection: dailySeriesFromCells(injectionCells, startDate, endDate),
       press: dailySeriesFromCells(pressCells, startDate, endDate),
     },
+    equipmentByProduct: buildEquipmentUtilizationByProduct(
+      equipmentCells,
+      startDate,
+    ),
+  };
+}
+
+/**
+ * 설비별 가동률 탭 분류.
+ * - GROMMET: 본사 GP01·GP02·GP04 + PG 전체 + 2공장(구지) 전체
+ * - SEAL: 본사 나머지 설비 (2공장 SEAL 없음)
+ * - GP/PG/PS -N 호기는 패밀리(예: GP01)로 묶어 호기 가동률 산술 평균
+ */
+function buildEquipmentUtilizationByProduct(
+  cells: UtilizationCell[],
+  startDate: string,
+): EquipmentUtilizationByProduct {
+  const all = equipmentRowsFromCells(cells, startDate);
+  const allRows = groupEquipmentRowsByFamily([
+    ...all.press,
+    ...all.injection,
+  ]);
+  const grommetRows = allRows.filter((r) =>
+    isGrommetLineEquipment(r.factory, r.equipmentName),
+  );
+  const sealRows = allRows.filter(
+    (r) => !isGrommetLineEquipment(r.factory, r.equipmentName),
+  );
+
+  const split = (rows: EquipmentUtilizationRow[]): EquipmentUtilizationGroup => ({
+    press: rows
+      .filter((r) => r.equipmentType === "PRESS")
+      .sort((a, b) => a.equipmentName.localeCompare(b.equipmentName, "ko")),
+    injection: rows
+      .filter((r) => r.equipmentType === "INJECTION")
+      .sort((a, b) => a.equipmentName.localeCompare(b.equipmentName, "ko")),
+  });
+
+  return {
+    grommet: split(grommetRows),
+    seal: split(sealRows),
+  };
+}
+
+/**
+ * GP01-1·GP01-2·GP01-3 → GP01 한 행.
+ * 성능·시간 가동률은 값 있는 호기만 산술 평균 (가동률 현황 호기 평균과 동일).
+ */
+function groupEquipmentRowsByFamily(
+  rows: EquipmentUtilizationRow[],
+): EquipmentUtilizationRow[] {
+  const groups = new Map<string, EquipmentUtilizationRow[]>();
+
+  for (const row of rows) {
+    const family = parseGpPgFamily(row.equipmentName);
+    const key = family
+      ? `${row.factory}__family__${family}`
+      : `${row.factory}__eq__${row.equipmentId}`;
+    const list = groups.get(key);
+    if (list) list.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const grouped: EquipmentUtilizationRow[] = [];
+  for (const [, members] of groups) {
+    const first = members[0];
+    if (!first) continue;
+    if (members.length === 1) {
+      const family = parseGpPgFamily(first.equipmentName);
+      grouped.push(
+        family
+          ? {
+              ...first,
+              equipmentId: `family-${first.factory}-${family}`,
+              equipmentName: family,
+            }
+          : first,
+      );
+      continue;
+    }
+
+    const family = parseGpPgFamily(first.equipmentName);
+    const label = family ?? first.equipmentName;
+    const avg = averageEquipmentUtilization(members);
+    grouped.push({
+      equipmentId: `family-${first.factory}-${label}`,
+      equipmentName: label,
+      equipmentType: first.equipmentType,
+      factory: first.factory,
+      performancePercent: avg.performancePercent,
+      timePercent: avg.timePercent,
+    });
+  }
+
+  return grouped;
+}
+
+/** 셀을 설비별로 합산해 PRESS / INJECTION 목록으로 나눈다. */
+function equipmentRowsFromCells(
+  cells: UtilizationCell[],
+  startDate: string,
+): EquipmentUtilizationGroup {
+  const byEquipment = new Map<string, UtilizationCell[]>();
+  for (const cell of cells) {
+    const list = byEquipment.get(cell.equipmentId);
+    if (list) list.push(cell);
+    else byEquipment.set(cell.equipmentId, [cell]);
+  }
+
+  const rows: EquipmentUtilizationRow[] = [];
+  for (const [equipmentId, eqCells] of byEquipment) {
+    const sample = eqCells[0];
+    if (!sample) continue;
+    const summed = sumCells(
+      eqCells,
+      {
+        date: startDate,
+        equipmentId,
+        equipmentName: sample.equipmentName,
+        factory: sample.factory,
+        equipmentType: sample.equipmentType,
+      },
+      "time",
+    );
+    if (!summed) continue;
+    rows.push({
+      equipmentId,
+      equipmentName: sample.equipmentName,
+      equipmentType: sample.equipmentType,
+      factory: sample.factory,
+      performancePercent: summed.performanceUtilizationPercent,
+      timePercent: summed.timeUtilizationPercent,
+    });
+  }
+
+  rows.sort((a, b) => a.equipmentName.localeCompare(b.equipmentName, "ko"));
+
+  return {
+    press: rows.filter((r) => r.equipmentType === "PRESS"),
+    injection: rows.filter((r) => r.equipmentType === "INJECTION"),
+  };
+}
+
+/** 설비별 % 산술 평균 (값 있는 호기만) — 첨부 표의 평균 행과 동일 */
+export function averageEquipmentUtilization(
+  rows: EquipmentUtilizationRow[],
+): { performancePercent: number | null; timePercent: number | null } {
+  const perf = rows
+    .map((r) => r.performancePercent)
+    .filter((v): v is number => v != null);
+  const time = rows
+    .map((r) => r.timePercent)
+    .filter((v): v is number => v != null);
+  return {
+    performancePercent:
+      perf.length > 0 ? perf.reduce((s, v) => s + v, 0) / perf.length : null,
+    timePercent:
+      time.length > 0 ? time.reduce((s, v) => s + v, 0) / time.length : null,
   };
 }
 

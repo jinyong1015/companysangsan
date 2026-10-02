@@ -1,10 +1,13 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { AnalysisGroupComparison } from "@/components/dashboard/AnalysisGroupComparison";
-import { DowntimeEquipmentHeatmap } from "@/components/downtime/DowntimeEquipmentHeatmap";
+import {
+  DowntimeEquipmentHeatmap,
+  DowntimeHeatmapExcelButton,
+} from "@/components/downtime/DowntimeEquipmentHeatmap";
 import { DowntimeTopPartsChart } from "@/components/downtime/DowntimeTopPartsChart";
 import { ProductionVariationTrend } from "@/components/production/ProductionVariationTrend";
 import { ProductShotTopWorst } from "@/components/production/ProductShotTopWorst";
@@ -46,7 +49,6 @@ import {
   filterRecords,
 } from "@/lib/metrics";
 import { withFromParam } from "@/lib/navigation";
-import { downloadExcel } from "@/lib/excelParse";
 import {
   buildUtilizationOverviewBundle,
   loadTargetMinutes,
@@ -255,21 +257,6 @@ export default function DashboardPage() {
       <PageHeader
         title="대시보드"
         description={headerDescription}
-        excelName="생산현황_대시보드"
-        onExcel={() =>
-          downloadExcel(
-            "생산현황_대시보드.xlsx",
-            productPerfRows.map((r) => ({
-              제품유형: r.productType,
-              품번: r.partNumber,
-              생산량: r.productionQuantity,
-              불량수량: r.defectQuantity,
-              작업시간분: r.elapsedMinutes,
-              비가동시간분: r.downtimeMinutes,
-              UPH: r.uph,
-            })),
-          )
-        }
       />
 
       <ResponsiveGrid variant="kpi" className="mb-4">
@@ -325,8 +312,6 @@ export default function DashboardPage() {
           sealEmphasized={
             filters.productType === "전체" || filters.productType === "SEAL"
           }
-          injectionEmphasized
-          pressEmphasized
           variant="overall"
         />
       ) : null}
@@ -345,18 +330,27 @@ export default function DashboardPage() {
         title="설비별 일자 비가동 현황"
         description={`${heatmapMonthLabel} (${heatmapPeriodLabel}) 기준 · 공장·제품유형은 상단 필터 적용`}
         action={
-          <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
-            <span className="whitespace-nowrap font-medium">조회월</span>
-            <input
-              type="month"
-              className="query-filter-input"
-              value={heatmapYearMonth}
-              aria-label="설비별 일자 비가동 현황 조회월"
-              onChange={(e) => {
-                if (e.target.value) setHeatmapYearMonth(e.target.value);
-              }}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <span className="whitespace-nowrap font-medium">조회월</span>
+              <input
+                type="month"
+                className="query-filter-input"
+                value={heatmapYearMonth}
+                aria-label="설비별 일자 비가동 현황 조회월"
+                onChange={(e) => {
+                  if (e.target.value) setHeatmapYearMonth(e.target.value);
+                }}
+              />
+            </label>
+            <DowntimeHeatmapExcelButton
+              records={heatmapRecords}
+              startDate={heatmapMonthRange.startDate}
+              endDate={heatmapMonthRange.endDate}
+              productTab={heatmapProductTab}
+              metric={heatmapMetric}
             />
-          </label>
+          </div>
         }
         className="mb-4"
       >
