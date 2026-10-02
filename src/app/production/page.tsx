@@ -6,8 +6,6 @@ import {
   type ProductTab,
 } from "@/components/production/ProductPerformanceSummary";
 import { ProductionVariationTrend } from "@/components/production/ProductionVariationTrend";
-import { ProductTypeTabs } from "@/components/production/ProductTypeTabs";
-import { ProductShotTopWorst } from "@/components/production/ProductShotTopWorst";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
@@ -38,17 +36,9 @@ export default function ProductionPage() {
   const { records } = useDataSource();
   const { state, patch } = usePageState("production", "productionQuantity", "desc");
 
-  /** TOP & WORST 전용 (종합 실적과 독립) */
-  const topProductTab = parseProductTab(
-    state.extra?.topProductTab ?? state.extra?.productTab,
-  );
   /** 제품별 생산 종합 실적 전용 */
   const summaryProductTab = parseProductTab(state.extra?.summaryProductTab);
   const hiddenColumns = parseHiddenColumns(state.extra?.hiddenColumns);
-
-  const setTopProductTab = (tab: ProductTab) => {
-    patch({ extra: { topProductTab: tab } });
-  };
 
   const setSummaryProductTab = (tab: ProductTab) => {
     patch({
@@ -77,11 +67,6 @@ export default function ProductionPage() {
   const allRows = useMemo(
     () => aggregateProductPerformance(records, baseFilters),
     [records, baseFilters],
-  );
-
-  const topRows = useMemo(
-    () => byProductTab(allRows, topProductTab),
-    [allRows, topProductTab],
   );
 
   const summaryRows = useMemo(
@@ -120,15 +105,6 @@ export default function ProductionPage() {
       />
 
       <ProductionVariationTrend grain="month" lastMonths={12} />
-
-      <ProductTypeTabs
-        value={topProductTab}
-        onChange={setTopProductTab}
-        counts={tabCounts}
-        ariaLabel="TOP & WORST 제품유형"
-      />
-
-      <ProductShotTopWorst rows={topRows} productTab={topProductTab} />
 
       <ProductPerformanceSummary
         rows={summaryRows}

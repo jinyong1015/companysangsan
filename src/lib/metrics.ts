@@ -187,6 +187,8 @@ export type MonthlyDashboardPoint = {
   partKindCount: number;
   /** 총 SHOT ÷ 가동시간(hr) */
   avgShot: number;
+  /** 총 SHOT ÷ 품번별 작업일수 합 (TOP&WORST 평균 SHOT(日)과 동일) */
+  dailyAvgShots: number;
   /** 비가동시간 합계(분) */
   downtimeMinutes: number;
 };
@@ -205,6 +207,20 @@ export function buildMonthlyDashboardTrends(
     const kpi = computeKpi(subset);
     const shotCount = subset.reduce((s, r) => s + r.shotCount, 0);
     const operatingHours = kpi.operatingMinutes / 60;
+    const workDaysByPart = new Map<string, Set<string>>();
+    for (const r of subset) {
+      if (!r.partId) continue;
+      let dates = workDaysByPart.get(r.partId);
+      if (!dates) {
+        dates = new Set();
+        workDaysByPart.set(r.partId, dates);
+      }
+      dates.add(r.workDate);
+    }
+    const workDaysSum = [...workDaysByPart.values()].reduce(
+      (s, dates) => s + dates.size,
+      0,
+    );
     return {
       period: b.period,
       label: b.label,
@@ -213,6 +229,7 @@ export function buildMonthlyDashboardTrends(
         subset.map((r) => r.partId).filter((id) => Boolean(id)),
       ).size,
       avgShot: operatingHours > 0 ? shotCount / operatingHours : 0,
+      dailyAvgShots: workDaysSum > 0 ? shotCount / workDaysSum : 0,
       downtimeMinutes: kpi.downtimeMinutes,
     };
   });

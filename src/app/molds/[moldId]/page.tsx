@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { KpiCard } from "@/components/ui/KpiCard";
+import { DetailHero } from "@/components/ui/DetailHero";
 import {
   BackBanner,
   EmptyState,
-  PageHeader,
   ResponsiveGrid,
   SectionCard,
 } from "@/components/ui/PageBits";
+import { Boxes } from "lucide-react";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { getMoldById } from "@/data/mock";
@@ -67,15 +68,32 @@ export default function MoldDetailPage() {
   }
 
   return (
-    <>
-      <BackBanner href={back.href} label={back.label} icon={back.icon} />
-      <PageHeader title={mold.moldNumber} description={`대표 품번 기준 조회`} />
-      <ResponsiveGrid variant="kpi" className="mb-4">
-        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} />
-        <KpiCard title="불량수량" value={formatQuantity(kpi.defectQuantity)} />
-        <KpiCard title="생산불량률" value={formatPercent(kpi.defectRatePercent, 2)} />
-        <KpiCard title="작업판수" value={formatNumber(shotCount)} />
-        <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} />
+    <div className="detail-page">
+      <BackBanner
+        href={back.href}
+        label={back.label}
+        icon={back.icon}
+        periodStart={filters.startDate}
+        periodEnd={filters.endDate}
+      />
+      <DetailHero
+        eyebrow="금형 상세내역"
+        title={mold.moldNumber}
+        description="대표 품번 기준 조회"
+        icon={Boxes}
+        tone="mold"
+        chips={[
+          { label: "조회기간", value: `${filters.startDate} ~ ${filters.endDate}` },
+          { label: "작업 설비", value: `${byEq.length}대` },
+          { label: "작업판수", value: formatNumber(shotCount) },
+        ]}
+      />
+      <ResponsiveGrid variant="kpi" className="detail-kpi-grid mb-4">
+        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} accent="var(--metric-production)" />
+        <KpiCard title="불량수량" value={formatQuantity(kpi.defectQuantity)} accent="var(--metric-defect)" />
+        <KpiCard title="생산불량률" value={formatPercent(kpi.defectRatePercent, 2)} accent="var(--metric-defect)" />
+        <KpiCard title="작업판수" value={formatNumber(shotCount)} accent="var(--metric-uph)" />
+        <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} accent="var(--metric-downtime)" />
       </ResponsiveGrid>
       <SectionCard title="설비별 사용 실적">
         <div className="table-wrap">
@@ -114,6 +132,6 @@ export default function MoldDetailPage() {
           </table>
         </div>
       </SectionCard>
-    </>
+    </div>
   );
 }

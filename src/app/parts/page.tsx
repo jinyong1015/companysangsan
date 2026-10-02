@@ -2,18 +2,13 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import {
-  PartProductionTopChart,
-  type PartProdTopView,
-} from "@/components/production/PartProductionTopChart";
-import type { ProductTab } from "@/components/production/ProductPerformanceSummary";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 
 import { usePageState } from "@/hooks/usePageState";
-import { aggregateParts, aggregateProductPerformance } from "@/lib/aggregates";
+import { aggregateParts } from "@/lib/aggregates";
 import {
   formatMinutes,
   formatPercent,
@@ -24,30 +19,10 @@ import { paginate, sortBy } from "@/lib/metrics";
 import { withFromParam } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
 
-function parseProductTab(value: unknown): ProductTab {
-  if (value === "GROMMET" || value === "SEAL" || value === "전체") return value;
-  return "전체";
-}
-
-function parseTopView(value: unknown): PartProdTopView {
-  return value === "bar" ? "bar" : "rank";
-}
-
 export default function PartsPage() {
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
   const { state, patch } = usePageState("parts", "production", "desc");
-
-  const topProductTab = parseProductTab(state.extra?.topProductTab);
-  const topView = parseTopView(state.extra?.topView);
-
-  const setTopProductTab = (tab: ProductTab) => {
-    patch({ extra: { topProductTab: tab } });
-  };
-
-  const setTopView = (view: PartProdTopView) => {
-    patch({ extra: { topView: view } });
-  };
 
   const rows = useMemo(() => {
     let list = aggregateParts(records, filters);
@@ -65,48 +40,11 @@ export default function PartsPage() {
     });
   }, [filters, state, records]);
 
-  const productPerfRows = useMemo(
-    () =>
-      aggregateProductPerformance(records, {
-        ...filters,
-        productType: "전체",
-      }),
-    [records, filters],
-  );
-
-  const topRows = useMemo(() => {
-    if (topProductTab === "전체") return productPerfRows;
-    return productPerfRows.filter((r) => r.productType === topProductTab);
-  }, [productPerfRows, topProductTab]);
-
-  const tabCounts = useMemo(
-    () => ({
-      전체: productPerfRows.filter((r) => r.productionQuantity > 0).length,
-      GROMMET: productPerfRows.filter(
-        (r) => r.productType === "GROMMET" && r.productionQuantity > 0,
-      ).length,
-      SEAL: productPerfRows.filter(
-        (r) => r.productType === "SEAL" && r.productionQuantity > 0,
-      ).length,
-    }),
-    [productPerfRows],
-  );
-
   const paged = paginate(rows, state.page, state.pageSize);
 
   return (
     <>
       <PageHeader title="품번 분석" description="품번별 생산량·불량·UPH 분석" />
-      <PartProductionTopChart
-        rows={topRows}
-        productTab={topProductTab}
-        onProductTabChange={setTopProductTab}
-        view={topView}
-        onViewChange={setTopView}
-        tabCounts={tabCounts}
-        from="parts"
-      />
-
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}

@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { InfoTooltip } from "@/components/ui/PageBits";
 import { clsx, formatChangePercent, formatChangePp } from "@/lib/format";
 
@@ -28,30 +29,44 @@ function Sparkline({
   const max = Math.max(...values);
   const min = Math.min(...values);
   const span = max - min || 1;
-  const w = 120;
-  const h = 28;
-  const pad = 2;
-  const points = values
-    .map((v, i) => {
-      const x = pad + (i / (values.length - 1)) * (w - pad * 2);
-      const y = h - pad - ((v - min) / span) * (h - pad * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const w = 160;
+  const h = 36;
+  const padX = 1;
+  const padY = 3;
+  const pts = values.map((v, i) => {
+    const x = padX + (i / (values.length - 1)) * (w - padX * 2);
+    const y = h - padY - ((v - min) / span) * (h - padY * 2);
+    return { x, y };
+  });
+  const line = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const area = [
+    `${pts[0].x.toFixed(1)},${h}`,
+    ...pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`),
+    `${pts[pts.length - 1].x.toFixed(1)},${h}`,
+  ].join(" ");
+  const gradId = `kpi-spark-${color.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}
-      className="mt-2 h-7 w-full max-w-[140px]"
+      className="kpi-card-spark"
+      preserveAspectRatio="none"
       aria-hidden
     >
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <polygon fill={`url(#${gradId})`} points={area} />
       <polyline
         fill="none"
         stroke={color}
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        points={points}
+        points={line}
       />
     </svg>
   );
@@ -69,46 +84,70 @@ export function KpiCard({
   sparkline,
   sparklineColor,
 }: KpiCardProps) {
-  const tone =
-    compareValue == null
-      ? "text-[var(--text-secondary)]"
-      : compareValue === 0
-        ? "text-[var(--text-secondary)]"
-        : (compareValue > 0) === comparePositiveIsGood
-          ? "text-[var(--success)]"
-          : "text-[var(--error)]";
+  const hasCompare = compareValue != null && !Number.isNaN(compareValue);
+  const isFlat = hasCompare && compareValue === 0;
+  const isGood =
+    hasCompare && !isFlat
+      ? (compareValue > 0) === comparePositiveIsGood
+      : null;
+
+  const compareTone =
+    isGood == null ? "neutral" : isGood ? "good" : "bad";
 
   const lineColor =
     sparklineColor ??
-    (compareValue == null || compareValue === 0
+    accent ??
+    (isGood == null
       ? "var(--text-secondary)"
-      : (compareValue > 0) === comparePositiveIsGood
+      : isGood
         ? "var(--success)"
         : "var(--error)");
 
   return (
-    <article className="card flex flex-col gap-1.5 px-4 py-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-[var(--text-secondary)]">
-          {title}
-        </p>
-        {tooltip ? <InfoTooltip text={tooltip} /> : null}
+    <article
+      className={clsx(
+        "card kpi-card",
+        accent && "kpi-card--accent",
+        sparkline && sparkline.length >= 2 && "kpi-card--spark",
+      )}
+      style={
+        accent
+          ? ({ ["--kpi-accent" as string]: accent } as CSSProperties)
+          : undefined
+      }
+    >
+      <div className="kpi-card-top">
+        <div className="kpi-card-label-row">
+          <p className="kpi-card-label">{title}</p>
+          {tooltip ? <InfoTooltip text={tooltip} /> : null}
+        </div>
+        {compare ? (
+          <span
+            className="kpi-card-compare"
+            data-tone={compareTone}
+            title="이전 기간 대비"
+          >
+            {compare}
+          </span>
+        ) : null}
       </div>
+
       <p
-        className="text-2xl font-bold leading-none tracking-tight md:text-[26px]"
+        className="kpi-card-value"
         style={accent ? { color: accent } : undefined}
       >
         {value}
       </p>
-      {compare ? (
-        <p className={clsx("text-xs font-medium", tone)}>{compare}</p>
-      ) : null}
-      {hint ? (
-        <p className="text-xs text-[var(--text-secondary)]">{hint}</p>
-      ) : null}
-      {sparkline && sparkline.length >= 2 ? (
-        <Sparkline values={sparkline} color={lineColor} />
-      ) : null}
+
+      {hint ? <p className="kpi-card-hint">{hint}</p> : null}
+
+      <div className="kpi-card-footer">
+        {sparkline && sparkline.length >= 2 ? (
+          <Sparkline values={sparkline} color={lineColor} />
+        ) : (
+          <span className="kpi-card-footer-spacer" aria-hidden />
+        )}
+      </div>
     </article>
   );
 }
@@ -117,6 +156,7 @@ export function buildCompareLabel(
   kind: "percent" | "pp",
   value: number | null | undefined,
 ): string {
-  if (kind === "pp") return `${formatChangePp(value)} 이전 기간 대비`;
-  return `${formatChangePercent(value)} 이전 기간 대비`;
+  if (value == null || Number.isNaN(value)) return "비교 없음";
+  if (kind === "pp") return formatChangePp(value);
+  return formatChangePercent(value);
 }

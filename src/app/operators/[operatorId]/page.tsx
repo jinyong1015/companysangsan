@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Package } from "lucide-react";
+import { Package, Users } from "lucide-react";
 import { use, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -9,10 +9,10 @@ import {
   PeriodUphLineChart,
 } from "@/components/charts/Charts";
 import { KpiCard } from "@/components/ui/KpiCard";
+import { DetailHero } from "@/components/ui/DetailHero";
 import {
   BackBanner,
   EmptyState,
-  PageHeader,
   ResponsiveGrid,
   SectionCard,
 } from "@/components/ui/PageBits";
@@ -43,6 +43,8 @@ export default function OperatorDetailPage({
 }) {
   const searchParams = useSearchParams();
   const from = searchParams.get("from");
+  const periodStart = searchParams.get("startDate");
+  const periodEnd = searchParams.get("endDate");
   const scopePartId = searchParams.get("partId");
   const { operatorId: rawOperatorId } = use(params);
   const operatorId = resolveRouteParamId(rawOperatorId);
@@ -59,6 +61,8 @@ export default function OperatorDetailPage({
   }, [operatorId, records]);
 
   const matchedOperatorId = operator?.id ?? operatorId;
+  const rangeStart = periodStart || filters.startDate;
+  const rangeEnd = periodEnd || filters.endDate;
 
   const scopePart = useMemo(() => {
     if (!scopePartId) return null;
@@ -98,10 +102,17 @@ export default function OperatorDetailPage({
     () =>
       filterRecords(records, {
         ...filters,
+        ...(periodStart && periodEnd
+          ? {
+              datePreset: "custom" as const,
+              startDate: periodStart,
+              endDate: periodEnd,
+            }
+          : null),
         operatorIds: matchedOperatorId ? [matchedOperatorId] : [],
         partIds: scopePartId ? [scopePartId] : filters.partIds,
       }),
-    [filters, matchedOperatorId, records, scopePartId],
+    [filters, matchedOperatorId, periodEnd, periodStart, records, scopePartId],
   );
 
   const byPart = useMemo(() => {
@@ -137,14 +148,13 @@ export default function OperatorDetailPage({
 
   const kpi = useMemo(() => computeKpi(rows), [rows]);
   const trendGrain = useMemo(
-    () => detailTrendGrain(filters.startDate, filters.endDate),
-    [filters.startDate, filters.endDate],
+    () => detailTrendGrain(rangeStart, rangeEnd),
+    [rangeEnd, rangeStart],
   );
   const grainLabel = trendGrain === "month" ? "월별" : "일별";
   const trends = useMemo(
-    () =>
-      buildTrends(rows, filters.startDate, filters.endDate, trendGrain),
-    [rows, filters.startDate, filters.endDate, trendGrain],
+    () => buildTrends(rows, rangeStart, rangeEnd, trendGrain),
+    [rows, rangeStart, rangeEnd, trendGrain],
   );
   const chartData = useMemo(() => {
     const mapped = trends.map((t) => ({
@@ -193,17 +203,18 @@ export default function OperatorDetailPage({
   }
 
   return (
-    <>
+    <div className="detail-page">
       <BackBanner
         href={back.href}
         label={back.label}
         icon={back.icon}
         scopeLabel={scopePart ? "품번" : undefined}
         scopeValue={scopePart?.partNumber}
-        periodStart={filters.startDate}
-        periodEnd={filters.endDate}
+        periodStart={rangeStart}
+        periodEnd={rangeEnd}
       />
-      <PageHeader
+      <DetailHero
+        eyebrow="작업자 상세내역"
         title={operator.name}
         description={
           scopePart
@@ -212,6 +223,15 @@ export default function OperatorDetailPage({
               }`
             : `선택한 기간 기준 · ${scopeLabel}`
         }
+        icon={Users}
+        tone="operator"
+        chips={[
+          { label: "조회기간", value: `${rangeStart} ~ ${rangeEnd}` },
+          { label: "기준", value: scopeLabel },
+          ...(scopePart
+            ? [{ label: "품번", value: scopePart.partNumber }]
+            : []),
+        ]}
       />
       {!scopePart ? (
         <WorkPartSelect
@@ -222,18 +242,20 @@ export default function OperatorDetailPage({
         />
       ) : null}
 
-      <ResponsiveGrid variant="kpi" className="mb-4">
-        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} />
-        <KpiCard title="불량수량" value={formatQuantity(kpi.defectQuantity)} />
+      <ResponsiveGrid variant="kpi" className="detail-kpi-grid mb-4">
+        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} accent="var(--metric-production)" />
+        <KpiCard title="불량수량" value={formatQuantity(kpi.defectQuantity)} accent="var(--metric-defect)" />
         <KpiCard
           title="생산불량률"
           value={formatPercent(kpi.defectRatePercent, 2)}
+          accent="var(--metric-defect)"
         />
-        <KpiCard title="작업시간" value={formatMinutes(kpi.elapsedMinutes)} />
-        <KpiCard title="UPH" value={formatUph(kpi.uph)} />
+        <KpiCard title="작업시간" value={formatMinutes(kpi.elapsedMinutes)} accent="var(--metric-production)" />
+        <KpiCard title="UPH" value={formatUph(kpi.uph)} accent="var(--metric-uph)" />
         <KpiCard
           title="가동률"
           value={formatPercent(kpi.utilizationRatePercent)}
+          accent="var(--metric-util)"
         />
       </ResponsiveGrid>
       <ResponsiveGrid variant="cards" className="mb-4">
@@ -348,6 +370,6 @@ export default function OperatorDetailPage({
           </div>
         )}
       </SectionCard>
-    </>
+    </div>
   );
 }

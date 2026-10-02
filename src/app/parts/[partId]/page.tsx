@@ -8,13 +8,14 @@ import {
   PeriodQtyBarChart,
 } from "@/components/charts/Charts";
 import { KpiCard } from "@/components/ui/KpiCard";
+import { DetailHero } from "@/components/ui/DetailHero";
 import {
   BackBanner,
   EmptyState,
-  PageHeader,
   ResponsiveGrid,
   SectionCard,
 } from "@/components/ui/PageBits";
+import { Package } from "lucide-react";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { getPartById } from "@/data/mock";
@@ -155,30 +156,47 @@ export default function PartDetailPage() {
   }
 
   return (
-    <>
+    <div className="detail-page">
       <BackBanner
         href={back.href}
         label={back.label}
         icon={back.icon}
-        periodStart={filters.startDate}
-        periodEnd={filters.endDate}
+        periodStart={rangeStart}
+        periodEnd={rangeEnd}
       />
-      <PageHeader title={part.partNumber} description={part.productType} />
-      <ResponsiveGrid variant="kpi" className="mb-4">
-        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} />
-        <KpiCard title="불량수량" value={formatQuantity(kpi.defectQuantity)} />
-        <KpiCard title="생산불량률" value={formatPercent(kpi.defectRatePercent, 2)} />
-        <KpiCard title="UPH" value={formatUph(kpi.uph)} />
-        <KpiCard title="가동률" value={formatPercent(kpi.utilizationRatePercent)} />
-        <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} />
-        <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} />
-        <KpiCard title="생산 설비 수" value={`${formatNumber(byEquipment.length)}대`} />
+      <DetailHero
+        eyebrow="품번 상세내역"
+        title={part.partNumber}
+        description={part.productType}
+        icon={Package}
+        tone={
+          part.productType === "SEAL"
+            ? "seal"
+            : part.productType === "GROMMET"
+              ? "grommet"
+              : "part"
+        }
+        chips={[
+          { label: "제품유형", value: part.productType || "-" },
+          { label: "조회기간", value: `${rangeStart} ~ ${rangeEnd}` },
+          { label: "생산 설비", value: `${byEquipment.length}대` },
+        ]}
+      />
+      <ResponsiveGrid variant="kpi" className="detail-kpi-grid mb-4">
+        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} accent="var(--metric-production)" />
+        <KpiCard title="불량수량" value={formatQuantity(kpi.defectQuantity)} accent="var(--metric-defect)" />
+        <KpiCard title="생산불량률" value={formatPercent(kpi.defectRatePercent, 2)} accent="var(--metric-defect)" />
+        <KpiCard title="UPH" value={formatUph(kpi.uph)} accent="var(--metric-uph)" />
+        <KpiCard title="가동률" value={formatPercent(kpi.utilizationRatePercent)} accent="var(--metric-util)" />
+        <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} accent="var(--metric-downtime)" />
+        <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} accent="var(--metric-mttr)" />
+        <KpiCard title="생산 설비 수" value={`${formatNumber(byEquipment.length)}대`} accent="var(--accent)" />
       </ResponsiveGrid>
 
       <SectionCard
         title={`기간별 생산량 추이 (${grainLabel})`}
         description={`${grainLabel} 생산량 추이 · 조회기간 3개월 이상이면 월별, 미만이면 일별`}
-        className="mb-4"
+        className="detail-section detail-trend-section mb-4"
       >
         <PeriodQtyBarChart
           data={chartData}
@@ -188,19 +206,19 @@ export default function PartDetailPage() {
         />
       </SectionCard>
 
-      <ResponsiveGrid variant="split" className="mb-4">
+      <ResponsiveGrid variant="split" className="detail-section mb-4">
         <SectionCard title="비가동 사유">
           {reasons.length > 0 ? (
             <DowntimeReasonDonut data={reasons} />
           ) : (
-            <p className="py-8 text-center text-sm text-[var(--text-secondary)]">
+            <p className="detail-empty">
               조회기간에 비가동 사유가 없습니다.
             </p>
           )}
         </SectionCard>
         <SectionCard title="비가동 발생 이력">
           {downtimeEvents.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--text-secondary)]">
+            <p className="detail-empty">
               조회기간에 비가동 발생 이력이 없습니다.
             </p>
           ) : (
@@ -247,7 +265,7 @@ export default function PartDetailPage() {
         </SectionCard>
       </ResponsiveGrid>
 
-      <SectionCard title="설비별 생산량·가동률" className="mb-4">
+      <SectionCard title="설비별 생산량·가동률" className="detail-section mb-4">
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -283,7 +301,7 @@ export default function PartDetailPage() {
         </div>
       </SectionCard>
 
-      <ResponsiveGrid variant="split" className="mb-4">
+      <ResponsiveGrid variant="split" className="detail-section mb-4">
         <SectionCard title="금형별 실적">
           <div className="table-wrap">
             <table className="data-table">
@@ -347,6 +365,6 @@ export default function PartDetailPage() {
           </div>
         </SectionCard>
       </ResponsiveGrid>
-    </>
+    </div>
   );
 }

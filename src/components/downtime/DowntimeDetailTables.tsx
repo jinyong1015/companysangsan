@@ -7,6 +7,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -189,11 +190,13 @@ function FullscreenTableShell({
   open,
   onClose,
   children,
+  hideTitle = false,
 }: {
   title: string;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  hideTitle?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -214,8 +217,16 @@ function FullscreenTableShell({
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-bold md:text-lg">{title}</h2>
+        <div
+          className={
+            hideTitle
+              ? "mb-3 flex items-center justify-end gap-3"
+              : "mb-3 flex items-center justify-between gap-3"
+          }
+        >
+          {!hideTitle ? (
+            <h2 className="text-base font-bold md:text-lg">{title}</h2>
+          ) : null}
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             <X size={16} />
             <span>닫기</span>
@@ -581,7 +592,14 @@ function EquipmentReliabilityTableView({
   );
 }
 
-const PRODUCT_TABS: Array<"전체" | ProductType> = ["전체", "GROMMET", "SEAL"];
+const PRODUCT_TABS: Array<{
+  value: "전체" | ProductType;
+  tone: "all" | "grommet" | "seal";
+}> = [
+  { value: "전체", tone: "all" },
+  { value: "GROMMET", tone: "grommet" },
+  { value: "SEAL", tone: "seal" },
+];
 
 function ProductTypeTabs({
   value,
@@ -596,25 +614,33 @@ function ProductTypeTabs({
     <div className="dt-product-tabs" role="tablist" aria-label={label}>
       {PRODUCT_TABS.map((opt) => (
         <button
-          key={opt}
+          key={opt.value}
           type="button"
           role="tab"
           className="dt-product-tab"
-          aria-selected={value === opt}
-          data-active={value === opt}
-          onClick={() => onChange(opt)}
+          aria-selected={value === opt.value}
+          data-active={value === opt.value}
+          data-tone={opt.tone}
+          onClick={() => onChange(opt.value)}
         >
-          {opt}
+          {opt.value}
         </button>
       ))}
     </div>
   );
 }
 
-function PeriodReasonOccurrenceView({
+export function PeriodReasonOccurrenceView({
   table,
+  variant = "modal",
+  productTab,
+  onProductTabChange,
 }: {
   table: PeriodReasonTable;
+  /** modal: 비가동분석 전체화면 / dashboard: 대시보드 카드 */
+  variant?: "modal" | "dashboard";
+  productTab?: "전체" | ProductType;
+  onProductTabChange?: (next: "전체" | ProductType) => void;
 }) {
   const rows = buildPeriodReasonOccurrenceRows(table);
   const chartData = rows.map((row) => ({
@@ -622,15 +648,84 @@ function PeriodReasonOccurrenceView({
     minutes: Math.round(row.minutes),
   }));
   const hasData = table.summary.totalMinutes > 0 || table.summary.totalCount > 0;
+  const isDashboard = variant === "dashboard";
+  const showProductTabs =
+    isDashboard && productTab != null && onProductTabChange != null;
+  const tone: "all" | "grommet" | "seal" =
+    productTab === "GROMMET"
+      ? "grommet"
+      : productTab === "SEAL"
+        ? "seal"
+        : "all";
+  const toneBarFill =
+    tone === "grommet"
+      ? "var(--grommet)"
+      : tone === "seal"
+        ? "var(--seal)"
+        : "var(--accent)";
+  const toneBarMuted =
+    tone === "grommet"
+      ? "color-mix(in srgb, var(--grommet) 42%, #cbd5e1)"
+      : tone === "seal"
+        ? "color-mix(in srgb, var(--seal) 42%, #cbd5e1)"
+        : "color-mix(in srgb, var(--accent) 42%, #cbd5e1)";
 
   return (
-    <div className="dt-occur">
-      <div className="dt-occur-banner">비가동 발생 현황</div>
+    <div
+      className={isDashboard ? "util-viz-card dt-occur dt-occur--dash" : "dt-occur"}
+      data-variant={variant}
+      data-tone={isDashboard ? tone : undefined}
+    >
+      {isDashboard ? (
+        <div className="dt-occur-dash-head">
+          <div className="dt-occur-dash-head-main">
+            <h2 className="util-overview-section-title">
+              <span className="dt-occur-dash-title-dot" aria-hidden />
+              비가동 발생 현황
+            </h2>
+            {showProductTabs ? (
+              <ProductTypeTabs
+                value={productTab}
+                onChange={onProductTabChange}
+                label="비가동 발생 현황 GROMMET/SEAL 구분"
+              />
+            ) : null}
+          </div>
+          {hasData ? (
+            <div className="dt-occur-dash-stats" aria-label="합계 요약">
+              <div className="dt-occur-dash-stat">
+                <span className="dt-occur-dash-stat-label">합계 시간</span>
+                <strong className="dt-occur-dash-stat-value num">
+                  {formatNumber(Math.round(table.summary.totalMinutes))}
+                  <span className="dt-occur-dash-stat-unit">min</span>
+                </strong>
+              </div>
+              <div className="dt-occur-dash-stat">
+                <span className="dt-occur-dash-stat-label">합계 횟수</span>
+                <strong className="dt-occur-dash-stat-value num">
+                  {formatNumber(table.summary.totalCount)}
+                  <span className="dt-occur-dash-stat-unit">회</span>
+                </strong>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="dt-occur-banner">비가동 발생 현황</div>
+      )}
       {!hasData ? (
         <p className="dt-occur-empty">표시할 비가동 발생 데이터가 없습니다.</p>
       ) : (
         <div className="dt-occur-body">
           <div className="dt-occur-table-wrap">
+            <div className="dt-occur-legend" aria-label="강조 범례">
+              <span className="dt-occur-legend-item" data-kind="minutes">
+                최다 시간
+              </span>
+              <span className="dt-occur-legend-item" data-kind="count">
+                최다 횟수
+              </span>
+            </div>
             <table className="dt-occur-table">
               <thead>
                 <tr>
@@ -644,32 +739,52 @@ function PeriodReasonOccurrenceView({
                 {rows.map((row) => (
                   <tr
                     key={row.reason}
-                    data-highlight={row.highlight || undefined}
+                    data-top-minutes={row.topMinutes || undefined}
+                    data-top-count={row.topCount || undefined}
                   >
                     <td className="num">{row.rank}</td>
-                    <td>{row.reason}</td>
-                    <td className="num">
+                    <td>
+                      <span className="dt-occur-reason">
+                        {row.reason}
+                        {row.topMinutes ? (
+                          <span className="dt-occur-tag" data-kind="minutes">
+                            최다 시간
+                          </span>
+                        ) : null}
+                        {row.topCount ? (
+                          <span className="dt-occur-tag" data-kind="count">
+                            최다 횟수
+                          </span>
+                        ) : null}
+                      </span>
+                    </td>
+                    <td
+                      className="num"
+                      data-top={row.topMinutes || undefined}
+                    >
                       {row.minutes > 0
                         ? formatNumber(Math.round(row.minutes))
                         : "-"}
                     </td>
-                    <td className="num">
+                    <td className="num" data-top={row.topCount || undefined}>
                       {row.count > 0 ? formatNumber(row.count) : "-"}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr>
-                  <th colSpan={2}>합계</th>
-                  <td className="num">
-                    {formatNumber(Math.round(table.summary.totalMinutes))}
-                  </td>
-                  <td className="num">
-                    {formatNumber(table.summary.totalCount)}
-                  </td>
-                </tr>
-              </tfoot>
+              {!isDashboard ? (
+                <tfoot>
+                  <tr>
+                    <th colSpan={2}>합계</th>
+                    <td className="num">
+                      {formatNumber(Math.round(table.summary.totalMinutes))}
+                    </td>
+                    <td className="num">
+                      {formatNumber(table.summary.totalCount)}
+                    </td>
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </div>
           <div className="dt-occur-chart-wrap">
@@ -721,10 +836,28 @@ function PeriodReasonOccurrenceView({
                   <Bar
                     dataKey="minutes"
                     name="비가동 시간"
-                    fill="#3b82f6"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={42}
-                  />
+                    fill={
+                      isDashboard ? toneBarFill : "var(--metric-production)"
+                    }
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={isDashboard ? 36 : 42}
+                  >
+                    {rows.map((row) => (
+                      <Cell
+                        key={row.reason}
+                        fill={
+                          isDashboard
+                            ? row.topMinutes
+                              ? toneBarFill
+                              : toneBarMuted
+                            : row.topMinutes
+                              ? "var(--metric-downtime)"
+                              : "var(--metric-production)"
+                        }
+                        opacity={row.topMinutes ? 1 : 0.85}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -813,9 +946,15 @@ export function PeriodReasonSection({
         title="비가동 발생 현황"
         open={chartOpen}
         onClose={() => setChartOpen(false)}
+        hideTitle
       >
         <div className="dt-occur-center">
-          <PeriodReasonOccurrenceView table={table} />
+          <PeriodReasonOccurrenceView
+            table={table}
+            variant="dashboard"
+            productTab={productType}
+            onProductTabChange={onProductTypeChange}
+          />
         </div>
       </FullscreenTableShell>
       {summaryTable ? (
@@ -911,21 +1050,148 @@ export function EquipmentReliabilitySection({
   );
 }
 
-function EquipmentFamilyMttrMtbfSummaryTableView({
+export function EquipmentFamilyMttrMtbfSummaryTableView({
   table,
+  variant = "full",
 }: {
   table: EquipmentFamilyMttrMtbfSummaryTable;
+  /** full: 탭+Press/Injection 표 / overall: GROMMET·SEAL 전체 평균만 */
+  variant?: "full" | "overall";
 }) {
   const [tab, setTab] = useState<"GROMMET" | "SEAL">("GROMMET");
+  const [detailOpen, setDetailOpen] = useState<"GROMMET" | "SEAL" | null>(null);
   const group = tab === "GROMMET" ? table.grommet : table.seal;
-  const allRows = [...group.press, ...group.injection];
   const hasPress = group.press.length > 0;
   const hasInjection = group.injection.length > 0;
   const empty = !hasPress && !hasInjection;
-  const grommetCount = table.grommet.press.length + table.grommet.injection.length;
-  const sealCount = table.seal.press.length + table.seal.injection.length;
-  const overallMttr = averageNullable(allRows.map((r) => r.mttrMinutes));
-  const overallMtbf = averageNullable(allRows.map((r) => r.referenceMtbfHours));
+  const grommetRows = [...table.grommet.press, ...table.grommet.injection];
+  const sealRows = [...table.seal.press, ...table.seal.injection];
+  const grommetCount = grommetRows.length;
+  const sealCount = sealRows.length;
+  const grommetMttr = averageNullable(grommetRows.map((r) => r.mttrMinutes));
+  const grommetMtbf = averageNullable(
+    grommetRows.map((r) => r.referenceMtbfHours),
+  );
+  const sealMttr = averageNullable(sealRows.map((r) => r.mttrMinutes));
+  const sealMtbf = averageNullable(sealRows.map((r) => r.referenceMtbfHours));
+
+  const detailGroup =
+    detailOpen === "SEAL" ? table.seal : table.grommet;
+  const detailHasPress = detailGroup.press.length > 0;
+  const detailHasInjection = detailGroup.injection.length > 0;
+
+  const renderOverallCard = (
+    tone: "grommet" | "seal",
+    title: "GROMMET" | "SEAL",
+    count: number,
+    mttr: number | null,
+    mtbf: number | null,
+    showDetailButton: boolean,
+  ) => (
+    <article className="util-eq-overall-avg" data-tone={tone}>
+      <header className="util-eq-overall-avg-head">
+        <h3 className="util-eq-overall-avg-title">
+          <span className="util-eq-overall-avg-dot" aria-hidden />
+          {title} 평균
+        </h3>
+        <div className="util-eq-overall-avg-actions">
+          <span className="util-eq-overall-avg-count">{count}대</span>
+          {showDetailButton ? (
+            <button
+              type="button"
+              className="util-eq-overall-avg-detail"
+              onClick={() => setDetailOpen(title)}
+            >
+              상세
+            </button>
+          ) : null}
+        </div>
+      </header>
+      <div className="util-eq-overall-avg-metrics">
+        <div className="util-eq-overall-avg-metric">
+          <span className="util-eq-overall-avg-metric-label">호기 평균 MTTR</span>
+          <strong className="util-eq-overall-avg-metric-value">
+            {mttr == null ? "-" : formatNumber(mttr, 1)}
+            <span className="util-eq-overall-avg-unit">min</span>
+          </strong>
+        </div>
+        <div className="util-eq-overall-avg-metric">
+          <span className="util-eq-overall-avg-metric-label">호기 평균 MTBF</span>
+          <strong className="util-eq-overall-avg-metric-value">
+            {mtbf == null ? "-" : formatNumber(mtbf, 1)}
+            <span className="util-eq-overall-avg-unit">hr</span>
+          </strong>
+        </div>
+      </div>
+    </article>
+  );
+
+  const overallCards = (withDetail: boolean) => (
+    <div className="util-eq-overall-avg-grid">
+      {renderOverallCard(
+        "grommet",
+        "GROMMET",
+        grommetCount,
+        grommetMttr,
+        grommetMtbf,
+        withDetail,
+      )}
+      {renderOverallCard(
+        "seal",
+        "SEAL",
+        sealCount,
+        sealMttr,
+        sealMtbf,
+        withDetail,
+      )}
+    </div>
+  );
+
+  if (variant === "overall") {
+    return (
+      <>
+        <div className="util-eq-by-product">
+          <h2 className="util-overview-section-title">
+            설비별 MTTR · MTBF
+          </h2>
+          {overallCards(true)}
+        </div>
+        <FullscreenTableShell
+          title={`${detailOpen ?? "GROMMET"} 호기 평균 MTTR · MTBF 상세`}
+          open={detailOpen != null}
+          onClose={() => setDetailOpen(null)}
+        >
+          <div className="util-eq-detail-body">
+            {!detailHasPress && !detailHasInjection ? (
+              <p className="util-eq-by-product-empty">
+                {detailOpen} 라인에 표시할 호기 평균 MTTR·MTBF가 없습니다.
+              </p>
+            ) : (
+              <div
+                className="util-eq-rate-grid"
+                data-single={!detailHasPress || !detailHasInjection}
+              >
+                {detailHasPress ? (
+                  <FamilyMttrMtbfRateTable
+                    title="Press 설비"
+                    rows={detailGroup.press}
+                    tone="press"
+                  />
+                ) : null}
+                {detailHasInjection ? (
+                  <FamilyMttrMtbfRateTable
+                    title="Injection 설비"
+                    rows={detailGroup.injection}
+                    tone="injection"
+                  />
+                ) : null}
+              </div>
+            )}
+          </div>
+        </FullscreenTableShell>
+      </>
+    );
+  }
 
   return (
     <div className="util-eq-by-product">
@@ -963,63 +1229,32 @@ function EquipmentFamilyMttrMtbfSummaryTableView({
         </div>
       </div>
 
+      {overallCards(false)}
+
       {empty ? (
         <p className="util-eq-by-product-empty">
           {tab} 라인에 표시할 호기 평균 MTTR·MTBF가 없습니다.
         </p>
       ) : (
-        <>
-          <div
-            className="util-eq-overall-avg"
-            data-tone={tab === "GROMMET" ? "grommet" : "seal"}
-          >
-            <div className="util-eq-overall-avg-label">
-              {tab} 전체 평균
-              <span className="util-eq-overall-avg-count">
-                {allRows.length}대
-              </span>
-            </div>
-            <div className="util-eq-overall-avg-metrics">
-              <div className="util-eq-overall-avg-metric">
-                <span className="util-eq-overall-avg-metric-label">
-                  호기 평균 MTTR
-                </span>
-                <span className="util-eq-overall-avg-metric-value">
-                  {overallMttr == null ? "-" : formatNumber(overallMttr, 1)}
-                  <span className="util-eq-overall-avg-unit">min</span>
-                </span>
-              </div>
-              <div className="util-eq-overall-avg-metric">
-                <span className="util-eq-overall-avg-metric-label">
-                  호기 평균 MTBF
-                </span>
-                <span className="util-eq-overall-avg-metric-value">
-                  {overallMtbf == null ? "-" : formatNumber(overallMtbf, 1)}
-                  <span className="util-eq-overall-avg-unit">hr</span>
-                </span>
-              </div>
-            </div>
-          </div>
-          <div
-            className="util-eq-rate-grid"
-            data-single={!hasPress || !hasInjection}
-          >
-            {hasPress ? (
-              <FamilyMttrMtbfRateTable
-                title="Press 설비"
-                rows={group.press}
-                tone="press"
-              />
-            ) : null}
-            {hasInjection ? (
-              <FamilyMttrMtbfRateTable
-                title="Injection 설비"
-                rows={group.injection}
-                tone="injection"
-              />
-            ) : null}
-          </div>
-        </>
+        <div
+          className="util-eq-rate-grid"
+          data-single={!hasPress || !hasInjection}
+        >
+          {hasPress ? (
+            <FamilyMttrMtbfRateTable
+              title="Press 설비"
+              rows={group.press}
+              tone="press"
+            />
+          ) : null}
+          {hasInjection ? (
+            <FamilyMttrMtbfRateTable
+              title="Injection 설비"
+              rows={group.injection}
+              tone="injection"
+            />
+          ) : null}
+        </div>
       )}
     </div>
   );

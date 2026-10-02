@@ -496,6 +496,8 @@ export default function UtilizationPage() {
   useEffect(() => {
     if (!ready || pathname !== "/utilization") return;
     setFilters({
+      factory: "전체",
+      productType: "전체",
       equipmentIds: [],
       partIds: [],
       operatorIds: [],
@@ -505,9 +507,18 @@ export default function UtilizationPage() {
     });
   }, [ready, pathname, setFilters]);
 
+  const analysisFilters = useMemo(
+    () => ({
+      ...filters,
+      factory: "전체" as const,
+      productType: "전체" as const,
+    }),
+    [filters],
+  );
+
   const matrix = useMemo(
     () =>
-      buildUtilizationMatrix(records, filters, {
+      buildUtilizationMatrix(records, analysisFilters, {
         equipmentType,
         workPattern,
         metric,
@@ -519,7 +530,7 @@ export default function UtilizationPage() {
       }),
     [
       records,
-      filters,
+      analysisFilters,
       equipmentType,
       workPattern,
       metric,
@@ -550,14 +561,13 @@ export default function UtilizationPage() {
   );
 
   const { overview, trends: dailyTrends, equipmentByProduct } = useMemo(
-    () => buildUtilizationOverviewBundle(records, filters, overviewOptions),
-    [records, filters, overviewOptions],
+    () =>
+      buildUtilizationOverviewBundle(records, analysisFilters, overviewOptions),
+    [records, analysisFilters, overviewOptions],
   );
 
-  const productFilter = filters.productType;
-  const grommetEmphasized =
-    productFilter === "전체" || productFilter === "GROMMET";
-  const sealEmphasized = productFilter === "전체" || productFilter === "SEAL";
+  const grommetEmphasized = true;
+  const sealEmphasized = true;
 
   // 스크롤만 저장. metric 등을 cleanup에서 다시 patch하면 탭 전환 시 이전 값으로 덮어써 루프가 난다.
   useEffect(() => {
@@ -1015,7 +1025,7 @@ export default function UtilizationPage() {
       {matrix.equipment.length === 0 ? (
         <EmptyState
           title="표시할 설비가 없습니다."
-          description="조회기간·공장·제품유형·설비유형 조건을 변경해 주세요."
+          description="조회월·설비유형·근무형태 조건을 변경해 주세요."
           actionLabel="조회조건 초기화"
           onAction={() => {
             resetGlobal();

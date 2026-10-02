@@ -34,14 +34,16 @@ export function formatHours(hours: number | null | undefined): string {
 }
 
 export function formatChangePercent(value: number | null | undefined): string {
-  if (value == null || Number.isNaN(value)) return "이전 기간 0";
-  const sign = value > 0 ? "▲" : value < 0 ? "▼" : "–";
+  if (value == null || Number.isNaN(value)) return "–";
+  if (value === 0) return "– 0%";
+  const sign = value > 0 ? "▲" : "▼";
   return `${sign} ${formatNumber(Math.abs(value), 1)}%`;
 }
 
 export function formatChangePp(value: number | null | undefined): string {
-  if (value == null || Number.isNaN(value)) return "이전 기간 0";
-  const sign = value > 0 ? "▲" : value < 0 ? "▼" : "–";
+  if (value == null || Number.isNaN(value)) return "–";
+  if (value === 0) return "– 0%p";
+  const sign = value > 0 ? "▲" : "▼";
   return `${sign} ${formatNumber(Math.abs(value), 1)}%p`;
 }
 

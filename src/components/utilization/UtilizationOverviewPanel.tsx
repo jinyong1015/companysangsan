@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { formatPercent } from "@/lib/format";
+import { EquipmentFamilyMttrMtbfSummaryTableView } from "@/components/downtime/DowntimeDetailTables";
 import {
   averageEquipmentUtilization,
+  combineProductYieldPercent,
   computeOeePercent,
   loadManualYieldPercent,
   saveManualYieldPercent,
@@ -16,6 +19,7 @@ import {
   type UtilizationMetricSummary,
   type UtilizationOverview,
 } from "@/lib/utilization";
+import type { EquipmentFamilyMttrMtbfSummaryTable } from "@/lib/downtimeDetail";
 
 type MetricKey =
   | "performancePercent"
@@ -47,7 +51,7 @@ const FULL_METRICS: MetricDef[] = [
   },
   {
     key: "oeePercent",
-    label: "종합설비효율",
+    label: "설비종합효율",
     color: "var(--metric-uph)",
   },
 ];
@@ -326,8 +330,12 @@ function ProductOverviewCard({
   emphasized,
   muted,
   metrics: metricKeys = "full",
-  periodKey,
   editableYield = false,
+  manualYield = null,
+  onYieldCommit,
+  onYieldReset,
+  onDetail,
+  tone,
 }: {
   title: string;
   summary: UtilizationMetricSummary;
@@ -335,20 +343,14 @@ function ProductOverviewCard({
   emphasized?: boolean;
   muted?: boolean;
   metrics?: "full" | "rates";
-  periodKey?: string;
   editableYield?: boolean;
+  manualYield?: number | null;
+  onYieldCommit?: (next: number) => void;
+  onYieldReset?: () => void;
+  onDetail?: () => void;
+  tone?: "grommet" | "seal";
 }) {
   const metrics = metricKeys === "rates" ? RATE_METRICS : FULL_METRICS;
-  const [manualYield, setManualYield] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!editableYield || !periodKey) {
-      setManualYield(null);
-      return;
-    }
-    setManualYield(loadManualYieldPercent(periodKey));
-  }, [editableYield, periodKey]);
-
   const yieldPercent = manualYield ?? summary.yieldPercent;
   const oeePercent = computeOeePercent(
     summary.timePercent,
@@ -367,13 +369,30 @@ function ProductOverviewCard({
       data-emphasized={emphasized ?? false}
       data-muted={muted ?? false}
       data-metrics={metricKeys}
+      data-tone={tone}
       aria-label={title}
     >
       <header className="util-overview-product-head">
-        <h3>{title}</h3>
-        {!summary.hasData ? (
-          <span className="util-overview-empty-hint">데이터 없음</span>
-        ) : null}
+        <h3>
+          {tone ? (
+            <span className="util-overview-product-dot" aria-hidden />
+          ) : null}
+          {title}
+        </h3>
+        <div className="util-overview-product-head-actions">
+          {!summary.hasData ? (
+            <span className="util-overview-empty-hint">데이터 없음</span>
+          ) : null}
+          {onDetail ? (
+            <button
+              type="button"
+              className="util-overview-product-detail"
+              onClick={onDetail}
+            >
+              상세
+            </button>
+          ) : null}
+        </div>
       </header>
       <div className="util-overview-metric-grid">
         {metrics.map((m) => (
@@ -388,19 +407,13 @@ function ProductOverviewCard({
               editableYield && m.key === "yieldPercent" && manualYield != null
             }
             onCommit={
-              editableYield && m.key === "yieldPercent" && periodKey
-                ? (next) => {
-                    setManualYield(next);
-                    saveManualYieldPercent(periodKey, next);
-                  }
+              editableYield && m.key === "yieldPercent" && onYieldCommit
+                ? onYieldCommit
                 : undefined
             }
             onReset={
-              editableYield && m.key === "yieldPercent" && periodKey
-                ? () => {
-                    setManualYield(null);
-                    saveManualYieldPercent(periodKey, null);
-                  }
+              editableYield && m.key === "yieldPercent" && onYieldReset
+                ? onYieldReset
                 : undefined
             }
           />
@@ -410,41 +423,59 @@ function ProductOverviewCard({
   );
 }
 
+function EquipmentDetailShell({
+  title,
+  open,
+  onClose,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="dt-fullscreen-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="dt-fullscreen-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-bold md:text-lg">{title}</h2>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            <X size={16} />
+            <span>닫기</span>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function GaugeBlock({
   title,
   summary,
   metrics,
-  periodKey,
-  editableYield = false,
 }: {
   title: string;
   summary: UtilizationMetricSummary;
   metrics: MetricDef[];
-  periodKey?: string;
-  editableYield?: boolean;
 }) {
-  const [manualYield, setManualYield] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!editableYield || !periodKey) {
-      setManualYield(null);
-      return;
-    }
-    setManualYield(loadManualYieldPercent(periodKey));
-  }, [editableYield, periodKey]);
-
-  const yieldPercent = manualYield ?? summary.yieldPercent;
-  const oeePercent = computeOeePercent(
-    summary.timePercent,
-    summary.performancePercent,
-    yieldPercent,
-  );
-  const display: UtilizationMetricSummary = {
-    ...summary,
-    yieldPercent,
-    oeePercent,
-  };
-
   return (
     <div className="util-gauge-block">
       <h3 className="util-gauge-block-title">{title}</h3>
@@ -453,28 +484,8 @@ function GaugeBlock({
           <HorizontalGauge
             key={m.key}
             label={m.label}
-            value={display[m.key]}
+            value={summary[m.key]}
             color={m.color}
-            editable={editableYield && m.key === "yieldPercent"}
-            isManual={
-              editableYield && m.key === "yieldPercent" && manualYield != null
-            }
-            onCommit={
-              editableYield && m.key === "yieldPercent" && periodKey
-                ? (next) => {
-                    setManualYield(next);
-                    saveManualYieldPercent(periodKey, next);
-                  }
-                : undefined
-            }
-            onReset={
-              editableYield && m.key === "yieldPercent" && periodKey
-                ? () => {
-                    setManualYield(null);
-                    saveManualYieldPercent(periodKey, null);
-                  }
-                : undefined
-            }
           />
         ))}
       </div>
@@ -634,7 +645,9 @@ export function UtilizationOverviewPanel({
   grommetEmphasized,
   sealEmphasized,
   equipmentByProduct,
+  mttrMtbfSummary,
   variant = "full",
+  showEquipmentBlock = true,
 }: {
   monthLabel: string;
   overview: UtilizationOverview;
@@ -642,9 +655,56 @@ export function UtilizationOverviewPanel({
   grommetEmphasized: boolean;
   sealEmphasized: boolean;
   equipmentByProduct?: EquipmentUtilizationByProduct;
+  /** 호기 평균 MTTR·MTBF 요약 (GROMMET/SEAL 전체 평균 포함) */
+  mttrMtbfSummary?: EquipmentFamilyMttrMtbfSummaryTable;
   /** full: 전체+제품+설비 / overall: 전체 종합 현황만 */
   variant?: "full" | "overall";
+  /** false면 설비별 가동률은 현황 상세 버튼으로만 연다 (대시보드) */
+  showEquipmentBlock?: boolean;
 }) {
+  const grommetYieldKey = `${monthLabel}::GROMMET`;
+  const sealYieldKey = `${monthLabel}::SEAL`;
+  const [grommetManualYield, setGrommetManualYield] = useState<number | null>(
+    null,
+  );
+  const [sealManualYield, setSealManualYield] = useState<number | null>(null);
+  const [equipmentDetail, setEquipmentDetail] = useState<
+    "GROMMET" | "SEAL" | null
+  >(null);
+
+  useEffect(() => {
+    setGrommetManualYield(loadManualYieldPercent(grommetYieldKey));
+    setSealManualYield(loadManualYieldPercent(sealYieldKey));
+  }, [grommetYieldKey, sealYieldKey]);
+
+  const grommetYield =
+    grommetManualYield ?? overview.grommet.yieldPercent;
+  const sealYield = sealManualYield ?? overview.seal.yieldPercent;
+  const overallYield = combineProductYieldPercent(
+    overview.grommet.productionQuantity,
+    grommetYield,
+    overview.seal.productionQuantity,
+    sealYield,
+  );
+  const overallSummary: UtilizationMetricSummary = {
+    ...overview.allProducts,
+    yieldPercent: overallYield,
+    oeePercent: computeOeePercent(
+      overview.allProducts.timePercent,
+      overview.allProducts.performancePercent,
+      overallYield,
+    ),
+  };
+
+  const detailGroup: EquipmentUtilizationGroup | null =
+    equipmentByProduct == null || equipmentDetail == null
+      ? null
+      : equipmentDetail === "GROMMET"
+        ? equipmentByProduct.grommet
+        : equipmentByProduct.seal;
+  const detailHasPress = (detailGroup?.press.length ?? 0) > 0;
+  const detailHasInjection = (detailGroup?.injection.length ?? 0) > 0;
+
   return (
     <section className="util-overview mb-4" aria-label="종합 가동률 요약">
       <p className="util-overview-month-label">{monthLabel} 종합 현황</p>
@@ -654,10 +714,8 @@ export function UtilizationOverviewPanel({
         <div className="util-gauge-split" data-single="true">
           <GaugeBlock
             title="전체(GROMMET + SEAL)"
-            summary={overview.allProducts}
+            summary={overallSummary}
             metrics={FULL_METRICS}
-            periodKey={monthLabel}
-            editableYield
           />
         </div>
 
@@ -669,30 +727,101 @@ export function UtilizationOverviewPanel({
             <div className="util-overview-products">
               <ProductOverviewCard
                 title="GROMMET 현황"
+                tone="grommet"
                 summary={overview.grommet}
                 daily={trends.grommet}
                 emphasized={grommetEmphasized}
                 muted={!grommetEmphasized}
-                periodKey={`${monthLabel}::GROMMET`}
                 editableYield
+                manualYield={grommetManualYield}
+                onYieldCommit={(next) => {
+                  setGrommetManualYield(next);
+                  saveManualYieldPercent(grommetYieldKey, next);
+                }}
+                onYieldReset={() => {
+                  setGrommetManualYield(null);
+                  saveManualYieldPercent(grommetYieldKey, null);
+                }}
+                onDetail={
+                  equipmentByProduct
+                    ? () => setEquipmentDetail("GROMMET")
+                    : undefined
+                }
               />
               <ProductOverviewCard
                 title="SEAL 현황"
+                tone="seal"
                 summary={overview.seal}
                 daily={trends.seal}
                 emphasized={sealEmphasized}
                 muted={!sealEmphasized}
-                periodKey={`${monthLabel}::SEAL`}
                 editableYield
+                manualYield={sealManualYield}
+                onYieldCommit={(next) => {
+                  setSealManualYield(next);
+                  saveManualYieldPercent(sealYieldKey, next);
+                }}
+                onYieldReset={() => {
+                  setSealManualYield(null);
+                  saveManualYieldPercent(sealYieldKey, null);
+                }}
+                onDetail={
+                  equipmentByProduct
+                    ? () => setEquipmentDetail("SEAL")
+                    : undefined
+                }
               />
             </div>
           </div>
         ) : null}
 
-        {variant === "full" && equipmentByProduct ? (
+        {variant === "full" && mttrMtbfSummary ? (
+          <div className="util-overview-mttr-block">
+            <EquipmentFamilyMttrMtbfSummaryTableView
+              table={mttrMtbfSummary}
+              variant="overall"
+            />
+          </div>
+        ) : null}
+
+        {variant === "full" && equipmentByProduct && showEquipmentBlock ? (
           <EquipmentByProductBlock equipmentByProduct={equipmentByProduct} />
         ) : null}
       </div>
+
+      <EquipmentDetailShell
+        title={`${equipmentDetail ?? "GROMMET"} 설비별 가동률`}
+        open={equipmentDetail != null && detailGroup != null}
+        onClose={() => setEquipmentDetail(null)}
+      >
+        <div className="util-eq-detail-body">
+          {!detailHasPress && !detailHasInjection ? (
+            <p className="util-eq-by-product-empty">
+              조회월에 {equipmentDetail} 설비 가동 데이터가 없습니다.
+            </p>
+          ) : (
+            <div
+              className="util-eq-rate-grid"
+              data-single={!detailHasPress || !detailHasInjection}
+            >
+              {detailHasPress && detailGroup ? (
+                <EquipmentRateTable
+                  title="Press 설비"
+                  rows={detailGroup.press}
+                  tone="press"
+                />
+              ) : null}
+              {detailHasInjection && detailGroup ? (
+                <EquipmentRateTable
+                  title="Injection 설비"
+                  rows={detailGroup.injection}
+                  tone="injection"
+                />
+              ) : null}
+            </div>
+          )}
+        </div>
+      </EquipmentDetailShell>
     </section>
   );
 }

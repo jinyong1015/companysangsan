@@ -295,35 +295,32 @@ function PeriodChartShell({
 }) {
   if (empty) {
     return (
-      <div className="flex h-[240px] items-center justify-center rounded-2xl border border-dashed border-line bg-canvas/50 px-4 text-sm text-muted">
+      <div className="period-chart-shell period-chart-shell--empty">
         표시할 데이터가 없습니다.
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-line/70 bg-surface px-3 pb-3 pt-3">
-      {stats?.length ? (
-        <div className="mb-2 flex flex-wrap gap-2">
-          {stats.map((s) => (
-            <span
-              key={s.label}
-              className="inline-flex items-baseline gap-1.5 rounded-lg border border-line/80 bg-canvas/60 px-2.5 py-1"
-            >
-              <span className="text-[10px] font-medium tracking-wide text-muted uppercase">
-                {s.label}
-              </span>
-              <span className="num text-xs font-semibold text-ink">{s.value}</span>
-            </span>
-          ))}
+    <div className="period-chart-shell">
+      {(stats?.length || legend) ? (
+        <div className="period-chart-toolbar">
+          {stats?.length ? (
+            <div className="period-chart-stats">
+              {stats.map((s) => (
+                <span key={s.label} className="period-chart-stat">
+                  <span className="period-chart-stat-label">{s.label}</span>
+                  <strong className="period-chart-stat-value num">{s.value}</strong>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span />
+          )}
+          {legend ? <div className="period-chart-legend">{legend}</div> : null}
         </div>
       ) : null}
-      {children}
-      {legend ? (
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] font-medium text-muted">
-          {legend}
-        </div>
-      ) : null}
+      <div className="period-chart-body">{children}</div>
     </div>
   );
 }
@@ -353,8 +350,8 @@ export function PeriodQtyBarChart({
         { label: "평균", value: formatNumber(avg) },
       ]}
       legend={
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-blue-300" />
+        <span className="period-chart-legend-item">
+          <span className="period-chart-legend-swatch" data-tone="production" />
           {metricLabel}
         </span>
       }
@@ -365,6 +362,12 @@ export function PeriodQtyBarChart({
             data={data}
             margin={{ top: showValueLabels ? 28 : 12, right: 20, left: 8, bottom: 0 }}
           >
+            <defs>
+              <linearGradient id="periodQtyBarFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.95} />
+                <stop offset="100%" stopColor="#93c5fd" stopOpacity={0.75} />
+              </linearGradient>
+            </defs>
             <CartesianGrid
               stroke="color-mix(in srgb, var(--border) 85%, #e5eaf1)"
               strokeDasharray="4 4"
@@ -398,9 +401,9 @@ export function PeriodQtyBarChart({
             <Bar
               dataKey="qty"
               name={metricLabel}
-              fill="#93c5fd"
-              radius={[7, 7, 2, 2]}
-              maxBarSize={30}
+              fill="url(#periodQtyBarFill)"
+              radius={[8, 8, 3, 3]}
+              maxBarSize={34}
             >
               {showValueLabels ? (
                 <LabelList
@@ -891,22 +894,37 @@ function ProductTrendPanel({
 }
 
 /** GROMMET / SEAL 분리 패널 생산변동 추이 */
+export type ProductTrendMonthSummary = {
+  collectLabel: string;
+  partKindCount: number;
+  productionQuantity: number;
+  avgShot: number;
+  /** 총 SHOT ÷ 품번별 작업일수 합 (TOP&WORST와 동일) */
+  dailyAvgShots: number;
+};
+
 export function PeriodProductSplitTrendCharts({
   data,
   height = 260,
   periodLabel = "월",
   metricLabel = "생산량",
   formatValue,
+  summaries,
 }: {
   data: ProductTrendPoint[];
   height?: number;
   periodLabel?: string;
   metricLabel?: string;
   formatValue?: (v: number) => string;
+  /** 지정 시 제품별 월 요약 표를 차트 위에 한 쌍으로 표시 */
+  summaries?: Partial<
+    Record<"GROMMET" | "SEAL", ProductTrendMonthSummary | null>
+  >;
 }) {
   const format = formatValue ?? ((v: number) => formatQuantity(v));
+  const paired = summaries != null;
 
-  if (!data.length) {
+  if (!data.length && !paired) {
     return (
       <div className="flex h-[240px] items-center justify-center rounded-2xl border border-dashed border-line bg-canvas/50 px-4 text-sm text-muted">
         표시할 데이터가 없습니다.
@@ -915,19 +933,65 @@ export function PeriodProductSplitTrendCharts({
   }
 
   return (
-    <div className="product-trend-split">
-      {PRODUCT_TREND_SERIES.map((s) => (
-        <ProductTrendPanel
-          key={s.key}
-          title={s.key}
-          color={s.color}
-          data={data.map((d) => ({ label: d.label, value: d[s.key] }))}
-          height={height}
-          periodLabel={periodLabel}
-          metricLabel={metricLabel}
-          formatValue={format}
-        />
-      ))}
+    <div
+      className={
+        paired
+          ? "product-trend-split product-trend-split--stack"
+          : "product-trend-split"
+      }
+    >
+      {PRODUCT_TREND_SERIES.map((s) => {
+        const summary = summaries?.[s.key] ?? null;
+        return (
+          <div
+            key={s.key}
+            className="product-trend-pair-col"
+            data-tone={s.key === "GROMMET" ? "grommet" : "seal"}
+          >
+            {paired ? (
+              <div className="pvt-month-summary-wrap" data-tone={s.key === "GROMMET" ? "grommet" : "seal"}>
+                <table className="pvt-month-summary-table">
+                  <thead>
+                    <tr>
+                      <th>DATA 수집일</th>
+                      <th>품목수량</th>
+                      <th>생산수량(EA)</th>
+                      <th>평균 SHOT(hr)</th>
+                      <th>평균 SHOT(日)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary ? (
+                      <tr>
+                        <td>{summary.collectLabel}</td>
+                        <td>{formatNumber(summary.partKindCount)}</td>
+                        <td>{formatNumber(summary.productionQuantity)}</td>
+                        <td>{formatNumber(summary.avgShot, 1)}</td>
+                        <td>{formatNumber(Math.round(summary.dailyAvgShots))}</td>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="pvt-month-summary-empty">
+                          데이터 없음
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+            <ProductTrendPanel
+              title={s.key}
+              color={s.color}
+              data={data.map((d) => ({ label: d.label, value: d[s.key] }))}
+              height={height}
+              periodLabel={periodLabel}
+              metricLabel={metricLabel}
+              formatValue={format}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

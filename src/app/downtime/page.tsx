@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { DowntimeReasonDonut } from "@/components/charts/Charts";
 import {
@@ -14,7 +13,6 @@ import {
   DowntimeHeatmapExcelButton,
 } from "@/components/downtime/DowntimeEquipmentHeatmap";
 import { DowntimeReasonDetailList } from "@/components/downtime/DowntimeReasonDetailList";
-import { DowntimeTopPartsChart } from "@/components/downtime/DowntimeTopPartsChart";
 import { QueryFilterShell } from "@/components/filters/FilterCards";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
@@ -37,10 +35,6 @@ import type {
   DowntimeHeatmapProductTab,
   DowntimeHeatmapSelection,
 } from "@/lib/downtimeHeatmap";
-import type {
-  DowntimeTopPartsProductTab,
-  DowntimeTopPartsView,
-} from "@/lib/downtimeTopParts";
 import {
   formatMinutes,
   formatNumber,
@@ -54,7 +48,7 @@ import {
   sortBy,
 } from "@/lib/metrics";
 import { inferEquipmentType, monthDateRange, filterByEquipmentProductLine } from "@/lib/utilization";
-import { withFromParam, withPeriodParams } from "@/lib/navigation";
+import { withFromParam } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
 import type { EquipmentType, GlobalFilters, ProductType, ProductionRecord } from "@/types";
 
@@ -67,10 +61,6 @@ function isProductTab(value: unknown): value is ProductTab {
 
 function isEqTypeFilter(value: unknown): value is EqTypeFilter {
   return value === "전체" || value === "PRESS" || value === "INJECTION";
-}
-
-function isTopPartsView(value: unknown): value is DowntimeTopPartsView {
-  return value === "rank" || value === "bar" || value === "pareto";
 }
 
 function isHeatmapMetric(value: unknown): value is DowntimeHeatmapMetric {
@@ -92,7 +82,6 @@ function filterByEquipmentType(
 }
 
 export default function DowntimePage() {
-  const router = useRouter();
   const { filters, setFilters, resetGlobal } = useFilters();
   const { records } = useDataSource();
   const { pushToast } = useToast();
@@ -183,18 +172,6 @@ export default function DowntimePage() {
     ? state.extra.reliabilityProductTab
     : "전체";
 
-  const topPartsProductTab: DowntimeTopPartsProductTab = isProductTab(
-    state.extra?.topPartsProductTab,
-  )
-    ? state.extra.topPartsProductTab
-    : "전체";
-
-  const topPartsView: DowntimeTopPartsView = isTopPartsView(
-    state.extra?.topPartsView,
-  )
-    ? state.extra.topPartsView
-    : "rank";
-
   const heatmapProductTab: DowntimeHeatmapProductTab = isProductTab(
     state.extra?.heatmapProductTab,
   )
@@ -269,18 +246,6 @@ export default function DowntimePage() {
     [records, queryFilters, reliabilityProductTab, equipmentType],
   );
 
-  const topPartsRecords = useMemo(
-    () =>
-      filterByEquipmentType(
-        filterRecords(records, {
-          ...queryFilters,
-          productType: topPartsProductTab,
-        }),
-        equipmentType,
-      ),
-    [records, queryFilters, topPartsProductTab, equipmentType],
-  );
-
   const productTypeSummary = useMemo(
     () =>
       buildProductTypeDowntimeSummary(
@@ -353,14 +318,6 @@ export default function DowntimePage() {
     setExtra({ reliabilityProductTab: next });
   };
 
-  const setTopPartsProductTab = (next: DowntimeTopPartsProductTab) => {
-    setExtra({ topPartsProductTab: next });
-  };
-
-  const setTopPartsView = (next: DowntimeTopPartsView) => {
-    setExtra({ topPartsView: next });
-  };
-
   const setHeatmapProductTab = (next: DowntimeHeatmapProductTab) => {
     setExtra({
       heatmapProductTab: next,
@@ -399,21 +356,6 @@ export default function DowntimePage() {
     });
   };
 
-  const openTopPartDetail = (partId: string) => {
-    const range = monthDateRange(yearMonth);
-    setExtra({ yearMonth });
-    router.push(
-      withFromParam(
-        withPeriodParams(
-          `/parts/${encodeURIComponent(partId)}`,
-          range.startDate,
-          range.endDate,
-        ),
-        "downtime",
-      ),
-    );
-  };
-
   const resetQuery = () => {
     setFilters({
       equipmentIds: [],
@@ -427,8 +369,6 @@ export default function DowntimePage() {
       equipmentType: "전체",
       periodProductTab: "전체",
       reliabilityProductTab: "전체",
-      topPartsProductTab: "전체",
-      topPartsView: "rank",
       heatmapProductTab: "전체",
       heatmapMetric: "minutes",
       heatmapSelDate: null,
@@ -576,15 +516,6 @@ export default function DowntimePage() {
           />
         </SectionCard>
       </div>
-
-      <DowntimeTopPartsChart
-        records={topPartsRecords}
-        productTab={topPartsProductTab}
-        onProductTabChange={setTopPartsProductTab}
-        view={topPartsView}
-        onViewChange={setTopPartsView}
-        onOpenPart={openTopPartDetail}
-      />
 
       <PeriodReasonSection
         table={periodTable}

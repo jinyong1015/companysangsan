@@ -13,13 +13,14 @@ import { ToastProvider } from "@/context/ToastContext";
 
 function shouldShowGlobalFilters(pathname: string) {
   if (pathname.startsWith("/manage")) return false;
+  if (pathname === "/utilization") return false;
   if (pathname.startsWith("/downtime/") && pathname !== "/downtime") return false;
   return true;
 }
 
-/** 가동률·비가동은 화면 내 조회월로 기간을 제어한다 */
+/** 비가동은 화면 내 조회월로 기간을 제어한다 */
 function shouldHideGlobalPeriod(pathname: string) {
-  return pathname === "/utilization" || pathname === "/downtime";
+  return pathname === "/downtime";
 }
 
 function AppShell({ children }: { children: React.ReactNode }) {

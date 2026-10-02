@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { DowntimeReasonDonut } from "@/components/charts/Charts";
 import { KpiCard } from "@/components/ui/KpiCard";
+import { DetailHero } from "@/components/ui/DetailHero";
 import {
   BackBanner,
   EmptyState,
-  PageHeader,
   ResponsiveGrid,
   SectionCard,
 } from "@/components/ui/PageBits";
+import { Factory } from "lucide-react";
 import { WorkPartSelect } from "@/components/ui/WorkPartSelect";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
@@ -125,17 +126,28 @@ export default function EquipmentDetailPage() {
   }
 
   return (
-    <>
+    <div className="detail-page">
       <BackBanner
         href={back.href}
         label={back.label}
         icon={back.icon}
-        periodStart={filters.startDate}
-        periodEnd={filters.endDate}
+        periodStart={periodStart || filters.startDate}
+        periodEnd={periodEnd || filters.endDate}
       />
-      <PageHeader
+      <DetailHero
+        eyebrow="설비 상세내역"
         title={equipment.name}
         description={`${equipment.factory} · ${scopeLabel}`}
+        icon={Factory}
+        tone="equipment"
+        chips={[
+          { label: "공장", value: equipment.factory },
+          { label: "기준", value: scopeLabel },
+          {
+            label: "조회기간",
+            value: `${periodStart || filters.startDate} ~ ${periodEnd || filters.endDate}`,
+          },
+        ]}
       />
 
       <WorkPartSelect
@@ -145,12 +157,12 @@ export default function EquipmentDetailPage() {
         selectId="equipment-product-select"
       />
 
-      <ResponsiveGrid variant="kpi" className="mb-4">
-        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} />
-        <KpiCard title="가동률" value={formatPercent(kpi.utilizationRatePercent)} />
-        <KpiCard title="UPH" value={formatUph(kpi.uph)} />
-        <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} />
-        <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} />
+      <ResponsiveGrid variant="kpi" className="detail-kpi-grid mb-4">
+        <KpiCard title="생산량" value={formatQuantity(kpi.productionQuantity)} accent="var(--metric-production)" />
+        <KpiCard title="가동률" value={formatPercent(kpi.utilizationRatePercent)} accent="var(--metric-util)" />
+        <KpiCard title="UPH" value={formatUph(kpi.uph)} accent="var(--metric-uph)" />
+        <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} accent="var(--metric-downtime)" />
+        <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} accent="var(--metric-mttr)" />
       </ResponsiveGrid>
 
       <ResponsiveGrid variant="split" className="mb-4">
@@ -195,6 +207,6 @@ export default function EquipmentDetailPage() {
           </div>
         </SectionCard>
       </ResponsiveGrid>
-    </>
+    </div>
   );
 }

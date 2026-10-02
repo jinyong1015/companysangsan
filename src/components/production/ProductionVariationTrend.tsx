@@ -35,6 +35,8 @@ type Props = {
    * (예: 12 → 이번 달 포함 최근 12개월)
    */
   lastMonths?: number;
+  /** 섹션 설명 (미지정 시 lastMonths 안내 또는 없음) */
+  description?: string;
 };
 
 const METRIC_OPTIONS: { key: ProductionTrendMetric; label: string }[] = [
@@ -61,6 +63,7 @@ export function ProductionVariationTrend({
   className = "mb-4",
   filtersOverride,
   lastMonths,
+  description,
 }: Props) {
   const { filters: globalFilters } = useFilters();
   const { records } = useDataSource();
@@ -86,6 +89,11 @@ export function ProductionVariationTrend({
     lastMonths != null && lastMonths > 0
       ? `${grainLabel} 생산변동 추이 (최근 ${lastMonths}개월)`
       : `${grainLabel} 생산변동 추이`;
+  const sectionDescription =
+    description ??
+    (lastMonths != null && lastMonths > 0
+      ? `상단 조회기간과 무관하게 오늘 기준 최근 ${lastMonths}개월을 표시합니다.`
+      : undefined);
 
   const trendsByProduct = useMemo(() => {
     if (invalidRange) return [];
@@ -129,6 +137,37 @@ export function ProductionVariationTrend({
         },
       };
     });
+  }, [filters, grain, invalidRange, records]);
+
+  /** 일별 추이(대시보드): GROMMET/SEAL 각각 해당 월 요약 */
+  const monthSummaries = useMemo(() => {
+    if (invalidRange || grain !== "day") return undefined;
+    const toSummary = (productType: "GROMMET" | "SEAL") => {
+      const rows = buildMonthlyDashboardTrends(
+        filterRecords(records, { ...filters, productType }),
+        filters.startDate,
+        filters.endDate,
+        "month",
+      );
+      const row = rows[0];
+      if (!row) return null;
+      let collectLabel = row.label;
+      if (/^\d{4}-\d{2}$/.test(row.period)) {
+        const month = Number(row.period.split("-")[1]);
+        collectLabel = `${month}월`;
+      }
+      return {
+        collectLabel,
+        partKindCount: row.partKindCount,
+        productionQuantity: row.productionQuantity,
+        avgShot: row.avgShot,
+        dailyAvgShots: row.dailyAvgShots,
+      };
+    };
+    return {
+      GROMMET: toSummary("GROMMET"),
+      SEAL: toSummary("SEAL"),
+    };
   }, [filters, grain, invalidRange, records]);
 
   const chart = useMemo(() => {
@@ -244,15 +283,11 @@ export function ProductionVariationTrend({
   return (
     <SectionCard
       title={title}
-      description={
-        lastMonths != null && lastMonths > 0
-          ? `상단 조회기간과 무관하게 오늘 기준 최근 ${lastMonths}개월을 표시합니다.`
-          : undefined
-      }
-      className={className}
+      description={sectionDescription}
+      className={["pvt-section", className].filter(Boolean).join(" ")}
       action={
         <div
-          className="flex flex-wrap justify-end gap-2"
+          className="pvt-metric-tabs"
           role="tablist"
           aria-label={`${grainLabel} 생산변동 지표`}
         >
@@ -262,8 +297,9 @@ export function ProductionVariationTrend({
               type="button"
               role="tab"
               aria-selected={metric === opt.key}
-              className="pill"
+              className="pvt-metric-tab"
               data-active={metric === opt.key}
+              data-metric={opt.key}
               onClick={() => setMetric(opt.key)}
             >
               {opt.label}
@@ -278,6 +314,7 @@ export function ProductionVariationTrend({
         metricLabel={chart.metricLabel}
         formatValue={chart.formatValue}
         height={260}
+        summaries={monthSummaries}
       />
     </SectionCard>
   );

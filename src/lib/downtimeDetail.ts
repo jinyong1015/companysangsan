@@ -61,8 +61,10 @@ export interface PeriodReasonOccurrenceRow {
   reason: string;
   minutes: number;
   count: number;
-  /** 최다 시간·최다 횟수 행 강조 */
-  highlight: boolean;
+  /** 최다 비가동시간 */
+  topMinutes: boolean;
+  /** 최다 비가동횟수 */
+  topCount: boolean;
 }
 
 /** 사유 컬럼 순서로 발생 현황 행을 만든다. */
@@ -80,15 +82,13 @@ export function buildPeriodReasonOccurrenceRows(
   return reasonColumns.map((reason, index) => {
     const minutes = summary.minutesByReason[reason] ?? 0;
     const count = summary.countByReason[reason] ?? 0;
-    const highlight =
-      (maxMinutes > 0 && minutes === maxMinutes) ||
-      (maxCount > 0 && count === maxCount);
     return {
       rank: index + 1,
       reason,
       minutes,
       count,
-      highlight,
+      topMinutes: maxMinutes > 0 && minutes === maxMinutes,
+      topCount: maxCount > 0 && count === maxCount,
     };
   });
 }
@@ -223,7 +223,9 @@ export interface EquipmentFamilyMttrMtbfSummaryTable {
   seal: EquipmentFamilyMttrMtbfSummaryGroup;
 }
 
-/** 호기 평균 MTTR·MTBF를 GROMMET/SEAL · PRESS/INJECTION으로 나눠 요약한다. */
+/** 호기 평균 MTTR·MTBF를 GROMMET/SEAL · PRESS/INJECTION으로 나눠 요약한다.
+ * 해당 기간 설비는 모두 포함하며, MTTR·MTBF가 없는 행은 표에 "-"로 두고 평균에는 넣지 않는다.
+ */
 export function buildEquipmentFamilyMttrMtbfSummary(
   table: EquipmentReliabilityTable,
 ): EquipmentFamilyMttrMtbfSummaryTable {
@@ -235,16 +237,21 @@ export function buildEquipmentFamilyMttrMtbfSummary(
     if (!row.equipmentId) continue;
     const span = spans.get(row.equipmentId);
     if (!span || span.rowSpan <= 0) continue;
-    if (span.mttrMinutes == null && span.referenceMtbfHours == null) continue;
     const label = span.familyLabel ?? row.equipmentName;
+    const equipmentType = inferEquipmentType(row.equipmentName);
+    /** PRESS 단일은 family span에서 지표를 비우므로 원본 호기 값을 사용 */
+    const useRawMetrics =
+      span.familyLabel == null && equipmentType === "PRESS";
     rows.push({
       factory: String(row.factory),
       label,
       equipmentName: row.equipmentName,
-      equipmentType: inferEquipmentType(row.equipmentName),
+      equipmentType,
       unitCount: span.rowSpan,
-      mttrMinutes: span.mttrMinutes,
-      referenceMtbfHours: span.referenceMtbfHours,
+      mttrMinutes: useRawMetrics ? row.mttrMinutes : span.mttrMinutes,
+      referenceMtbfHours: useRawMetrics
+        ? row.referenceMtbfHours
+        : span.referenceMtbfHours,
     });
   }
 

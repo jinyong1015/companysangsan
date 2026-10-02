@@ -91,7 +91,7 @@ export interface UtilizationCell {
   performanceUtilizationPercent: number | null;
   /** 양품률 = 실적수량 ÷ (실적수량 + 불량수량) × 100 */
   yieldRatePercent: number | null;
-  /** 종합설비효율(OEE) = 시간 × MIN(성능,100) × 양품 */
+  /** 설비종합효율(OEE) = 시간 × MIN(성능,100) × 양품 */
   oeePercent: number | null;
   /** 기존 가동률 = 가동시간 ÷ 작업시간 × 100 */
   utilizationRatePercent: number | null;
@@ -401,7 +401,42 @@ export function computeYieldRatePercent(
 }
 
 /**
- * 종합설비효율(OEE) = 시간가동률 × MIN(성능가동률, 100%) × 양품률.
+ * GROMMET/SEAL 양품률을 실적수량 가중으로 합산.
+ * 실적 고정 시 Y = P/(P+D) 항등식과 일치: (Pg+Ps) / (Pg/Yg + Ps/Ys) (Y는 %).
+ */
+export function combineProductYieldPercent(
+  grommetProduction: number,
+  grommetYield: number | null,
+  sealProduction: number,
+  sealYield: number | null,
+): number | null {
+  const parts: { production: number; yieldPercent: number }[] = [];
+  if (grommetYield != null) {
+    parts.push({ production: Math.max(0, grommetProduction), yieldPercent: grommetYield });
+  }
+  if (sealYield != null) {
+    parts.push({ production: Math.max(0, sealProduction), yieldPercent: sealYield });
+  }
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return parts[0]!.yieldPercent;
+
+  const totalProduction = parts.reduce((s, p) => s + p.production, 0);
+  if (totalProduction <= 0) {
+    return parts.reduce((s, p) => s + p.yieldPercent, 0) / parts.length;
+  }
+
+  let denom = 0;
+  for (const p of parts) {
+    if (p.production <= 0) continue;
+    if (p.yieldPercent <= 0) return 0;
+    denom += p.production / p.yieldPercent;
+  }
+  if (denom <= 0) return 0;
+  return totalProduction / denom;
+}
+
+/**
+ * 설비종합효율(OEE) = 시간가동률 × MIN(성능가동률, 100%) × 양품률.
  * 화면의 성능가동률은 그대로 두고, OEE 계산에만 100% 상한을 적용한다.
  */
 export function computeOeePercent(
@@ -418,7 +453,7 @@ export function computeOeePercent(
 
 const MANUAL_YIELD_STORAGE_KEY = "production-analytics-manual-yield-v1";
 
-/** 전체 종합 현황 양품률 수기 값 (기간 키별). null이면 자동 계산값 사용 */
+/** 제품유형(GROMMET/SEAL) 양품률 수기 값 (기간 키별). null이면 자동 계산값 사용 */
 export function loadManualYieldPercent(periodKey: string): number | null {
   if (typeof window === "undefined" || !periodKey) return null;
   try {
