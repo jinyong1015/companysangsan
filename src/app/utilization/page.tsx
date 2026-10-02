@@ -6,6 +6,7 @@ import { format, parseISO } from "date-fns";
 import { QueryFilterShell } from "@/components/filters/FilterCards";
 import { UtilizationOverviewPanel } from "@/components/utilization/UtilizationOverviewPanel";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
+import { useAdmin } from "@/context/AdminContext";
 import { useDataSource } from "@/context/DataSourceContext";
 import { useFilters } from "@/context/FilterContext";
 import { useToast } from "@/context/ToastContext";
@@ -437,6 +438,7 @@ export default function UtilizationPage() {
   const { filters, setFilters, resetGlobal, resetDetail } = useFilters();
   const { records } = useDataSource();
   const { pushToast } = useToast();
+  const { isAdmin, openLogin } = useAdmin();
   const pathname = usePathname();
   const { state, patch, ready } = usePageState("utilization", "date", "asc");
   usePreserveGlobalPeriod(ready);
@@ -455,6 +457,26 @@ export default function UtilizationPage() {
       : loadTargetShotCounts(),
   );
   const [editTargets, setEditTargets] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) setEditTargets(false);
+  }, [isAdmin]);
+
+  const toggleEditTargets = () => {
+    if (editTargets) {
+      setEditTargets(false);
+      return;
+    }
+    if (!isAdmin) {
+      pushToast(
+        "목표 가동시간·작업판수 설정 변경은 관리자 모드에서만 가능합니다.",
+        "info",
+      );
+      openLogin();
+      return;
+    }
+    setEditTargets(true);
+  };
 
   const metric: UtilizationMetric =
     state.extra?.metric === "performance" ? "performance" : "time";
@@ -642,12 +664,28 @@ export default function UtilizationPage() {
   };
 
   const saveTargets = () => {
+    if (!isAdmin) {
+      pushToast(
+        "목표 가동시간 설정 변경은 관리자 모드에서만 가능합니다.",
+        "info",
+      );
+      openLogin();
+      return;
+    }
     saveTargetMinutes(targetSettings);
     setEditTargets(false);
     pushToast("목표 가동시간 설정을 저장했습니다.", "success");
   };
 
   const saveShotTargets = () => {
+    if (!isAdmin) {
+      pushToast(
+        "목표 작업판수 설정 변경은 관리자 모드에서만 가능합니다.",
+        "info",
+      );
+      openLogin();
+      return;
+    }
     saveTargetShotCounts(shotSettings);
     setEditTargets(false);
     pushToast("목표 작업판수 설정을 저장했습니다.", "success");
@@ -658,6 +696,7 @@ export default function UtilizationPage() {
     key: WorkPattern,
     raw: string,
   ) => {
+    if (!isAdmin) return;
     const next: TargetMinutesSettings = {
       ...targetSettings,
       [dayKind]: {
@@ -675,6 +714,7 @@ export default function UtilizationPage() {
     shift: PerformanceShiftPattern,
     raw: string,
   ) => {
+    if (!isAdmin) return;
     const trimmed = raw.trim();
     let nextValue: number | null = null;
     if (trimmed !== "") {
@@ -836,8 +876,10 @@ export default function UtilizationPage() {
               <div>
                 <h2 className="text-base font-bold">목표 가동시간 기준</h2>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                  평일·주말과 주간/야간/주간+야간에 따라 적용됩니다. 변경 값은
-                  바로 저장되며 히트맵에 반영됩니다.
+                  평일·주말과 주간/야간/주간+야간에 따라 적용됩니다.
+                  {isAdmin
+                    ? " 변경 값은 바로 저장되며 히트맵에 반영됩니다."
+                    : " 설정 변경은 관리자 모드에서만 가능합니다."}
                 </p>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex flex-wrap gap-x-3 gap-y-1">
@@ -871,12 +913,17 @@ export default function UtilizationPage() {
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setEditTargets((v) => !v)}
+                onClick={toggleEditTargets}
+                title={
+                  isAdmin
+                    ? undefined
+                    : "설정 변경은 관리자 모드에서만 가능합니다."
+                }
               >
-                {editTargets ? "닫기" : "설정 변경"}
+                {editTargets ? "닫기" : isAdmin ? "설정 변경" : "설정 변경 (관리자)"}
               </button>
             </div>
-            {editTargets ? (
+            {editTargets && isAdmin ? (
               <div className="mt-4 space-y-4">
                 {(
                   [
@@ -927,15 +974,22 @@ export default function UtilizationPage() {
                 <h2 className="text-base font-bold">목표 작업판수 기준</h2>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
                   SEAL·GROMMET PRESS 기본 240/120판. SEAL에는 INJECTION이 없습니다.
-                  변경 값은 바로 저장·반영됩니다.
+                  {isAdmin
+                    ? " 변경 값은 바로 저장·반영됩니다."
+                    : " 설정 변경은 관리자 모드에서만 가능합니다."}
                 </p>
               </div>
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setEditTargets((v) => !v)}
+                onClick={toggleEditTargets}
+                title={
+                  isAdmin
+                    ? undefined
+                    : "설정 변경은 관리자 모드에서만 가능합니다."
+                }
               >
-                {editTargets ? "닫기" : "설정 변경"}
+                {editTargets ? "닫기" : isAdmin ? "설정 변경" : "설정 변경 (관리자)"}
               </button>
             </div>
             <div className="mt-3 overflow-x-auto">
@@ -957,7 +1011,7 @@ export default function UtilizationPage() {
                         <td>{equipment}</td>
                         <td>{shift}</td>
                         <td className="num">
-                          {editTargets ? (
+                          {editTargets && isAdmin ? (
                             <input
                               type="number"
                               min={1}
@@ -985,7 +1039,7 @@ export default function UtilizationPage() {
                 </tbody>
               </table>
             </div>
-            {editTargets ? (
+            {editTargets && isAdmin ? (
               <div className="mt-3">
                 <button
                   type="button"

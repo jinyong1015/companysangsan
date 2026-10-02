@@ -1083,7 +1083,6 @@ export function EquipmentFamilyMttrMtbfSummaryTableView({
   const renderOverallCard = (
     tone: "grommet" | "seal",
     title: "GROMMET" | "SEAL",
-    count: number,
     mttr: number | null,
     mtbf: number | null,
     showDetailButton: boolean,
@@ -1095,7 +1094,6 @@ export function EquipmentFamilyMttrMtbfSummaryTableView({
           {title} 평균
         </h3>
         <div className="util-eq-overall-avg-actions">
-          <span className="util-eq-overall-avg-count">{count}대</span>
           {showDetailButton ? (
             <button
               type="button"
@@ -1131,7 +1129,6 @@ export function EquipmentFamilyMttrMtbfSummaryTableView({
       {renderOverallCard(
         "grommet",
         "GROMMET",
-        grommetCount,
         grommetMttr,
         grommetMtbf,
         withDetail,
@@ -1139,7 +1136,6 @@ export function EquipmentFamilyMttrMtbfSummaryTableView({
       {renderOverallCard(
         "seal",
         "SEAL",
-        sealCount,
         sealMttr,
         sealMtbf,
         withDetail,
@@ -1277,14 +1273,12 @@ function FamilyMttrMtbfRateTable({
       <table className="util-eq-rate-table">
         <thead>
           <tr>
-            <th colSpan={4}>
+            <th colSpan={3}>
               {title}
-              <span className="util-eq-rate-title-count">{rows.length}대</span>
             </th>
           </tr>
           <tr>
             <th>공정</th>
-            <th className="num">호기 수</th>
             <th className="num">호기 평균 MTTR (min)</th>
             <th className="num">호기 평균 MTBF (hr)</th>
           </tr>
@@ -1296,7 +1290,6 @@ function FamilyMttrMtbfRateTable({
                 {row.label}
                 <span className="dt-family-sum-factory"> · {row.factory}</span>
               </td>
-              <td className="num">{formatNumber(row.unitCount)}</td>
               <td className="num">
                 {row.mttrMinutes == null
                   ? "-"
@@ -1313,7 +1306,6 @@ function FamilyMttrMtbfRateTable({
         <tfoot>
           <tr>
             <th scope="row">평균</th>
-            <td className="num">-</td>
             <td className="num">
               {avgMttr == null ? "-" : formatNumber(avgMttr, 1)}
             </td>
