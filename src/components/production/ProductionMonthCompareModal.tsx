@@ -15,6 +15,7 @@ type ProductionMonthRow = {
   label: string;
   partKindCount: number;
   productionQuantity: number;
+  avgShot: number;
   dailyAvgShots: number;
 };
 
@@ -89,6 +90,7 @@ function summarizeMonth(
     label: shortMonthLabel(yearMonth),
     partKindCount: point?.partKindCount ?? 0,
     productionQuantity: point?.productionQuantity ?? 0,
+    avgShot: point?.avgShot ?? 0,
     dailyAvgShots: point?.dailyAvgShots ?? 0,
   };
 }
@@ -146,6 +148,7 @@ export function ProductionMonthCompareModal({
           base.productionQuantity,
           compare.productionQuantity,
         ),
+        avgShot: delta(base.avgShot, compare.avgShot),
         dailyAvgShots: delta(base.dailyAvgShots, compare.dailyAvgShots),
       },
     };
@@ -262,6 +265,7 @@ export function ProductionMonthCompareModal({
                 <th>DATA 수집일</th>
                 <th>품목수량</th>
                 <th>생산수량(EA)</th>
+                <th>평균 SHOT(hr)</th>
                 <th>평균 SHOT(日)</th>
               </tr>
             </thead>
@@ -270,12 +274,14 @@ export function ProductionMonthCompareModal({
                 <th scope="row">{rows.base.label}</th>
                 <td>{formatNumber(rows.base.partKindCount, 0)}</td>
                 <td>{formatNumber(rows.base.productionQuantity, 0)}</td>
+                <td>{formatNumber(rows.base.avgShot, 1)}</td>
                 <td>{formatNumber(rows.base.dailyAvgShots, 0)}</td>
               </tr>
               <tr>
                 <th scope="row">{rows.compare.label}</th>
                 <td>{formatNumber(rows.compare.partKindCount, 0)}</td>
                 <td>{formatNumber(rows.compare.productionQuantity, 0)}</td>
+                <td>{formatNumber(rows.compare.avgShot, 1)}</td>
                 <td>{formatNumber(rows.compare.dailyAvgShots, 0)}</td>
               </tr>
               <tr className="pvt-month-compare-delta-row">
@@ -285,6 +291,9 @@ export function ProductionMonthCompareModal({
                 </td>
                 <td data-sign={deltaSign(rows.change.productionQuantity)}>
                   {formatDelta(rows.change.productionQuantity, 0)}
+                </td>
+                <td data-sign={deltaSign(rows.change.avgShot)}>
+                  {formatDelta(rows.change.avgShot, 1)}
                 </td>
                 <td data-sign={deltaSign(rows.change.dailyAvgShots)}>
                   {formatDelta(rows.change.dailyAvgShots, 0)}

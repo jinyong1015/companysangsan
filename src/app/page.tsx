@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 import { PeriodReasonOccurrenceView } from "@/components/downtime/DowntimeDetailTables";
 import { QueryFilterShell } from "@/components/filters/FilterCards";
 import { OperatorProductionQuantityBoard } from "@/components/operators/OperatorProductionQuantityBoard";
@@ -188,6 +188,19 @@ export default function DashboardPage() {
     [equipmentType, filters, records, workPattern],
   );
 
+  const previousYearMonth = useMemo(() => {
+    try {
+      return format(subMonths(parseISO(`${yearMonth}-01`), 1), "yyyy-MM");
+    } catch {
+      return null;
+    }
+  }, [yearMonth]);
+
+  const previousMonthRange = useMemo(
+    () => (previousYearMonth ? monthDateRange(previousYearMonth) : null),
+    [previousYearMonth],
+  );
+
   const periodReasonTable = useMemo(() => {
     let list = filterRecords(records, {
       ...monthScopedFilters,
@@ -209,6 +222,33 @@ export default function DashboardPage() {
     monthRange.startDate,
     monthScopedFilters,
     occurProductTab,
+    records,
+  ]);
+
+  const comparePeriodReasonTable = useMemo(() => {
+    if (!previousMonthRange) return null;
+    let list = filterRecords(records, {
+      ...filters,
+      datePreset: "custom" as const,
+      startDate: previousMonthRange.startDate,
+      endDate: previousMonthRange.endDate,
+      productType: "전체",
+    });
+    if (equipmentType !== "전체") {
+      list = list.filter(
+        (r) => inferEquipmentType(r.equipmentName) === equipmentType,
+      );
+    }
+    return buildPeriodReasonTable(
+      filterByEquipmentProductLine(list, occurProductTab),
+      previousMonthRange.startDate,
+      previousMonthRange.endDate,
+    );
+  }, [
+    equipmentType,
+    filters,
+    occurProductTab,
+    previousMonthRange,
     records,
   ]);
 
@@ -324,6 +364,9 @@ export default function DashboardPage() {
       <div className="mb-4">
         <PeriodReasonOccurrenceView
           table={periodReasonTable}
+          compareTable={comparePeriodReasonTable}
+          yearMonth={yearMonth}
+          compareYearMonth={previousYearMonth ?? undefined}
           variant="dashboard"
           productTab={occurProductTab}
           onProductTabChange={setOccurProductTab}

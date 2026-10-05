@@ -1,13 +1,15 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { format, parseISO } from "date-fns";
 import { BarChart3, Download, LayoutList, Maximize2, X } from "lucide-react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,16 +28,27 @@ import {
   averageNullable,
   buildEquipmentFamilyAverageSpans,
   buildEquipmentFamilyMttrMtbfSummary,
+  buildPeriodReasonCompareChartData,
   buildPeriodReasonOccurrenceRows,
   downtimeHeatLevel,
   equipmentReliabilityTitle,
   exportEquipmentReliabilityExcel,
   exportPeriodReasonExcel,
+  hasPeriodReasonOccurrenceData,
   periodTitle,
 } from "@/lib/downtimeDetail";
 import { formatNumber } from "@/lib/format";
 import { withFromParam } from "@/lib/navigation";
 import type { ProductType } from "@/types";
+
+function shortMonthLabel(yearMonth: string | undefined): string | null {
+  if (!yearMonth) return null;
+  try {
+    return format(parseISO(`${yearMonth}-01`), "M월");
+  } catch {
+    return yearMonth;
+  }
+}
 
 const REFERENCE_MTBF_HINT =
   "고장·복구 시각이 없어 유효 가동시간을 고장 건수로 나눈 참고 지표입니다.";
@@ -632,22 +645,44 @@ function ProductTypeTabs({
 
 export function PeriodReasonOccurrenceView({
   table,
+  compareTable,
+  yearMonth,
+  compareYearMonth,
   variant = "modal",
   productTab,
   onProductTabChange,
 }: {
   table: PeriodReasonTable;
+  /** 전달 집계 — 데이터가 있으면 조회월과 나란히 비교 막대 */
+  compareTable?: PeriodReasonTable | null;
+  yearMonth?: string;
+  compareYearMonth?: string;
   /** modal: 비가동분석 전체화면 / dashboard: 대시보드 카드 */
   variant?: "modal" | "dashboard";
   productTab?: "전체" | ProductType;
   onProductTabChange?: (next: "전체" | ProductType) => void;
 }) {
   const rows = buildPeriodReasonOccurrenceRows(table);
-  const chartData = rows.map((row) => ({
-    reason: row.reason,
-    minutes: Math.round(row.minutes),
-  }));
-  const hasData = table.summary.totalMinutes > 0 || table.summary.totalCount > 0;
+  const hasData = hasPeriodReasonOccurrenceData(table);
+  const showCompare = Boolean(
+    compareTable && hasPeriodReasonOccurrenceData(compareTable),
+  );
+  const currentMonthLabel = shortMonthLabel(yearMonth) ?? "조회월";
+  const previousMonthLabel = shortMonthLabel(compareYearMonth) ?? "전달";
+  const chartData = useMemo((): Array<{
+    reason: string;
+    minutes?: number;
+    currentMinutes?: number;
+    previousMinutes?: number;
+  }> => {
+    if (showCompare && compareTable) {
+      return buildPeriodReasonCompareChartData(table, compareTable);
+    }
+    return buildPeriodReasonOccurrenceRows(table).map((row) => ({
+      reason: row.reason,
+      minutes: Math.round(row.minutes),
+    }));
+  }, [compareTable, showCompare, table]);
   const isDashboard = variant === "dashboard";
   const showProductTabs =
     isDashboard && productTab != null && onProductTabChange != null;
@@ -669,6 +704,9 @@ export function PeriodReasonOccurrenceView({
       : tone === "seal"
         ? "color-mix(in srgb, var(--seal) 42%, #cbd5e1)"
         : "color-mix(in srgb, var(--accent) 42%, #cbd5e1)";
+  /** 비교 모드: 전달=파랑, 조회월=주황 (톤과 무관하게 구분) */
+  const comparePrevFill = "var(--metric-production)";
+  const compareCurrentFill = "var(--metric-downtime)";
 
   return (
     <div
@@ -789,13 +827,25 @@ export function PeriodReasonOccurrenceView({
               ) : null}
             </table>
           </div>
-          <div className="dt-occur-chart-wrap">
-            <h3 className="dt-occur-chart-title">비가동 현황 (min)</h3>
+          <div
+            className="dt-occur-chart-wrap"
+            data-compare={showCompare || undefined}
+          >
+            <h3 className="dt-occur-chart-title">
+              {showCompare
+                ? `비가동 현황 (min) · ${previousMonthLabel} vs ${currentMonthLabel}`
+                : "비가동 현황 (min)"}
+            </h3>
             <div className="dt-occur-chart">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chartData}
-                  margin={{ top: 12, right: 12, left: 4, bottom: 28 }}
+                  margin={{
+                    top: showCompare ? 8 : 12,
+                    right: 12,
+                    left: 4,
+                    bottom: 28,
+                  }}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -830,36 +880,61 @@ export function PeriodReasonOccurrenceView({
                       border: "1px solid var(--border)",
                       borderRadius: 12,
                     }}
-                    formatter={(value) => [
+                    formatter={(value, name) => [
                       `${formatNumber(Number(value))}분`,
-                      "비가동 시간",
+                      String(name),
                     ]}
                   />
-                  <Bar
-                    dataKey="minutes"
-                    name="비가동 시간"
-                    fill={
-                      isDashboard ? toneBarFill : "var(--metric-production)"
-                    }
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={isDashboard ? 36 : 42}
-                  >
-                    {rows.map((row) => (
-                      <Cell
-                        key={row.reason}
-                        fill={
-                          isDashboard
-                            ? row.topMinutes
-                              ? toneBarFill
-                              : toneBarMuted
-                            : row.topMinutes
-                              ? "var(--metric-downtime)"
-                              : "var(--metric-production)"
-                        }
-                        opacity={row.topMinutes ? 1 : 0.85}
+                  {showCompare ? (
+                    <>
+                      <Legend
+                        verticalAlign="top"
+                        height={28}
+                        iconType="square"
+                        wrapperStyle={{ fontSize: 12, fontWeight: 600 }}
                       />
-                    ))}
-                  </Bar>
+                      <Bar
+                        dataKey="previousMinutes"
+                        name={previousMonthLabel}
+                        fill={comparePrevFill}
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={isDashboard ? 22 : 28}
+                      />
+                      <Bar
+                        dataKey="currentMinutes"
+                        name={currentMonthLabel}
+                        fill={compareCurrentFill}
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={isDashboard ? 22 : 28}
+                      />
+                    </>
+                  ) : (
+                    <Bar
+                      dataKey="minutes"
+                      name="비가동 시간"
+                      fill={
+                        isDashboard ? toneBarFill : "var(--metric-production)"
+                      }
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={isDashboard ? 36 : 42}
+                    >
+                      {rows.map((row) => (
+                        <Cell
+                          key={row.reason}
+                          fill={
+                            isDashboard
+                              ? row.topMinutes
+                                ? toneBarFill
+                                : toneBarMuted
+                              : row.topMinutes
+                                ? "var(--metric-downtime)"
+                                : "var(--metric-production)"
+                          }
+                          opacity={row.topMinutes ? 1 : 0.85}
+                        />
+                      ))}
+                    </Bar>
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -872,12 +947,18 @@ export function PeriodReasonOccurrenceView({
 
 export function PeriodReasonSection({
   table,
+  compareTable,
+  yearMonth,
+  compareYearMonth,
   productType,
   onProductTypeChange,
   sectionId,
   summaryTable,
 }: {
   table: PeriodReasonTable;
+  compareTable?: PeriodReasonTable | null;
+  yearMonth?: string;
+  compareYearMonth?: string;
   productType: "전체" | ProductType;
   onProductTypeChange: (next: "전체" | ProductType) => void;
   sectionId?: string;
@@ -953,6 +1034,9 @@ export function PeriodReasonSection({
         <div className="dt-occur-center">
           <PeriodReasonOccurrenceView
             table={table}
+            compareTable={compareTable}
+            yearMonth={yearMonth}
+            compareYearMonth={compareYearMonth}
             variant="dashboard"
             productTab={productType}
             onProductTabChange={onProductTypeChange}

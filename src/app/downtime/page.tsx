@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 import { DowntimeReasonDonut } from "@/components/charts/Charts";
 import {
   EquipmentReliabilitySection,
@@ -266,6 +266,48 @@ export default function DowntimePage() {
     [periodAnalysisRecords, monthRange.startDate, monthRange.endDate],
   );
 
+  const previousYearMonth = useMemo(() => {
+    try {
+      return format(subMonths(parseISO(`${yearMonth}-01`), 1), "yyyy-MM");
+    } catch {
+      return null;
+    }
+  }, [yearMonth]);
+
+  const previousMonthRange = useMemo(
+    () => (previousYearMonth ? monthDateRange(previousYearMonth) : null),
+    [previousYearMonth],
+  );
+
+  const comparePeriodTable = useMemo(() => {
+    if (!previousMonthRange) return null;
+    const prevFilters = {
+      ...filters,
+      datePreset: "custom" as const,
+      startDate: previousMonthRange.startDate,
+      endDate: previousMonthRange.endDate,
+      productType: "전체" as const,
+    };
+    const prevRecords = filterByEquipmentProductLine(
+      filterByEquipmentType(
+        filterRecords(records, prevFilters),
+        equipmentType,
+      ),
+      periodProductTab,
+    );
+    return buildPeriodReasonTable(
+      prevRecords,
+      previousMonthRange.startDate,
+      previousMonthRange.endDate,
+    );
+  }, [
+    equipmentType,
+    filters,
+    periodProductTab,
+    previousMonthRange,
+    records,
+  ]);
+
   const equipmentTable = useMemo(
     () => buildEquipmentReliabilityTable(reliabilityAnalysisRecords),
     [reliabilityAnalysisRecords],
@@ -516,6 +558,9 @@ export default function DowntimePage() {
 
       <PeriodReasonSection
         table={periodTable}
+        compareTable={comparePeriodTable}
+        yearMonth={yearMonth}
+        compareYearMonth={previousYearMonth ?? undefined}
         productType={periodProductTab}
         onProductTypeChange={setPeriodProductTab}
         summaryTable={productTypeSummary}

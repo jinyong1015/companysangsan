@@ -67,6 +67,17 @@ export interface PeriodReasonOccurrenceRow {
   topCount: boolean;
 }
 
+/** 조회월·전달 비교 막대차트용 포인트 */
+export interface PeriodReasonCompareChartPoint {
+  reason: string;
+  currentMinutes: number;
+  previousMinutes: number;
+}
+
+export function hasPeriodReasonOccurrenceData(table: PeriodReasonTable): boolean {
+  return table.summary.totalMinutes > 0 || table.summary.totalCount > 0;
+}
+
 /** 사유 컬럼 순서로 발생 현황 행을 만든다. */
 export function buildPeriodReasonOccurrenceRows(
   table: PeriodReasonTable,
@@ -91,6 +102,18 @@ export function buildPeriodReasonOccurrenceRows(
       topCount: maxCount > 0 && count === maxCount,
     };
   });
+}
+
+/** 조회월 사유 순서를 기준으로 전달 분과 나란히 비교 데이터를 만든다. */
+export function buildPeriodReasonCompareChartData(
+  current: PeriodReasonTable,
+  previous: PeriodReasonTable,
+): PeriodReasonCompareChartPoint[] {
+  return current.reasonColumns.map((reason) => ({
+    reason,
+    currentMinutes: Math.round(current.summary.minutesByReason[reason] ?? 0),
+    previousMinutes: Math.round(previous.summary.minutesByReason[reason] ?? 0),
+  }));
 }
 
 export interface EquipmentReliabilityRow {

@@ -7279,6 +7279,14 @@ select {
   min-height: 240px;
 }
 
+.dt-occur-chart-wrap[data-compare] .dt-occur-chart {
+  height: 440px;
+}
+
+.dt-occur--dash .dt-occur-chart-wrap[data-compare] .dt-occur-chart {
+  height: 320px;
+}
+
 .dt-occur-chart-tick {
   fill: var(--text-secondary);
   font-size: 11px;
