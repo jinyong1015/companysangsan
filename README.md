@@ -5,10 +5,10 @@
 
 | 항목 | 내용 |
 |---|---|
-| 기준 문서 | `prd.md` V1.7, `화면설계서.md` V1.7 |
+| 기준 문서 | `prd.md` V1.8, `화면설계서.md` V1.8 |
 | 브랜딩 | Hyundai / Hyundaecorp |
 | 기준 타임존 | `Asia/Seoul` |
-| 현재 상태 | **프론트엔드 UI + Mock/업로드 데이터 + 관리자 세션 API 프로토타입** |
+| 현재 상태 | **프론트엔드 UI + Mock/업로드 데이터 + 관리자 세션 API + 월별 KPI PPT 내보내기 프로토타입** |
 
 ---
 
@@ -66,7 +66,7 @@ npm run admin:hash -- "새비밀번호"
 5. 월별 KPI → 가동률/비가동 → 품번·설비 상세 → 원본 DATA까지 추적
 6. 목록 ↔ 상세 이동 시 조회기간(또는 조회월) · 필터 · 검색 · 정렬 · 페이지 유지
 7. 오류 행을 정상 데이터와 분리하고 제외 사유를 확인
-8. 일반 사용자는 조회 전용, **관리자 모드**에서만 생산 DATA 수정
+8. 일반 사용자는 조회 전용, **관리자 모드**에서만 생산 DATA 수정 · 월별 KPI PPT 내보내기
 
 ### 분석 제외 규칙 (핵심)
 
@@ -87,7 +87,8 @@ npm run admin:hash -- "새비밀번호"
 - **Recharts** (차트)
 - **lucide-react** (아이콘)
 - **date-fns** (기간 계산)
-- **xlsx** (업로드 파싱 · 샘플/화면 Excel 생성)
+- **xlsx** / **exceljs** (업로드 파싱 · 샘플/화면 Excel · PPT 차트 임베딩)
+- **jszip** (월별 KPI PPT 템플릿 OOXML 채우기)
 - 상태: React Context + `sessionStorage` / `localStorage` / IndexedDB
 - 관리자: Next.js Route Handlers + HttpOnly 세션 쿠키 + 로컬 감사 로그(`data/admin-change-log.json`)
 
@@ -97,11 +98,11 @@ npm run admin:hash -- "새비밀번호"
 
 ## 화면 · 라우트
 
-주 메뉴 순서와 더보기 구성은 `화면설계서.md` V1.7 / `prd.md` V1.7와 동일합니다.
+주 메뉴 순서와 더보기 구성은 `화면설계서.md` V1.8 / `prd.md` V1.8와 동일합니다.
 
 | 화면 ID | 메뉴 | 라우트 | 구현 |
 |---|---|---|---|
-| DASH-01 | 월별 KPI | `/` | ✅ |
+| DASH-01 | 월별 KPI (+PPT 내보내기·관리자) | `/` | ✅ |
 | PROD-01 | 생산 분석 | `/production` | ✅ |
 | UTIL-01 | 가동률 분석 | `/utilization` | ✅ |
 | DOWN-01 | 비가동 분석 | `/downtime` | ✅ |
@@ -138,7 +139,7 @@ npm run admin:hash -- "새비밀번호"
 
 | 메뉴 | 할 수 있는 일 |
 |---|---|
-| 월별 KPI | 조회월·설비·근무형태 · 종합 현황(+전체/GROMMET/SEAL·**월별 비교**) · 사유 발생 · 일별 생산변동(+월별 비교) · 품번/작업자 보드 · SHOT TOP/WORST |
+| 월별 KPI | 조회월·설비·근무형태 · 종합 현황(+전체/GROMMET/SEAL·**월별 비교**) · 사유 발생 · 일별 생산변동(+월별 비교) · 품번/작업자 보드 · SHOT TOP/WORST · **PPT 내보내기(관리자)** |
 | 생산 분석 | 월별 생산변동(+월별 비교) · SHOT TOP/WORST · 제품별 생산 종합 실적(검색·정렬·컬럼·전체화면·Excel) · 품번 상세 |
 | 가동률 분석 | 조회월·설비유형 · 게이지/카드(**범위 탭·월별 비교 없음**) · **평일·주말** 목표 편집 · 날짜×설비 히트맵 · 셀→설비/원본 DATA(기간 쿼리) |
 | 비가동 분석 | 사유 상세 · 선택형 히트맵 · TOP 품번(순위/막대, 기간 쿼리) · 기간별·설비 신뢰성 · 이벤트 상세 |
@@ -147,7 +148,7 @@ npm run admin:hash -- "새비밀번호"
 | 생산 DATA | 원본 조회 · **관리자만** 행 수정·변경 이력 · URL `equipment`/`startDate`/`endDate` 지원 |
 | 오류 DATA | 제외 행 · 오류코드 필터 · 원본 패널 |
 | 데이터 업로드 | MES 성형작업일보 공지 · 엑셀 업로드·검증·반영 · 샘플 다운로드 · 시드 복원 |
-| 설정 | 화면 모드(라이트/다크) · 관리자 로그인/로그아웃 |
+| 설정 | 화면 모드(라이트/다크) · 관리자 로그인/로그아웃 (권한: DATA 수정·이력·**PPT 내보내기**) |
 
 ---
 
@@ -174,6 +175,7 @@ npm run admin:hash -- "새비밀번호"
 
 #### 분석 화면
 - 월별 KPI: 종합 현황·월별 비교·사유 발생·일별 추이·품번/작업자 보드·TOP&WORST
+- 월별 KPI **PPT 내보내기** (관리자): 템플릿 기반 월간 보고서 `.pptx` 클라이언트 생성
 - 생산 분석 (월별 추이·TOP&WORST·종합 실적 표)
 - 가동률 분석 (게이지·카드·목표·히트맵 — 범위 탭/월별 비교 없음)
 - 비가동 분석 (사유 상세, 선택 히트맵, TOP 품번, 기간별·신뢰성, 이벤트)
@@ -185,6 +187,7 @@ npm run admin:hash -- "새비밀번호"
 - HttpOnly 세션 쿠키 · 활동 시 갱신 · 세션 조회/로그아웃 API
 - 생산 DATA 수정 시 서버 `PATCH` 권한 검증 + 수정 사유 필수
 - 변경 이력 UI · `data/admin-change-log.json` 로컬 감사 로그 (최대 500건)
+- **월별 KPI PPT 내보내기** (비관리자는 로그인 유도 · 자물쇠 표시)
 
 #### 지표 계산 (클라이언트)
 - 생산량 = `SUM(실적수량)`
@@ -224,6 +227,7 @@ npm run admin:hash -- "새비밀번호"
 |---|---|---|
 | 데이터 업로드 | 클라이언트 xlsx 파싱·검증·IndexedDB 즉시 반영 | 서버 저장·배치 이력 API |
 | Excel | 화면별 클라이언트 `.xlsx` 생성 (범위는 버튼마다 상이) | 서버 비동기 export·알림 |
+| 월별 KPI PPT | 템플릿 OOXML 채우기(클라이언트) · 관리자만 · 일부 슬라이드(금액/재료/검사 등) 제외 | 서버 export·전체 슬라이드·감사 로그 |
 | 생산 DATA 수정 | 단건 모달 + 서버 권한·감사. 실제 값은 IndexedDB/메모리 | DB 영속·일괄 편집 UI·그리드 인라인 편집 |
 | 변경 이력 | 로컬 JSON 파일 | DB·계정별 감사·접속정보 고도화 |
 | 상세 복귀 | BackBanner + 목록 상태 | 스크롤 위치까지 완전 복원 |
@@ -262,7 +266,7 @@ src/
 │  ├─ api/
 │  │  ├─ admin/            # login · logout · session
 │  │  └─ production-data/  # PATCH · bulk · changes
-│  ├─ page.tsx             # 월별 KPI
+│  ├─ page.tsx             # 월별 KPI (+ PPT 내보내기 버튼)
 │  ├─ production/
 │  ├─ utilization/
 │  ├─ downtime/
@@ -275,6 +279,7 @@ src/
 │  └─ manage/
 ├─ components/
 │  ├─ admin/               # SettingsModal · ChangeHistoryModal
+│  ├─ kpi/                 # MonthlyKpiPptExportButton
 │  ├─ layout/              # Header, Providers
 │  ├─ filters/ · charts/ · downtime/ · production/ · utilization/ · ui/
 ├─ context/                # Filter · Theme · Toast · DataSource · Admin
@@ -282,8 +287,11 @@ src/
 ├─ hooks/                  # usePageState · usePreserveGlobalPeriod
 ├─ lib/
 │  ├─ admin/               # password · session · audit · clientUpdate
+│  ├─ ppt/                 # 스냅샷 · OOXML 채우기 · 슬라이드 맵 · 차트 임베딩
 │  ├─ metrics · utilization · dimensions · downtime* · dates · excel · navigation · theme …
 └─ types/
+public/templates/
+└─ monthly-kpi-report.pptx # 월별 KPI PPT 템플릿
 scripts/
 └─ hash-admin-password.mjs
 data/                      # 로컬 감사 로그 (gitignore)
@@ -305,8 +313,8 @@ data/                      # 로컬 감사 로그 (gitignore)
 
 ## 참고 문서
 
-- [`prd.md`](./prd.md) V1.7 — 제품 요구사항, 계산식, API, 인수 기준, 관리자 모드
-- [`화면설계서.md`](./화면설계서.md) V1.7 — 메뉴별 UI/기능, 사용 매뉴얼, 상태 키
+- [`prd.md`](./prd.md) V1.8 — 제품 요구사항, 계산식, API, 인수 기준, 관리자 모드, PPT 내보내기
+- [`화면설계서.md`](./화면설계서.md) V1.8 — 메뉴별 UI/기능, 사용 매뉴얼, 상태 키
 
 ---
 

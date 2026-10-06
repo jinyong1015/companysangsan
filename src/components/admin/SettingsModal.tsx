@@ -315,6 +315,9 @@ function AdminStatusPanel() {
             생산 DATA 행 수정 · 저장
           </li>
           <li data-allowed={isAdmin ? "true" : "false"}>변경 이력 조회</li>
+          <li data-allowed={isAdmin ? "true" : "false"}>
+            월별 KPI PPT 내보내기
+          </li>
         </ul>
       </div>
 

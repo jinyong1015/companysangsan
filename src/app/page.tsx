@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { format, parseISO, subMonths } from "date-fns";
 import { PeriodReasonOccurrenceView } from "@/components/downtime/DowntimeDetailTables";
 import { QueryFilterShell } from "@/components/filters/FilterCards";
+import { MonthlyKpiPptExportButton } from "@/components/kpi/MonthlyKpiPptExportButton";
 import { OperatorProductionQuantityBoard } from "@/components/operators/OperatorProductionQuantityBoard";
 import { PartProductionQuantityBoard } from "@/components/production/PartProductionQuantityBoard";
 import { ProductionVariationTrend } from "@/components/production/ProductionVariationTrend";
@@ -273,7 +274,18 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="월별 KPI" />
+      <PageHeader
+        title="월별 KPI"
+        actions={
+          <MonthlyKpiPptExportButton
+            yearMonth={yearMonth}
+            records={records}
+            filters={filters}
+            workPattern={workPattern}
+            equipmentType={equipmentType}
+          />
+        }
+      />
 
       <QueryFilterShell
         title="조회조건"

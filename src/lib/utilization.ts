@@ -235,6 +235,76 @@ export function parseGpPgFamily(name: string): string | null {
   return `${m[1]}${m[2]}`;
 }
 
+/** 1공장(본사·GP) → 2공장(PG) → PS → P → IN */
+const EQUIPMENT_PREFIX_RANK: Record<string, number> = {
+  GP: 0,
+  PG: 1,
+  PS: 2,
+  P: 3,
+  IN: 4,
+};
+
+const FACTORY_SORT_RANK: Record<string, number> = {
+  본사: 0,
+  "1공장": 0,
+  "2공장": 1,
+};
+
+function parseEquipmentSortParts(name: string): {
+  prefixRank: number;
+  num: number;
+  unit: number;
+  raw: string;
+} {
+  const raw = name.trim().toUpperCase().replace(/\s+/g, "");
+  const m = raw.match(/^(GP|PG|PS|IN|P)-?(\d+)(?:-(\d+))?/);
+  if (!m) {
+    return { prefixRank: 99, num: 9999, unit: 0, raw };
+  }
+  return {
+    prefixRank: EQUIPMENT_PREFIX_RANK[m[1]!] ?? 99,
+    num: Number(m[2]),
+    unit: m[3] != null ? Number(m[3]) : 0,
+    raw,
+  };
+}
+
+/** GROMMET PRESS: GP(1공장) → PG(2공장) 순 */
+export function compareEquipmentNameOrder(a: string, b: string): number {
+  const ka = parseEquipmentSortParts(a);
+  const kb = parseEquipmentSortParts(b);
+  if (ka.prefixRank !== kb.prefixRank) return ka.prefixRank - kb.prefixRank;
+  if (ka.num !== kb.num) return ka.num - kb.num;
+  if (ka.unit !== kb.unit) return ka.unit - kb.unit;
+  return ka.raw.localeCompare(kb.raw, "ko");
+}
+
+export function compareEquipmentDisplayOrder(
+  a: { factory?: string; equipmentName?: string; name?: string; label?: string },
+  b: { factory?: string; equipmentName?: string; name?: string; label?: string },
+): number {
+  const fa = FACTORY_SORT_RANK[a.factory ?? ""] ?? 50;
+  const fb = FACTORY_SORT_RANK[b.factory ?? ""] ?? 50;
+  if (fa !== fb) return fa - fb;
+  const an = a.equipmentName ?? a.name ?? a.label ?? "";
+  const bn = b.equipmentName ?? b.name ?? b.label ?? "";
+  return compareEquipmentNameOrder(an, bn);
+}
+
+/**
+ * 엑셀 표기: GP → P, PG → GP (예: GP01-1 → P-01-1, PG05 → GP-05)
+ */
+export function formatEquipmentNameForExcel(name: string): string {
+  const t = name.trim().toUpperCase().replace(/\s+/g, "");
+  const m = t.match(/^(GP|PG|PS|IN|P)-?(\d+)(?:-(\d+))?$/);
+  if (!m) return name;
+  const prefix =
+    m[1] === "GP" ? "P" : m[1] === "PG" ? "GP" : (m[1] as string);
+  const n = String(Number(m[2])).padStart(2, "0");
+  const unit = m[3] != null ? `-${m[3]}` : "";
+  return `${prefix}-${n}${unit}`;
+}
+
 /** 설비별 가동률 표 제품유형 분류
  * - GROMMET: 본사(1공장) GP01·GP02·GP04 + PG 전체 + 2공장(구지) 전체
  * - SEAL: 그 외 (본사 나머지). 2공장에는 SEAL 없음
@@ -1099,7 +1169,10 @@ export function buildUtilizationMatrix(
 
   const equipment = [...equipmentMap.values()].sort((a, b) => {
     if (a.type !== b.type) return a.type === "INJECTION" ? -1 : 1;
-    return a.name.localeCompare(b.name, "ko");
+    return compareEquipmentDisplayOrder(
+      { factory: a.factory, name: a.name },
+      { factory: b.factory, name: b.name },
+    );
   });
   const injection = equipment.filter((e) => e.type === "INJECTION");
   const press = equipment.filter((e) => e.type === "PRESS");
@@ -1492,10 +1565,10 @@ function buildEquipmentUtilizationByProduct(
   const split = (rows: EquipmentUtilizationRow[]): EquipmentUtilizationGroup => ({
     press: rows
       .filter((r) => r.equipmentType === "PRESS")
-      .sort((a, b) => a.equipmentName.localeCompare(b.equipmentName, "ko")),
+      .sort(compareEquipmentDisplayOrder),
     injection: rows
       .filter((r) => r.equipmentType === "INJECTION")
-      .sort((a, b) => a.equipmentName.localeCompare(b.equipmentName, "ko")),
+      .sort(compareEquipmentDisplayOrder),
   });
 
   return {
@@ -1595,7 +1668,7 @@ function equipmentRowsFromCells(
     });
   }
 
-  rows.sort((a, b) => a.equipmentName.localeCompare(b.equipmentName, "ko"));
+  rows.sort(compareEquipmentDisplayOrder);
 
   return {
     press: rows.filter((r) => r.equipmentType === "PRESS"),
@@ -1857,7 +1930,7 @@ export function exportUtilizationExcel(
   }
 
   for (const eq of matrix.equipment) {
-    header2.push(eq.name);
+    header2.push(formatEquipmentNameForExcel(eq.name));
   }
 
   const rows: (string | number)[][] = [header1, header2];

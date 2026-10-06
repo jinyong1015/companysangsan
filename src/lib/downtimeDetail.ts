@@ -2,7 +2,14 @@ import { eachDayOfInterval, format, getDay, parseISO } from "date-fns";
 import type { EquipmentType, Factory, ProductionRecord } from "@/types";
 import { downloadStyledAoaExcel } from "@/lib/excelStyledExport";
 import { toDateString } from "@/lib/dates";
-import { parseGpPgFamily, isGrommetLineEquipment, inferEquipmentType } from "@/lib/utilization";
+import {
+  parseGpPgFamily,
+  isGrommetLineEquipment,
+  inferEquipmentType,
+  compareEquipmentDisplayOrder,
+  compareEquipmentNameOrder,
+  formatEquipmentNameForExcel,
+} from "@/lib/utilization";
 
 /** 사유 기준표에 기본 등록된 비가동 사유 (복합·기타 제외) */
 export const BASE_DOWNTIME_REASON_COLUMNS = [
@@ -279,11 +286,12 @@ export function buildEquipmentFamilyMttrMtbfSummary(
   }
 
   const sortRows = (list: EquipmentFamilyMttrMtbfSummaryRow[]) =>
-    [...list].sort((a, b) => {
-      const fa = a.factory.localeCompare(b.factory, "ko");
-      if (fa !== 0) return fa;
-      return a.label.localeCompare(b.label, "ko");
-    });
+    [...list].sort((a, b) =>
+      compareEquipmentDisplayOrder(
+        { factory: a.factory, equipmentName: a.label },
+        { factory: b.factory, equipmentName: b.label },
+      ),
+    );
 
   const split = (
     list: EquipmentFamilyMttrMtbfSummaryRow[],
@@ -591,7 +599,7 @@ export function buildEquipmentReliabilityTable(
       const fa = FACTORY_ORDER.indexOf(a.factory as Factory);
       const fb = FACTORY_ORDER.indexOf(b.factory as Factory);
       if (fa !== fb) return fa - fb;
-      return a.equipmentName.localeCompare(b.equipmentName, "ko");
+      return compareEquipmentNameOrder(a.equipmentName, b.equipmentName);
     });
 
   const rows: EquipmentReliabilityRow[] = [];
@@ -846,7 +854,7 @@ export async function exportEquipmentReliabilityExcel(
         : row.referenceMtbfHours;
     rows.push([
       row.factory,
-      row.equipmentName,
+      formatEquipmentNameForExcel(row.equipmentName),
       ...table.reasonColumns.map((c) => row.byReason[c] || "-"),
       row.totalDowntimeMinutes || "-",
       row.mttrTargetMinutes || "-",
