@@ -12,10 +12,10 @@ import {
   getEquipmentMasterByName,
 } from "@/data/equipmentMaster";
 import { toDateString, todaySeoul } from "@/lib/dates";
-import { operatorIdFrom } from "@/lib/dimensions";
+import { buildFilterOptions, operatorIdFrom } from "@/lib/dimensions";
 import { subDays } from "date-fns";
 
-/** ë°ëª¨ì© ìí ì¤ë¹ â ê³µì¥êµ¬ë¶ì equipmentMaster ê³ ì ê° */
+/** 데모용 샘플 설비 — 공장구분은 equipmentMaster 고정값 */
 const MOCK_EQUIPMENT_NAMES = [
   "IN-01",
   "IN-02",
@@ -62,12 +62,12 @@ const PARTS = [
 ];
 
 const OPERATORS = [
-  { id: "op-kim", name: "ÃªÂ¹ÂÃ«Â¯Â¼Ã¬ÂÂ" },
-  { id: "op-lee", name: "Ã¬ÂÂ´Ã¬ÂÂÃ¬ÂÂ°" },
-  { id: "op-park", name: "Ã«Â°ÂÃ¬Â¤ÂÃ­ÂÂ¸" },
-  { id: "op-choi", name: "Ã¬ÂµÂÃ¬ÂÂ Ã¬Â§Â" },
-  { id: "op-jung", name: "Ã¬Â ÂÃ­ÂÂÃ«ÂÂ" },
-  { id: "op-han", name: "Ã­ÂÂÃ¬Â§ÂÃ­ÂÂ" },
+  { id: "op-kim", name: "김민수" },
+  { id: "op-lee", name: "이서연" },
+  { id: "op-park", name: "박준호" },
+  { id: "op-choi", name: "최유진" },
+  { id: "op-jung", name: "정하늘" },
+  { id: "op-han", name: "한지훈" },
 ];
 
 const MOLDS = [
@@ -79,14 +79,14 @@ const MOLDS = [
 ];
 
 const REASONS = [
-  "ÃªÂ¸ÂÃ­ÂÂÃªÂµÂÃ¬Â²Â´",
-  "Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ",
-  "ÃªÂ·Â¼Ã­ÂÂÃ«Â³ÂÃªÂ²Â½",
-  "ÃªÂ¸ÂÃ­ÂÂÃ¬ÂÂ¸Ã¬Â²Â",
-  "ÃªÂ³Â Ã«Â¬Â´Ã¬ÂÂ´Ã¬ÂÂ",
-  "Ã¬Â ÂÃ­ÂÂÃ¬ÂÂ´Ã¬ÂÂ",
-  "ÃªÂ¸ÂÃ­ÂÂÃªÂµÂÃ¬Â²Â´, Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ",
-  "ÃªÂ¸ÂÃ­ÂÂÃ¬ÂÂ¸Ã¬Â²Â, ÃªÂ·Â¼Ã­ÂÂÃ«Â³ÂÃªÂ²Â½",
+  "금형교체",
+  "설비이상",
+  "근태변경",
+  "금형세척",
+  "고무이상",
+  "제품이상",
+  "금형교체, 설비이상",
+  "금형세척, 근태변경",
 ];
 
 function mulberry32(seed: number) {
@@ -131,7 +131,7 @@ function buildRecord(
   const operating = elapsed;
   const reasonRaw = overrides.downtimeReasonRaw ?? null;
   const tokens = tokenize(reasonRaw);
-  const isFailure = tokens.includes("Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ");
+  const isFailure = tokens.includes("설비이상");
   const isMttr = isFailure;
   const production = overrides.productionQuantity ?? 1200;
   const errorCodes = overrides.errorCodes ?? [];
@@ -192,12 +192,12 @@ const base: ProductionRecord = {
     isFailureCandidate:
       overrides.isFailureCandidate ??
       ((overrides.isAnalysisEligible ?? isEligible) &&
-        tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw).includes("Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ")),
+        tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw).includes("설비이상")),
     isMttrEligible:
       overrides.isMttrEligible ??
       ((overrides.isAnalysisEligible ?? isEligible) &&
         tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw).includes(
-          "Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ",
+          "설비이상",
         )),
   };
 }
@@ -206,19 +206,19 @@ function generateDataset(): {
   records: ProductionRecord[];
   batch: UploadBatch;
 } {
-  const rand = mulberry32(20260916);
+  const rand = mulberry32(20261016);
   const today = todaySeoul();
   const records: ProductionRecord[] = [];
   let idx = 0;
 
-  // Ã¬ÂµÂÃªÂ·Â¼ 31Ã¬ÂÂ¼ ÃÂ· Ã¬ÂÂ¤Ã«Â¹ÂÃ«Â³Â Ã¬Â£Â¼/Ã¬ÂÂ¼ ÃªÂµÂÃ«ÂÂ Ã­ÂÂ¬Ã­ÂÂ¨ (ÃªÂ°ÂÃ«ÂÂÃ«Â¥Â  Ã­ÂÂÃ­ÂÂ¸Ã«Â§ÂµÃ¬ÂÂ©)
+  // 최근 31일 · 설비별 주/야 교대 포함 (가동률 히트맵용)
   for (let dayOffset = 0; dayOffset < 31; dayOffset++) {
     const date = toDateString(subDays(today, dayOffset));
     const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
     for (const equipment of EQUIPMENT) {
-      // Ã¬ÂÂ¼Ã«Â¶Â Ã¬ÂÂ¤Ã«Â¹ÂÃÂ·Ã«ÂÂ Ã¬Â§ÂÃ«ÂÂ Ã«Â¹ÂÃªÂ°ÂÃ«ÂÂ(Ã«ÂÂ°Ã¬ÂÂ´Ã­ÂÂ° Ã¬ÂÂÃ¬ÂÂ)
+      // 일부 설비·날짜는 비가동(데이터 없음)
       if (rand() < (isWeekend ? 0.35 : 0.08)) continue;
 
       const shiftModes: ShiftType[] =
@@ -277,7 +277,7 @@ function generateDataset(): {
     }
   }
 
-  // Ã¬ÂÂ¤Ã«Â¥Â Ã¬ÂÂÃ­ÂÂ Ã¬ÂÂÃ«ÂÂÃ«Â§Â Ã¬ÂÂ Ã¬Â§Â
+  // 오류 샘플 소량만 유지
   const errorSpecs: Array<{ codes: ErrorCode[]; patch: Partial<ProductionRecord> }> = [
     ...Array.from({ length: 3 }, () => ({
       codes: ["WORK_TIME_ZERO"] as ErrorCode[],
@@ -321,7 +321,7 @@ function generateDataset(): {
         downtimeReasonRaw:
           spec.codes.includes("DOWNTIME_GT_WORK_TIME") ||
           spec.codes.includes("OPERATING_TIME_NON_POSITIVE")
-            ? "Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ"
+            ? "설비이상"
             : null,
       }),
     );
@@ -332,7 +332,7 @@ function generateDataset(): {
 
   const batch: UploadBatch = {
     id: "batch-active-001",
-    originalFileName: "Ã¬ÂÂ±Ã­ÂÂÃ¬ÂÂÃ¬ÂÂÃ¬ÂÂ¼Ã«Â³Â´ Ã¬ÂÂÃ­ÂÂ.xls",
+    originalFileName: "성형작업일보 샘플.xls",
     status: "active",
     sourceRowCount: records.length,
     validRowCount: validCount,
@@ -350,16 +350,7 @@ const generated = generateDataset();
 export const ACTIVE_BATCH = generated.batch;
 export const ALL_RECORDS = generated.records;
 
-export const FILTER_OPTIONS = {
-  equipment: EQUIPMENT.map((e) => ({ id: e.id, label: e.name, factory: e.factory })),
-  parts: PARTS.map((p) => ({
-    id: p.id,
-    label: p.partNumber,
-    productType: p.productType,
-  })),
-  operators: OPERATORS.map((o) => ({ id: o.id, label: o.name })),
-  molds: MOLDS.map((m) => ({ id: m.id, label: m.moldNumber })),
-};
+export const FILTER_OPTIONS = buildFilterOptions(ALL_RECORDS);
 
 export function getRecordById(id: string) {
   return ALL_RECORDS.find((r) => r.id === id);
@@ -386,7 +377,13 @@ export function getPartById(id: string) {
 }
 
 export function getOperatorById(id: string) {
-  return OPERATORS.find((o) => o.id === id);
+  const exact = OPERATORS.find((o) => o.id === id);
+  if (exact) return exact;
+  return OPERATORS.find(
+    (o) =>
+      operatorIdFrom(o.name, "1공장") === id ||
+      operatorIdFrom(o.name, "2공장") === id,
+  );
 }
 
 export function getMoldById(id: string) {
