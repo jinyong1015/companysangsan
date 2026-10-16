@@ -157,6 +157,12 @@ export function slugId(prefix: string, value: string) {
   return `${prefix}-${stableShortHash(normalized || "unknown")}`;
 }
 
+/** 작업자 ID — 동명이인 분리를 위해 공장 포함 */
+export function operatorIdFrom(name: string, factory: Factory) {
+  const plant = factory === "2공장" ? "f2" : "f1";
+  return `${slugId("op", name)}-${plant}`;
+}
+
 export function normalizeFactory(raw: string): Factory {
   const v = raw.trim();
   if (v.includes("2") || v.includes("구지") || v.includes("제2"))

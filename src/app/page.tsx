@@ -388,7 +388,7 @@ export default function DashboardPage() {
       <ProductionVariationTrend
         grain="day"
         filtersOverride={monthScopedFilters}
-        description={`${monthLabel} (${periodLabel}) 일별 추이 · 공장은 상단 필터 적용`}
+        description={`${monthLabel} (${periodLabel}) 월별 추이 · 공장은 상단 필터 적용`}
         showMonthCompare
       />
 

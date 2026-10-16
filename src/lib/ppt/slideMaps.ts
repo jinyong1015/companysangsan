@@ -15,7 +15,9 @@ import {
   formatPptPercent,
   alignProductRankHighlightBoxes,
   alignSideBySideChartFrames,
+  alignStackedTrendChartFrames,
   fitEfficiencyChartBorders,
+  alignAmountTrendChartLayout,
   clearChartDisplayUnits,
   hideChartPointValueLabels,
   hideChartValueLabels,
@@ -29,7 +31,6 @@ import {
   setChartValueAxisMin,
   setChartValueAxisNiceScale,
   padValueAxisForLargeLabels,
-  QTY_TREND_PLOT,
   setTextRuns,
   updateChartCaches,
   type ChartPlotLayout,
@@ -580,7 +581,7 @@ export function applySlide13(
   xml: string,
   snapshot: MonthlyKpiPptSnapshot,
 ): string {
-  // 실수량(EA) 그대로 — 연간 축, 마커는 조회월 (생산량만 10.5pt)
+  // 실수량(EA) — 레이아웃은 슬라이드14(작업품목)와 동일
   const hi = snapshot.productionTrends.GROMMET.queryMonthIndex;
   const g = snapshot.productionTrends.GROMMET.productionQuantity.map((v) =>
     Number.isFinite(v) ? Math.round(v) : Number.NaN,
@@ -588,15 +589,7 @@ export function applySlide13(
   const s = snapshot.productionTrends.SEAL.productionQuantity.map((v) =>
     Number.isFinite(v) ? Math.round(v) : Number.NaN,
   );
-  let next = applyProductionTrendMarkers(
-    xml,
-    g,
-    s,
-    0,
-    hi,
-    1050,
-    QTY_TREND_PLOT,
-  );
+  let next = applyProductionTrendMarkers(xml, g, s, 0, hi, 1050);
   // 템플릿 "단위 (천)" → 실제 수량 단위
   const runs = listTextRuns(next);
   const updates = new Map<number, string>();
@@ -607,7 +600,7 @@ export function applySlide13(
     }
   }
   if (updates.size) next = setTextRuns(next, updates);
-  return next;
+  return alignStackedTrendChartFrames(next);
 }
 
 export function applySlide14(
@@ -673,24 +666,24 @@ export function applySlide10(
   const prev = snapshot.productionSummary.GROMMET.previous;
   const cur = snapshot.productionSummary.GROMMET.current;
   const dParts = cur.partKindCount - prev.partKindCount;
+  const dAmount = cur.productionAmount - prev.productionAmount;
   const dQty = cur.productionQuantity - prev.productionQuantity;
   const dShot = Math.round((cur.avgShot - prev.avgShot) * 10) / 10;
 
   // 컬럼: 월 | 품목수량 | 생산금액 | 생산수량 | 월평균SHOT
-  // 생산금액은 데이터 없음 → "-"
   return setTextRuns(xml, {
     16: String(prev.monthNum),
     18: formatPptInt(prev.partKindCount),
-    19: "-",
+    19: formatPptInt(prev.productionAmount),
     20: formatPptInt(prev.productionQuantity),
     21: formatPptFixed(prev.avgShot, 1),
     22: String(cur.monthNum),
     24: formatPptInt(cur.partKindCount),
-    25: "-",
+    25: formatPptInt(cur.productionAmount),
     26: formatPptInt(cur.productionQuantity),
     27: formatPptFixed(cur.avgShot, 1),
     29: formatPptDelta(dParts, 0),
-    30: "-",
+    30: formatPptDelta(dAmount, 0),
     31: formatPptDelta(dQty, 0),
     32: formatPptDelta(dShot, 1),
     35: String(cur.monthNum),
@@ -704,27 +697,45 @@ export function applySlide11(
   const prev = snapshot.productionSummary.SEAL.previous;
   const cur = snapshot.productionSummary.SEAL.current;
   const dParts = cur.partKindCount - prev.partKindCount;
+  const dAmount = cur.productionAmount - prev.productionAmount;
   const dQty = cur.productionQuantity - prev.productionQuantity;
   const dShot = Math.round((cur.avgShot - prev.avgShot) * 10) / 10;
 
-  // slide11: 제목 월=6, 표 월=23/29 · 생산금액(26,32,37)은 "-"
+  // slide11: 제목 월=6, 표 월=23/29 · 생산금액=26/32/37
   return setTextRuns(xml, {
     6: String(cur.monthNum),
     23: String(prev.monthNum),
     25: formatPptInt(prev.partKindCount),
-    26: "-",
+    26: formatPptInt(prev.productionAmount),
     27: formatPptInt(prev.productionQuantity),
     28: formatPptFixed(prev.avgShot, 1),
     29: String(cur.monthNum),
     31: formatPptInt(cur.partKindCount),
-    32: "-",
+    32: formatPptInt(cur.productionAmount),
     33: formatPptInt(cur.productionQuantity),
     34: formatPptFixed(cur.avgShot, 1),
     36: formatPptDelta(dParts, 0),
-    37: "-",
+    37: formatPptDelta(dAmount, 0),
     38: formatPptDelta(dQty, 0),
     39: formatPptDelta(dShot, 1),
   });
+}
+
+/** 월별 생산금액 추이 (GROMMET / SEAL) — 천원 단위, 레이아웃=슬라이드14 */
+export function applySlide12(
+  xml: string,
+  snapshot: MonthlyKpiPptSnapshot,
+): string {
+  const hi = snapshot.productionTrends.GROMMET.queryMonthIndex;
+  // 템플릿 단위 (천) — 원→천원
+  const g = snapshot.productionTrends.GROMMET.productionAmount.map((v) =>
+    Number.isFinite(v) ? Math.round(v / 1000) : Number.NaN,
+  );
+  const s = snapshot.productionTrends.SEAL.productionAmount.map((v) =>
+    Number.isFinite(v) ? Math.round(v / 1000) : Number.NaN,
+  );
+  const withMarkers = applyProductionTrendMarkers(xml, g, s, 0, hi, 1050);
+  return alignStackedTrendChartFrames(withMarkers);
 }
 
 function applyQtyTopTable(
@@ -886,11 +897,11 @@ function productTableEnd(
 
 /**
  * GROMMET/SEAL 제품별 실적 — 표 순서(금액↔수량)가 달라도 동일 로직.
- * 수량 표·콜아웃 갱신, 금액 표·콜아웃은 "-" (데이터 없음).
  */
 function applyProductQtySlide(
   xml: string,
-  rows: Array<{ name: string; value: number; sharePercent: number }>,
+  qtyRows: Array<{ name: string; value: number; sharePercent: number }>,
+  amountRows: Array<{ name: string; value: number; sharePercent: number }>,
 ): string {
   const runs = listTextRuns(xml);
   const updates = new Map<number, string>();
@@ -899,38 +910,30 @@ function applyProductQtySlide(
 
   if (qtyAt >= 0) {
     const endAt = productTableEnd(runs, qtyAt, amountAt);
-    fillRankTableRows(runs, qtyAt, endAt, rows, updates, 10, {
+    fillRankTableRows(runs, qtyAt, endAt, qtyRows, updates, 10, {
       withShare: true,
     });
   }
 
   if (amountAt >= 0) {
     const endAt = productTableEnd(runs, amountAt, qtyAt);
-    const placeholders = Array.from({ length: 10 }, () => ({
-      name: "-",
-      value: 0,
-      sharePercent: 0,
-    }));
-    fillRankTableRows(runs, amountAt, endAt, placeholders, updates, 10, {
-      valueAsDash: true,
+    fillRankTableRows(runs, amountAt, endAt, amountRows, updates, 10, {
       withShare: true,
+      valueAsDash: amountRows.length === 0,
     });
-    // 남은 비중%도 "-"
-    for (let i = amountAt; i < endAt; i += 1) {
-      if (/^\d+%$/.test((runs[i] ?? "").trim())) updates.set(i, "-");
-    }
   }
 
-  const top = rows[0];
+  const topQty = qtyRows[0];
+  const topAmount = amountRows[0];
 
   // 수량 콜아웃: "품번 (N EA)"
   for (let i = 0; i < runs.length; i += 1) {
     if (!/\([\d,]+ EA\)/.test(runs[i] ?? "")) continue;
-    if (top) {
-      updates.set(i, `${top.name} (${formatPptInt(top.value)} EA)`);
+    if (topQty) {
+      updates.set(i, `${topQty.name} (${formatPptInt(topQty.value)} EA)`);
       for (let j = i + 1; j < Math.min(i + 6, runs.length); j += 1) {
         if (/^\d+%$/.test((runs[j] ?? "").trim())) {
-          updates.set(j, `${Math.round(top.sharePercent)}%`);
+          updates.set(j, `${Math.round(topQty.sharePercent)}%`);
           break;
         }
       }
@@ -938,7 +941,7 @@ function applyProductQtySlide(
     break;
   }
 
-  // 금액 콜아웃: "품번 (금액" + "원" + ")" + "%" → 깨지지 않게 "-"
+  // 금액 콜아웃: "품번 (금액" + "원" + ")" + "%"
   const amtHint = runs.findIndex(
     (t) => t.includes("생산금액 비중") || t.includes("가장 많은 생산금액"),
   );
@@ -951,20 +954,39 @@ function applyProductQtySlide(
       if (!nearWon && !/\([\d,]/.test(t)) continue;
       if (!/\d/.test(t) && !t.includes("(")) continue;
 
-      // "- (-)이 전체대비 -로 …" 형태로 문장이 깨지지 않게
-      updates.set(i, "- (-");
-      for (let j = i + 1; j < amtHint; j += 1) {
-        const tj = (runs[j] ?? "").trim();
-        if (tj === "원") updates.set(j, "");
-        else if (tj === ")") updates.set(j, ")");
-        else if (tj === "(") updates.set(j, "");
-        else if (/^\d+%$/.test(tj)) updates.set(j, "-");
-        else if (/^[\d,]+/.test(tj) || /\([\d,]/.test(tj)) updates.set(j, "");
+      if (topAmount) {
+        updates.set(
+          i,
+          `${topAmount.name} (${formatPptInt(topAmount.value)}`,
+        );
+        for (let j = i + 1; j < amtHint; j += 1) {
+          const tj = (runs[j] ?? "").trim();
+          if (tj === "원") updates.set(j, "원");
+          else if (tj === ")") updates.set(j, ")");
+          else if (tj === "(") updates.set(j, "");
+          else if (/^\d+%$/.test(tj)) {
+            updates.set(j, `${Math.round(topAmount.sharePercent)}%`);
+          } else if (/^[\d,]+/.test(tj) || /\([\d,]/.test(tj)) {
+            updates.set(j, "");
+          }
+        }
+      } else {
+        updates.set(i, "- (-");
+        for (let j = i + 1; j < amtHint; j += 1) {
+          const tj = (runs[j] ?? "").trim();
+          if (tj === "원") updates.set(j, "");
+          else if (tj === ")") updates.set(j, ")");
+          else if (tj === "(") updates.set(j, "");
+          else if (/^\d+%$/.test(tj)) updates.set(j, "-");
+          else if (/^[\d,]+/.test(tj) || /\([\d,]/.test(tj)) updates.set(j, "");
+        }
       }
       break;
     }
     for (let j = Math.max(0, amtHint - 5); j < amtHint; j += 1) {
-      if (/^\d+%$/.test((runs[j] ?? "").trim())) updates.set(j, "-");
+      if (/^\d+%$/.test((runs[j] ?? "").trim()) && topAmount) {
+        updates.set(j, `${Math.round(topAmount.sharePercent)}%`);
+      }
     }
   }
 
@@ -976,16 +998,22 @@ export function applySlide16(
   xml: string,
   snapshot: MonthlyKpiPptSnapshot,
 ): string {
-  // GROMMET — SEAL(slide17)과 동일 유형
-  return applyProductQtySlide(xml, snapshot.partQtyTop.GROMMET);
+  return applyProductQtySlide(
+    xml,
+    snapshot.partQtyTop.GROMMET,
+    snapshot.partAmountTop.GROMMET,
+  );
 }
 
 export function applySlide17(
   xml: string,
   snapshot: MonthlyKpiPptSnapshot,
 ): string {
-  // SEAL
-  return applyProductQtySlide(xml, snapshot.partQtyTop.SEAL);
+  return applyProductQtySlide(
+    xml,
+    snapshot.partQtyTop.SEAL,
+    snapshot.partAmountTop.SEAL,
+  );
 }
 
 export function applyOperatorSlide(
@@ -993,42 +1021,63 @@ export function applyOperatorSlide(
   snapshot: MonthlyKpiPptSnapshot,
   product: ProductType,
 ): string {
-  const rows = snapshot.operatorQtyTop[product];
-  const top = rows[0];
+  const qtyRows = snapshot.operatorQtyTop[product];
+  const amountRows = snapshot.operatorAmountTop[product];
+  const topQty = qtyRows[0];
+  const topAmount = amountRows[0];
   let next = xml;
   const runs0 = listTextRuns(next);
   const updates0 = new Map<number, string>();
 
   // 수량 콜아웃
-  if (top) {
+  if (topQty) {
     for (let i = 0; i < runs0.length; i += 1) {
-      if (runs0[i]!.includes("작업자가") && runs0.slice(i, i + 8).some((t) => t.includes("수량"))) {
+      if (
+        runs0[i]!.includes("작업자가") &&
+        runs0.slice(i, i + 8).some((t) => t.includes("수량"))
+      ) {
         if (runs0[i]!.includes("작업자가")) {
-          updates0.set(i, `${top.name} 작업자가`);
+          updates0.set(i, `${topQty.name} 작업자가`);
         } else if (i > 0) {
-          updates0.set(i - 1, top.name);
+          updates0.set(i - 1, topQty.name);
         }
         break;
       }
     }
     for (let i = 0; i < runs0.length; i += 1) {
       if (/\([\d,]+ EA\)/.test(runs0[i]!)) {
-        updates0.set(i, `(${formatPptInt(top.value)} EA)`);
+        updates0.set(i, `(${formatPptInt(topQty.value)} EA)`);
         break;
       }
     }
   }
 
-  // 금액 콜아웃 → "-"
-  for (let i = 0; i < runs0.length; i += 1) {
-    const window = runs0.slice(i, i + 10).join("");
-    if (!window.includes("금액")) continue;
-    if (runs0[i]!.includes("작업자가") || (i + 1 < runs0.length && runs0[i + 1]!.includes("작업자가"))) {
-      if (runs0[i]!.includes("작업자가")) updates0.set(i, "- 작업자가");
-      else updates0.set(i, "-");
-    }
-    if (/[\d,]{3,}/.test(runs0[i]!) && window.includes("원")) {
-      updates0.set(i, "-");
+  // 금액 콜아웃: "이름 작업자가" + "(금액" + "원" + ")"
+  if (topAmount) {
+    for (let i = 0; i < runs0.length; i += 1) {
+      const window = runs0.slice(i, i + 10).join("");
+      if (!window.includes("금액")) continue;
+      if (
+        runs0[i]!.includes("작업자가") ||
+        (i + 1 < runs0.length && runs0[i + 1]!.includes("작업자가"))
+      ) {
+        if (runs0[i]!.includes("작업자가")) {
+          updates0.set(i, `${topAmount.name} 작업자가`);
+        } else {
+          updates0.set(i, topAmount.name);
+        }
+      }
+      const t = runs0[i]!;
+      if (
+        (/\([\d,]/.test(t) || /^[\d,]{3,}/.test(t.trim())) &&
+        window.includes("원")
+      ) {
+        if (t.includes("(")) {
+          updates0.set(i, `(${formatPptInt(topAmount.value)}`);
+        } else {
+          updates0.set(i, formatPptInt(topAmount.value));
+        }
+      }
     }
   }
   next = setTextRuns(next, updates0);
@@ -1036,7 +1085,6 @@ export function applyOperatorSlide(
   const runs = listTextRuns(next);
   const updates = new Map<number, string>();
 
-  // 생산금액 표 → "-"
   const amountAt = runs.findIndex(
     (t, i) =>
       t.includes("생산금액") &&
@@ -1048,19 +1096,17 @@ export function applyOperatorSlide(
       runs.slice(i, i + 6).some((x) => x.trim() === "NO"),
   );
   if (amountAt >= 0) {
-    const endAt = qtyAt > amountAt ? qtyAt : runs.length;
-    const placeholders = Array.from({ length: 10 }, () => ({
-      name: "-",
-      value: 0,
-    }));
-    fillRankTableRows(runs, amountAt, endAt, placeholders, updates, 10, {
-      valueAsDash: true,
+    const endAt =
+      qtyAt > amountAt ? qtyAt : productTableEnd(runs, amountAt, qtyAt);
+    fillRankTableRows(runs, amountAt, endAt, amountRows, updates, 10, {
+      valueAsDash: amountRows.length === 0,
     });
   }
 
-  // 생산수량 표
   if (qtyAt >= 0) {
-    fillRankTableRows(runs, qtyAt, runs.length, rows, updates, 10);
+    const endAt =
+      amountAt > qtyAt ? amountAt : productTableEnd(runs, qtyAt, amountAt);
+    fillRankTableRows(runs, qtyAt, endAt, qtyRows, updates, 10);
   }
 
   return alignProductRankHighlightBoxes(setTextRuns(next, updates), 10);
@@ -1222,6 +1268,8 @@ export function applyMonthlyTrendChart(
     unitToEa?: boolean;
     /** 큰 EA 눈금과 단위 라벨 겹침 방지 */
     padLargeAxisLabels?: boolean;
+    /** 생산금액 추이 — SEAL plot/X축을 GROMMET과 동일하게 */
+    alignAmountLayout?: boolean;
   },
 ): string {
   const divideBy = options?.divideBy ?? 1;
@@ -1265,6 +1313,9 @@ export function applyMonthlyTrendChart(
   }
   if (options?.padLargeAxisLabels) {
     xml = padValueAxisForLargeLabels(xml);
+  }
+  if (options?.alignAmountLayout) {
+    xml = alignAmountTrendChartLayout(xml);
   }
   if (options?.niceScale) {
     const dataMax = Math.max(
@@ -1313,13 +1364,15 @@ export function applyDailyQtyChart(
   chartXml: string,
   days: number[],
   quantities: number[],
+  amounts?: number[],
 ): string {
-  // 시리즈0=생산금액(데이터 없음 → 0), 시리즈1=생산수량
-  const zeros = days.map(() => 0);
+  // 시리즈0=생산금액, 시리즈1=생산수량
+  const amountValues =
+    amounts ?? days.map(() => 0);
   return updateChartCaches(chartXml, {
     categories: days.map(String),
     series: [
-      { name: "생산금액", values: zeros },
+      { name: "생산금액", values: amountValues },
       { name: "생산수량", values: quantities },
     ],
   });

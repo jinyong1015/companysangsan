@@ -14,6 +14,7 @@ import { ACTIVE_BATCH, ALL_RECORDS, FILTER_OPTIONS as SEED_FILTER_OPTIONS } from
 import {
   buildFilterOptions,
   coerceFactory,
+  operatorIdFrom,
   type FilterOption,
 } from "@/lib/dimensions";
 import { idbDel, idbGet, idbSet } from "@/lib/idb";
@@ -34,15 +35,17 @@ const IDB_PAYLOAD_KEY = "uploaded-dataset";
 
 export type DataSourceMode = "demo" | "uploaded";
 
-/** 구 저장값 factory "본사" → "1공장", 설비 마스터 공장 고정값 우선 */
+/** 구 저장값 factory "본사" → "1공장", 설비 마스터 공장 고정값 우선.
+ * 작업자 ID는 공장별로 분리(동명이인 합침 방지). */
 function coerceRecordFactories(
   records: ProductionRecord[],
 ): ProductionRecord[] {
   return records.map((r) => {
     const factory =
       resolveFixedFactory(r.equipmentName) ?? coerceFactory(r.factory);
-    if (factory === r.factory) return r;
-    return { ...r, factory };
+    const operatorId = operatorIdFrom(r.operatorName, factory);
+    if (factory === r.factory && operatorId === r.operatorId) return r;
+    return { ...r, factory, operatorId };
   });
 }
 

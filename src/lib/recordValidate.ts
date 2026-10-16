@@ -5,6 +5,7 @@ import {
   normalizeFactory,
   normalizeProductType,
   normalizeShift,
+  operatorIdFrom,
   slugId,
 } from "@/lib/dimensions";
 import { applyWorkDowntimeMismatchRules } from "@/lib/workDowntimeRules";
@@ -239,7 +240,7 @@ export function revalidateRecord(
     shotCount: shots,
     defectQuantity: defect,
     productionQuantity: prod ?? 0,
-    operatorId: slugId("op", operatorName),
+    operatorId: operatorIdFrom(operatorName, factory),
     operatorName,
     shiftType,
     moldId: slugId("md", moldNumber),

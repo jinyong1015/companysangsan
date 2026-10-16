@@ -180,7 +180,7 @@ export function buildTrends(
   });
 }
 
-/** 대시보드 기간 추이: 생산량 · 품번 종류 · 평균 SHOT · 비가동시간(분) */
+/** 대시보드 기간 추이: 생산량 · 품번 종류 · 평균 SHOT · 비가동시간(분) · 생산금액 */
 export type MonthlyDashboardPoint = {
   period: string;
   label: string;
@@ -192,13 +192,34 @@ export type MonthlyDashboardPoint = {
   dailyAvgShots: number;
   /** 비가동시간 합계(분) */
   downtimeMinutes: number;
+  /** 생산수량 × 단가 합 (단가 있는 품번만, 원) */
+  productionAmount: number;
 };
+
+/** 단가가 등록된 품번만 생산금액에 반영 (미등록은 제외) */
+export function sumProductionAmount(
+  records: ProductionRecord[],
+  priceByPart?: Map<string, number> | null,
+): number {
+  if (!priceByPart?.size) return 0;
+  let sum = 0;
+  for (const r of records) {
+    if (!r.isAnalysisEligible) continue;
+    const key = String(r.partNumber ?? "").replace(/\u00a0/g, " ").trim();
+    if (!key) continue;
+    const price = priceByPart.get(key);
+    if (price == null || !Number.isFinite(price) || price <= 0) continue;
+    sum += (r.productionQuantity || 0) * price;
+  }
+  return sum;
+}
 
 export function buildMonthlyDashboardTrends(
   records: ProductionRecord[],
   startDate: string,
   endDate: string,
   grain: "day" | "month" = "month",
+  priceByPart?: Map<string, number> | null,
 ): MonthlyDashboardPoint[] {
   const buckets = periodBuckets(startDate, endDate, grain);
   return buckets.map((b) => {
@@ -232,6 +253,7 @@ export function buildMonthlyDashboardTrends(
       avgShot: operatingHours > 0 ? shotCount / operatingHours : 0,
       dailyAvgShots: workDaysSum > 0 ? shotCount / workDaysSum : 0,
       downtimeMinutes: kpi.downtimeMinutes,
+      productionAmount: sumProductionAmount(subset, priceByPart),
     };
   });
 }

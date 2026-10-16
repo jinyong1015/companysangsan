@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NumberPagination, SearchSortBar } from "@/components/ui/SearchSortBar";
 import { EmptyState, PageHeader } from "@/components/ui/PageBits";
 import { useFilters } from "@/context/FilterContext";
@@ -14,31 +14,110 @@ import {
   formatPercent,
   formatQuantity,
   formatUph,
+  formatWon,
 } from "@/lib/format";
-import { paginate, sortBy } from "@/lib/metrics";
+import { filterRecords, paginate, sortBy, sumProductionAmount } from "@/lib/metrics";
 import { withFromParam } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
+import type { OperatorRow, ProductionRecord } from "@/types";
+
+function normalizePartKey(partNumber: string) {
+  return String(partNumber ?? "")
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
+type OperatorRowWithAmount = OperatorRow & { productionAmount: number };
 
 export default function OperatorsPage() {
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
   const { state, patch } = usePageState("operators", "production", "desc");
+  const [priceByPart, setPriceByPart] = useState<Map<string, number>>(
+    () => new Map(),
+  );
+
+  const scopedRecords = useMemo(
+    () => filterRecords(records, filters),
+    [filters, records],
+  );
+
+  const baseRows = useMemo(
+    () => aggregateOperators(records, filters),
+    [filters, records],
+  );
+
+  const recordsByOperator = useMemo(() => {
+    const map = new Map<string, ProductionRecord[]>();
+    for (const r of scopedRecords) {
+      if (!r.operatorId) continue;
+      const list = map.get(r.operatorId) ?? [];
+      list.push(r);
+      map.set(r.operatorId, list);
+    }
+    return map;
+  }, [scopedRecords]);
+
+  const partNumbersKey = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of scopedRecords) {
+      const key = normalizePartKey(r.partNumber);
+      if (key) set.add(key);
+    }
+    return [...set].sort().join("\0");
+  }, [scopedRecords]);
+
+  useEffect(() => {
+    if (!partNumbersKey) {
+      setPriceByPart(new Map());
+      return;
+    }
+    const parts = partNumbersKey.split("\0");
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/product-prices/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ partNumbers: parts }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          prices?: Record<string, number>;
+        };
+        if (cancelled || !data.ok || !data.prices) return;
+        setPriceByPart(new Map(Object.entries(data.prices)));
+      } catch {
+        if (!cancelled) setPriceByPart(new Map());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [partNumbersKey]);
 
   const rows = useMemo(() => {
-    let list = aggregateOperators(records, filters);
+    let list: OperatorRowWithAmount[] = baseRows.map((o) => ({
+      ...o,
+      productionAmount: sumProductionAmount(
+        recordsByOperator.get(o.id) ?? [],
+        priceByPart,
+      ),
+    }));
     if (state.search.trim()) {
       const q = state.search.toLowerCase();
       list = list.filter((o) => o.name.toLowerCase().includes(q));
     }
     return sortBy(list, state.sort, state.order, {
       production: (o) => o.kpi.productionQuantity,
+      amount: (o) => o.productionAmount,
       uph: (o) => o.kpi.uph,
       defect: (o) => o.kpi.defectQuantity,
       defectRate: (o) => o.kpi.defectRatePercent,
       elapsed: (o) => o.kpi.elapsedMinutes,
       utilization: (o) => o.kpi.utilizationRatePercent,
     });
-  }, [filters, state, records]);
+  }, [baseRows, priceByPart, recordsByOperator, state]);
 
   const paged = paginate(rows, state.page, state.pageSize);
 
@@ -61,6 +140,7 @@ export default function OperatorsPage() {
         onPageSize={(pageSize) => patch({ pageSize })}
         sortOptions={[
           { value: "production", label: "생산량" },
+          { value: "amount", label: "생산금액" },
           { value: "uph", label: "UPH" },
           { value: "defect", label: "불량수량" },
           { value: "defectRate", label: "생산불량률" },
@@ -76,7 +156,7 @@ export default function OperatorsPage() {
               공장: o.factory,
               주야간구성: o.shiftMix,
               작업품번수: o.partCount,
-              설비수: o.equipmentCount,
+              생산금액: Math.round(o.productionAmount),
               생산량: o.kpi.productionQuantity,
               불량수량: o.kpi.defectQuantity,
               생산불량률: o.kpi.defectRatePercent,
@@ -104,7 +184,7 @@ export default function OperatorsPage() {
                     <th>공장</th>
                     <th>주/야간 구성</th>
                     <th className="num">작업 품번 수</th>
-                    <th className="num">설비 수</th>
+                    <th className="num">생산금액</th>
                     <th className="num">생산량</th>
                     <th className="num">불량수량</th>
                     <th className="num">생산불량률</th>
@@ -127,13 +207,27 @@ export default function OperatorsPage() {
                       <td>{o.factory}</td>
                       <td>{o.shiftMix}</td>
                       <td className="num">{o.partCount}</td>
-                      <td className="num">{o.equipmentCount}</td>
-                      <td className="num">{formatQuantity(o.kpi.productionQuantity)}</td>
-                      <td className="num">{formatQuantity(o.kpi.defectQuantity)}</td>
-                      <td className="num">{formatPercent(o.kpi.defectRatePercent, 2)}</td>
-                      <td className="num">{formatMinutes(o.kpi.elapsedMinutes)}</td>
+                      <td className="num">
+                        {o.productionAmount > 0
+                          ? formatWon(o.productionAmount)
+                          : "-"}
+                      </td>
+                      <td className="num">
+                        {formatQuantity(o.kpi.productionQuantity)}
+                      </td>
+                      <td className="num">
+                        {formatQuantity(o.kpi.defectQuantity)}
+                      </td>
+                      <td className="num">
+                        {formatPercent(o.kpi.defectRatePercent, 2)}
+                      </td>
+                      <td className="num">
+                        {formatMinutes(o.kpi.elapsedMinutes)}
+                      </td>
                       <td className="num">{formatUph(o.kpi.uph)}</td>
-                      <td className="num">{formatPercent(o.kpi.utilizationRatePercent)}</td>
+                      <td className="num">
+                        {formatPercent(o.kpi.utilizationRatePercent)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -6,6 +6,7 @@ import {
   normalizeFactory,
   normalizeProductType,
   normalizeShift,
+  operatorIdFrom,
   parseShiftValue,
   slugId,
 } from "@/lib/dimensions";
@@ -498,7 +499,7 @@ export async function parseProductionExcel(
       shotCount: shotCount || 0,
       defectQuantity: defectQuantity || 0,
       productionQuantity: productionQuantity ?? 0,
-      operatorId: slugId("op", operatorName),
+      operatorId: operatorIdFrom(operatorName, factory),
       operatorName,
       shiftType,
       moldId: slugId("md", moldNumber),

@@ -11,6 +11,11 @@ export function formatQuantity(value: number | null | undefined): string {
   return `${formatNumber(value)} EA`;
 }
 
+export function formatWon(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "-";
+  return `${formatNumber(Math.round(value))}원`;
+}
+
 export function formatPercent(value: number | null | undefined, digits = 1): string {
   if (value == null || Number.isNaN(value)) return "-";
   return `${formatNumber(value, digits)}%`;

@@ -12,6 +12,7 @@ import {
 import {
   buildMonthlyDashboardTrends,
   filterRecords,
+  sumProductionAmount,
 } from "@/lib/metrics";
 import {
   buildUtilizationOverviewBundle,
@@ -201,6 +202,7 @@ function prodSummary(
   yearMonth: string,
   productType: ProductType,
   equipmentType: "전체" | EquipmentType,
+  priceByPart?: Map<string, number> | null,
 ): PptProdMonthSummary {
   const range = monthDateRange(yearMonth);
   // 화면 생산변동 추이와 동일: record.productType 기준
@@ -216,11 +218,13 @@ function prodSummary(
     range.startDate,
     range.endDate,
     "month",
+    priceByPart,
   )[0];
   return {
     yearMonth,
     monthNum: Number(yearMonth.slice(5, 7)),
     partKindCount: point?.partKindCount ?? 0,
+    productionAmount: Math.round(point?.productionAmount ?? 0),
     productionQuantity: point?.productionQuantity ?? 0,
     avgShot: point?.avgShot ?? 0,
     dailyAvgShots: point?.dailyAvgShots ?? 0,
@@ -253,9 +257,11 @@ function monthlyMetricSeries(
   productType: ProductType | "ALL",
   equipmentType: "전체" | EquipmentType,
   classify: "equipment" | "product",
+  priceByPart?: Map<string, number> | null,
 ): {
   downtimeMinutes: number[];
   productionQuantity: number[];
+  productionAmount: number[];
   partKindCount: number[];
   avgShot: number[];
   labels: string[];
@@ -266,6 +272,7 @@ function monthlyMetricSeries(
   const queryMonthIndex = Math.min(12, Math.max(1, throughMonth));
   const downtimeMinutes: number[] = [];
   const productionQuantity: number[] = [];
+  const productionAmount: number[] = [];
   const partKindCount: number[] = [];
   const avgShot: number[] = [];
 
@@ -274,6 +281,7 @@ function monthlyMetricSeries(
     if (i > queryMonthIndex) {
       downtimeMinutes.push(Number.NaN);
       productionQuantity.push(Number.NaN);
+      productionAmount.push(Number.NaN);
       partKindCount.push(Number.NaN);
       avgShot.push(Number.NaN);
       continue;
@@ -300,9 +308,15 @@ function monthlyMetricSeries(
       range.startDate,
       range.endDate,
       "month",
+      priceByPart,
     )[0];
     downtimeMinutes.push(point?.downtimeMinutes ?? 0);
     productionQuantity.push(point?.productionQuantity ?? 0);
+    productionAmount.push(
+      Number.isFinite(point?.productionAmount)
+        ? Math.round(point!.productionAmount)
+        : 0,
+    );
     partKindCount.push(point?.partKindCount ?? 0);
     avgShot.push(point?.avgShot ?? 0);
   }
@@ -310,6 +324,7 @@ function monthlyMetricSeries(
   return {
     downtimeMinutes,
     productionQuantity,
+    productionAmount,
     partKindCount,
     avgShot,
     labels,
@@ -323,7 +338,8 @@ function dailyQty(
   yearMonth: string,
   productType: ProductType,
   equipmentType: "전체" | EquipmentType,
-): { days: number[]; quantities: number[] } {
+  priceByPart?: Map<string, number> | null,
+): { days: number[]; quantities: number[]; amounts: number[] } {
   const range = monthDateRange(yearMonth);
   const list = filterByEqType(
     filterRecords(records, {
@@ -337,14 +353,27 @@ function dailyQty(
     range.startDate,
     range.endDate,
     "day",
+    priceByPart,
   );
   const days = points.map((_, i) => i + 1);
   const quantities = points.map((p) => p.productionQuantity);
+  const amounts = points.map((p) => Math.round(p.productionAmount));
   while (days.length < 31) {
     days.push(days.length + 1);
     quantities.push(0);
+    amounts.push(0);
   }
-  return { days: days.slice(0, 31), quantities: quantities.slice(0, 31) };
+  return {
+    days: days.slice(0, 31),
+    quantities: quantities.slice(0, 31),
+    amounts: amounts.slice(0, 31),
+  };
+}
+
+function normalizePartKey(partNumber: string) {
+  return String(partNumber ?? "")
+    .replace(/\u00a0/g, " ")
+    .trim();
 }
 
 function partQtyTop(
@@ -359,19 +388,56 @@ function partQtyTop(
     filterRecords(records, monthScoped(filters, yearMonth)),
     equipmentType,
   );
-  const rows = aggregateProductPerformance(scopedRecords, {
+  const scoped = aggregateProductPerformance(scopedRecords, {
+    ...monthScoped(filters, yearMonth),
+    productType,
+  }).filter((r) => r.productionQuantity > 0);
+  const total = scoped.reduce((s, r) => s + r.productionQuantity, 0) || 1;
+  return [...scoped]
+    .sort((a, b) => b.productionQuantity - a.productionQuantity)
+    .slice(0, limit)
+    .map((r) => ({
+      name: r.partNumber,
+      value: r.productionQuantity,
+      sharePercent: (r.productionQuantity / total) * 100,
+    }));
+}
+
+function partAmountTop(
+  records: ProductionRecord[],
+  filters: GlobalFilters,
+  yearMonth: string,
+  productType: ProductType,
+  equipmentType: "전체" | EquipmentType,
+  priceByPart?: Map<string, number> | null,
+  limit = 10,
+): PptRankRow[] {
+  const scopedRecords = filterByEqType(
+    filterRecords(records, monthScoped(filters, yearMonth)),
+    equipmentType,
+  );
+  const scoped = aggregateProductPerformance(scopedRecords, {
     ...monthScoped(filters, yearMonth),
     productType,
   })
-    .filter((r) => r.productionQuantity > 0)
-    .sort((a, b) => b.productionQuantity - a.productionQuantity)
-    .slice(0, limit);
-  const total = rows.reduce((s, r) => s + r.productionQuantity, 0) || 1;
-  return rows.map((r) => ({
-    name: r.partNumber,
-    value: r.productionQuantity,
-    sharePercent: (r.productionQuantity / total) * 100,
-  }));
+    .map((r) => {
+      const price = priceByPart?.get(normalizePartKey(r.partNumber));
+      const amount =
+        price != null && Number.isFinite(price) && price > 0
+          ? r.productionQuantity * price
+          : 0;
+      return { name: r.partNumber, amount };
+    })
+    .filter((x) => x.amount > 0);
+  const total = scoped.reduce((s, x) => s + x.amount, 0) || 1;
+  return [...scoped]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, limit)
+    .map((x) => ({
+      name: x.name,
+      value: Math.round(x.amount),
+      sharePercent: (x.amount / total) * 100,
+    }));
 }
 
 function operatorQtyTop(
@@ -386,19 +452,68 @@ function operatorQtyTop(
     filterRecords(records, monthScoped(filters, yearMonth)),
     equipmentType,
   );
-  const rows = aggregateOperators(scopedRecords, {
+  const scoped = aggregateOperators(scopedRecords, {
     ...monthScoped(filters, yearMonth),
     productType,
-  })
-    .filter((r) => r.kpi.productionQuantity > 0)
+  }).filter((r) => r.kpi.productionQuantity > 0);
+  const total = scoped.reduce((s, r) => s + r.kpi.productionQuantity, 0) || 1;
+  return [...scoped]
     .sort((a, b) => b.kpi.productionQuantity - a.kpi.productionQuantity)
-    .slice(0, limit);
-  const total = rows.reduce((s, r) => s + r.kpi.productionQuantity, 0) || 1;
-  return rows.map((r) => ({
-    name: r.name,
-    value: r.kpi.productionQuantity,
-    sharePercent: (r.kpi.productionQuantity / total) * 100,
-  }));
+    .slice(0, limit)
+    .map((r) => ({
+      name: r.name,
+      value: r.kpi.productionQuantity,
+      sharePercent: (r.kpi.productionQuantity / total) * 100,
+    }));
+}
+
+function operatorAmountTop(
+  records: ProductionRecord[],
+  filters: GlobalFilters,
+  yearMonth: string,
+  productType: ProductType,
+  equipmentType: "전체" | EquipmentType,
+  priceByPart?: Map<string, number> | null,
+  limit = 10,
+): PptRankRow[] {
+  const scopedRecords = filterByEqType(
+    filterRecords(records, {
+      ...monthScoped(filters, yearMonth),
+      productType,
+    }),
+    equipmentType,
+  );
+  const byOperator = new Map<
+    string,
+    { id: string; name: string; rows: ProductionRecord[] }
+  >();
+  for (const r of scopedRecords) {
+    if (!r.operatorId) continue;
+    const existing = byOperator.get(r.operatorId);
+    if (existing) existing.rows.push(r);
+    else {
+      byOperator.set(r.operatorId, {
+        id: r.operatorId,
+        name: r.operatorName,
+        rows: [r],
+      });
+    }
+  }
+  const ranked = [...byOperator.values()]
+    .map((op) => ({
+      name: op.name,
+      amount: sumProductionAmount(op.rows, priceByPart),
+    }))
+    .filter((x) => x.amount > 0);
+  const total = ranked.reduce((s, x) => s + x.amount, 0) || 1;
+  return ranked
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, limit)
+    .map((x) => ({
+      name: x.name,
+      value: Math.round(x.amount),
+      sharePercent: (x.amount / total) * 100,
+    }));
 }
 
 function efficiencyFor(
@@ -499,10 +614,13 @@ export function buildMonthlyKpiPptSnapshot(options: {
   filters: GlobalFilters;
   workPattern?: WorkPattern | "전체";
   equipmentType?: "전체" | EquipmentType;
+  /** 품번→단가 (없으면 생산금액 0) */
+  priceByPart?: Map<string, number> | null;
 }): MonthlyKpiPptSnapshot {
   const { yearMonth, records, filters } = options;
   const workPattern = options.workPattern ?? "전체";
   const equipmentType = options.equipmentType ?? "전체";
+  const priceByPart = options.priceByPart ?? null;
   const previous = previousYearMonth(yearMonth);
   const year = Number(yearMonth.slice(0, 4));
   const month = Number(yearMonth.slice(5, 7));
@@ -625,10 +743,12 @@ export function buildMonthlyKpiPptSnapshot(options: {
           "GROMMET",
           equipmentType,
           "product",
+          priceByPart,
         );
         return {
           labels: s.labels,
           productionQuantity: s.productionQuantity,
+          productionAmount: s.productionAmount,
           partKindCount: s.partKindCount,
           avgShot: s.avgShot,
           queryMonthIndex: s.queryMonthIndex,
@@ -643,10 +763,12 @@ export function buildMonthlyKpiPptSnapshot(options: {
           "SEAL",
           equipmentType,
           "product",
+          priceByPart,
         );
         return {
           labels: s.labels,
           productionQuantity: s.productionQuantity,
+          productionAmount: s.productionAmount,
           partKindCount: s.partKindCount,
           avgShot: s.avgShot,
           queryMonthIndex: s.queryMonthIndex,
@@ -661,6 +783,7 @@ export function buildMonthlyKpiPptSnapshot(options: {
           previous,
           "GROMMET",
           equipmentType,
+          priceByPart,
         ),
         current: prodSummary(
           records,
@@ -668,6 +791,7 @@ export function buildMonthlyKpiPptSnapshot(options: {
           yearMonth,
           "GROMMET",
           equipmentType,
+          priceByPart,
         ),
       },
       SEAL: {
@@ -677,6 +801,7 @@ export function buildMonthlyKpiPptSnapshot(options: {
           previous,
           "SEAL",
           equipmentType,
+          priceByPart,
         ),
         current: prodSummary(
           records,
@@ -684,6 +809,7 @@ export function buildMonthlyKpiPptSnapshot(options: {
           yearMonth,
           "SEAL",
           equipmentType,
+          priceByPart,
         ),
       },
     },
@@ -694,8 +820,16 @@ export function buildMonthlyKpiPptSnapshot(options: {
         yearMonth,
         "GROMMET",
         equipmentType,
+        priceByPart,
       ),
-      SEAL: dailyQty(records, filters, yearMonth, "SEAL", equipmentType),
+      SEAL: dailyQty(
+        records,
+        filters,
+        yearMonth,
+        "SEAL",
+        equipmentType,
+        priceByPart,
+      ),
     },
     partQtyTop: {
       GROMMET: partQtyTop(
@@ -706,6 +840,24 @@ export function buildMonthlyKpiPptSnapshot(options: {
         equipmentType,
       ),
       SEAL: partQtyTop(records, filters, yearMonth, "SEAL", equipmentType),
+    },
+    partAmountTop: {
+      GROMMET: partAmountTop(
+        records,
+        filters,
+        yearMonth,
+        "GROMMET",
+        equipmentType,
+        priceByPart,
+      ),
+      SEAL: partAmountTop(
+        records,
+        filters,
+        yearMonth,
+        "SEAL",
+        equipmentType,
+        priceByPart,
+      ),
     },
     operatorQtyTop: {
       GROMMET: operatorQtyTop(
@@ -721,6 +873,24 @@ export function buildMonthlyKpiPptSnapshot(options: {
         yearMonth,
         "SEAL",
         equipmentType,
+      ),
+    },
+    operatorAmountTop: {
+      GROMMET: operatorAmountTop(
+        records,
+        filters,
+        yearMonth,
+        "GROMMET",
+        equipmentType,
+        priceByPart,
+      ),
+      SEAL: operatorAmountTop(
+        records,
+        filters,
+        yearMonth,
+        "SEAL",
+        equipmentType,
+        priceByPart,
       ),
     },
     efficiency: {
@@ -748,6 +918,7 @@ export function buildMonthlyKpiPptSnapshot(options: {
         monthDateRange(yearMonth).startDate,
         monthDateRange(yearMonth).endDate,
         "day",
+        priceByPart,
       ),
       SEAL: buildMonthlyDashboardTrends(
         filterByEquipmentProductLine(
@@ -757,6 +928,7 @@ export function buildMonthlyKpiPptSnapshot(options: {
         monthDateRange(yearMonth).startDate,
         monthDateRange(yearMonth).endDate,
         "day",
+        priceByPart,
       ),
     },
   };

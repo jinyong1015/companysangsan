@@ -663,7 +663,15 @@ export type ProductTrendPoint = {
   label: string;
   GROMMET: number;
   SEAL: number;
+  /** 생산금액(원) — 생산량 지표 + 이중축일 때 사용 */
+  GROMMET_AMOUNT?: number;
+  SEAL_AMOUNT?: number;
 };
+
+function formatWon(v: number) {
+  if (!Number.isFinite(v)) return "-";
+  return `${formatNumber(Math.round(v))}원`;
+}
 
 function ProductTrendPanel({
   title,
@@ -673,17 +681,24 @@ function ProductTrendPanel({
   periodLabel,
   metricLabel,
   formatValue,
+  showAmount = false,
 }: {
   title: "GROMMET" | "SEAL";
   color: string;
-  data: Array<{ label: string; value: number }>;
+  data: Array<{ label: string; value: number; amount?: number }>;
   height: number;
   periodLabel: string;
   metricLabel: string;
   formatValue: (v: number) => string;
+  /** true면 생산수량(좌) + 생산금액(우) 이중축 */
+  showAmount?: boolean;
 }) {
   const values = data.map((d) => d.value);
+  const amounts = data.map((d) => d.amount ?? 0);
   const axisWidth = periodChartAxisWidth(values);
+  const amountAxisWidth = showAmount
+    ? Math.max(periodChartAxisWidth(amounts), 52)
+    : 0;
   const lastIdx = data.length - 1;
   const prev = lastIdx > 0 ? data[lastIdx - 1]!.value : null;
   const last = lastIdx >= 0 ? data[lastIdx]!.value : null;
@@ -703,6 +718,7 @@ function ProductTrendPanel({
           : "down";
   // 포인트가 많으면 간격 두고 표시 (가독성)
   const labelStep = data.length > 20 ? 2 : 1;
+  const amountColor = "#7CB342";
 
   if (!data.length) {
     return (
@@ -727,13 +743,30 @@ function ProductTrendPanel({
         style={{ "--panel-accent": color } as CSSProperties}
       >
         <h3>{title}</h3>
+        {showAmount ? (
+          <div className="product-trend-legend">
+            <span>
+              <i style={{ background: color }} />
+              생산수량
+            </span>
+            <span>
+              <i style={{ background: amountColor }} />
+              생산금액
+            </span>
+          </div>
+        ) : null}
       </div>
       <div className="product-trend-panel-body">
         <div style={{ width: "100%", height }}>
           <ResponsiveContainer>
             <LineChart
               data={data}
-              margin={{ top: 40, right: 28, left: 8, bottom: 8 }}
+              margin={{
+                top: 40,
+                right: showAmount ? Math.max(amountAxisWidth, 36) : 28,
+                left: 8,
+                bottom: 8,
+              }}
             >
               <CartesianGrid
                 stroke="color-mix(in srgb, var(--border) 85%, #e5eaf1)"
@@ -750,22 +783,39 @@ function ProductTrendPanel({
                 padding={{ left: 24, right: 24 }}
               />
               <YAxis
+                yAxisId="qty"
                 tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
                 axisLine={false}
                 tickLine={false}
                 width={Math.max(axisWidth, 48)}
                 tickFormatter={(v) => formatCompact(Number(v))}
               />
+              {showAmount ? (
+                <YAxis
+                  yAxisId="amount"
+                  orientation="right"
+                  tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={Math.max(amountAxisWidth, 48)}
+                  tickFormatter={(v) => formatCompact(Number(v))}
+                />
+              ) : null}
               <Tooltip
                 contentStyle={periodTooltipStyle}
                 cursor={{ stroke: color, strokeOpacity: 0.25, strokeWidth: 1 }}
-                formatter={(value) => [formatValue(Number(value)), metricLabel]}
+                formatter={(value, name) => {
+                  const n = Number(value);
+                  if (name === "생산금액") return [formatWon(n), "생산금액"];
+                  return [formatValue(n), metricLabel];
+                }}
                 labelFormatter={(label) => `${periodLabel} ${label}`}
               />
               <Line
+                yAxisId="qty"
                 type="monotone"
                 dataKey="value"
-                name={title}
+                name={showAmount ? "생산수량" : title}
                 stroke={color}
                 strokeWidth={2.5}
                 isAnimationActive={false}
@@ -782,112 +832,137 @@ function ProductTrendPanel({
                   strokeWidth: 2.5,
                 }}
               >
-                <LabelList
-                  dataKey="value"
-                  content={(props) => {
-                    const raw = props as {
-                      x?: number | string;
-                      y?: number | string;
-                      value?: number | string;
-                      index?: number;
-                    };
-                    const x = Number(raw.x);
-                    const y = Number(raw.y);
-                    const index = raw.index;
-                    const n = Number(raw.value);
-                    if (
-                      !Number.isFinite(x) ||
-                      !Number.isFinite(y) ||
-                      !Number.isFinite(n) ||
-                      typeof index !== "number"
-                    ) {
-                      return null;
-                    }
-                    if (n <= 0) return null;
+                {!showAmount ? (
+                  <LabelList
+                    dataKey="value"
+                    content={(props) => {
+                      const raw = props as {
+                        x?: number | string;
+                        y?: number | string;
+                        value?: number | string;
+                        index?: number;
+                      };
+                      const x = Number(raw.x);
+                      const y = Number(raw.y);
+                      const index = raw.index;
+                      const n = Number(raw.value);
+                      if (
+                        !Number.isFinite(x) ||
+                        !Number.isFinite(y) ||
+                        !Number.isFinite(n) ||
+                        typeof index !== "number"
+                      ) {
+                        return null;
+                      }
+                      if (n <= 0) return null;
 
-                    const isLast = index === lastIdx;
-                    // 마지막은 항상, 나머지는 step 간격으로 표시
-                    if (!isLast && index % labelStep !== 0) return null;
+                      const isLast = index === lastIdx;
+                      if (!isLast && index % labelStep !== 0) return null;
 
-                    const text = formatValue(n);
+                      const text = formatValue(n);
 
-                    if (!isLast) {
-                      return (
-                        <text
-                          x={x}
-                          y={y - 10}
-                          textAnchor="middle"
-                          fill="var(--text-secondary)"
-                          fontSize={10}
-                          fontWeight={600}
-                        >
-                          {text}
-                        </text>
+                      if (!isLast) {
+                        return (
+                          <text
+                            x={x}
+                            y={y - 10}
+                            textAnchor="middle"
+                            fill="var(--text-secondary)"
+                            fontSize={10}
+                            fontWeight={600}
+                          >
+                            {text}
+                          </text>
+                        );
+                      }
+
+                      const boxW = Math.max(
+                        52,
+                        text.length * 7 + (trend && trend !== "flat" ? 18 : 10),
                       );
-                    }
+                      const boxH = 22;
+                      const boxX = x - boxW / 2;
+                      const boxY = y - 36;
+                      const trendColor =
+                        trend === "up"
+                          ? "var(--error)"
+                          : trend === "down"
+                            ? "var(--accent)"
+                            : "var(--text-secondary)";
 
-                    const boxW = Math.max(
-                      52,
-                      text.length * 7 + (trend && trend !== "flat" ? 18 : 10),
-                    );
-                    const boxH = 22;
-                    const boxX = x - boxW / 2;
-                    const boxY = y - 36;
-                    const trendColor =
-                      trend === "up"
-                        ? "var(--error)"
-                        : trend === "down"
-                          ? "var(--accent)"
-                          : "var(--text-secondary)";
-
-                    return (
-                      <g>
-                        <circle
-                          cx={x}
-                          cy={y}
-                          r={5}
-                          fill="#fff"
-                          stroke={color}
-                          strokeWidth={2.5}
-                        />
-                        <rect
-                          x={boxX}
-                          y={boxY}
-                          width={boxW}
-                          height={boxH}
-                          rx={4}
-                          fill="var(--elevated)"
-                          stroke={trendColor}
-                          strokeWidth={1.5}
-                          strokeDasharray="4 3"
-                        />
-                        <text
-                          x={x - (trend && trend !== "flat" ? 6 : 0)}
-                          y={boxY + 15}
-                          textAnchor="middle"
-                          fill="var(--text)"
-                          fontSize={11}
-                          fontWeight={700}
-                        >
-                          {text}
-                        </text>
-                        {trend === "up" ? (
-                          <polygon
-                            points={`${boxX + boxW - 12},${boxY + 14} ${boxX + boxW - 6},${boxY + 14} ${boxX + boxW - 9},${boxY + 8}`}
-                            fill="var(--error)"
+                      return (
+                        <g>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r={5}
+                            fill="#fff"
+                            stroke={color}
+                            strokeWidth={2.5}
                           />
-                        ) : null}
-                        {trend === "down" ? (
-                          <polygon
-                            points={`${boxX + boxW - 12},${boxY + 8} ${boxX + boxW - 6},${boxY + 8} ${boxX + boxW - 9},${boxY + 14}`}
-                            fill="var(--accent)"
+                          <rect
+                            x={boxX}
+                            y={boxY}
+                            width={boxW}
+                            height={boxH}
+                            rx={4}
+                            fill="var(--elevated)"
+                            stroke={trendColor}
+                            strokeWidth={1.5}
+                            strokeDasharray="4 3"
                           />
-                        ) : null}
-                      </g>
-                    );
+                          <text
+                            x={x - (trend && trend !== "flat" ? 6 : 0)}
+                            y={boxY + 15}
+                            textAnchor="middle"
+                            fill="var(--text)"
+                            fontSize={11}
+                            fontWeight={700}
+                          >
+                            {text}
+                          </text>
+                          {trend === "up" ? (
+                            <polygon
+                              points={`${boxX + boxW - 12},${boxY + 14} ${boxX + boxW - 6},${boxY + 14} ${boxX + boxW - 9},${boxY + 8}`}
+                              fill="var(--error)"
+                            />
+                          ) : null}
+                          {trend === "down" ? (
+                            <polygon
+                              points={`${boxX + boxW - 12},${boxY + 8} ${boxX + boxW - 6},${boxY + 8} ${boxX + boxW - 9},${boxY + 14}`}
+                              fill="var(--accent)"
+                            />
+                          ) : null}
+                        </g>
+                      );
+                    }}
+                  />
+                ) : null}
+              </Line>
+              {showAmount ? (
+                <Line
+                  yAxisId="amount"
+                  type="monotone"
+                  dataKey="amount"
+                  name="생산금액"
+                  stroke={amountColor}
+                  strokeWidth={2.25}
+                  strokeDasharray="5 4"
+                  isAnimationActive={false}
+                  dot={{
+                    r: 3,
+                    fill: "#fff",
+                    stroke: amountColor,
+                    strokeWidth: 2,
+                  }}
+                  activeDot={{
+                    r: 5,
+                    fill: "#fff",
+                    stroke: amountColor,
+                    strokeWidth: 2.5,
                   }}
                 />
-              </Line>
+              ) : null}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -901,6 +976,8 @@ export type ProductTrendMonthSummary = {
   collectLabel: string;
   partKindCount: number;
   productionQuantity: number;
+  /** 생산금액(원) — 단가 등록 품번만 합산 */
+  productionAmount: number;
   avgShot: number;
   /** 총 SHOT ÷ 품번별 작업일수 합 (TOP&WORST와 동일) */
   dailyAvgShots: number;
@@ -913,6 +990,7 @@ export function PeriodProductSplitTrendCharts({
   metricLabel = "생산량",
   formatValue,
   summaries,
+  showAmountSeries = false,
 }: {
   data: ProductTrendPoint[];
   height?: number;
@@ -923,6 +1001,8 @@ export function PeriodProductSplitTrendCharts({
   summaries?: Partial<
     Record<"GROMMET" | "SEAL", ProductTrendMonthSummary | null>
   >;
+  /** 생산수량 + 생산금액 이중 시리즈 */
+  showAmountSeries?: boolean;
 }) {
   const format = formatValue ?? ((v: number) => formatQuantity(v));
   const paired = summaries != null;
@@ -945,6 +1025,8 @@ export function PeriodProductSplitTrendCharts({
     >
       {PRODUCT_TREND_SERIES.map((s) => {
         const summary = summaries?.[s.key] ?? null;
+        const amountKey =
+          s.key === "GROMMET" ? "GROMMET_AMOUNT" : "SEAL_AMOUNT";
         return (
           <div
             key={s.key}
@@ -958,6 +1040,7 @@ export function PeriodProductSplitTrendCharts({
                     <tr>
                       <th>DATA 수집일</th>
                       <th>품목수량</th>
+                      <th>생산금액(원)</th>
                       <th>생산수량(EA)</th>
                       <th>평균 SHOT(hr)</th>
                       <th>평균 SHOT(日)</th>
@@ -968,13 +1051,14 @@ export function PeriodProductSplitTrendCharts({
                       <tr>
                         <td>{summary.collectLabel}</td>
                         <td>{formatNumber(summary.partKindCount)}</td>
+                        <td>{formatWon(summary.productionAmount)}</td>
                         <td>{formatNumber(summary.productionQuantity)}</td>
                         <td>{formatNumber(summary.avgShot, 1)}</td>
                         <td>{formatNumber(Math.round(summary.dailyAvgShots))}</td>
                       </tr>
                     ) : (
                       <tr>
-                        <td colSpan={5} className="pvt-month-summary-empty">
+                        <td colSpan={6} className="pvt-month-summary-empty">
                           데이터 없음
                         </td>
                       </tr>
@@ -986,11 +1070,16 @@ export function PeriodProductSplitTrendCharts({
             <ProductTrendPanel
               title={s.key}
               color={s.color}
-              data={data.map((d) => ({ label: d.label, value: d[s.key] }))}
+              data={data.map((d) => ({
+                label: d.label,
+                value: d[s.key],
+                amount: d[amountKey] ?? 0,
+              }))}
               height={height}
               periodLabel={periodLabel}
               metricLabel={metricLabel}
               formatValue={format}
+              showAmount={showAmountSeries}
             />
           </div>
         );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format, parseISO, startOfMonth, subMonths } from "date-fns";
 import { ArrowLeftRight } from "lucide-react";
 import { PeriodProductSplitTrendCharts } from "@/components/charts/Charts";
@@ -62,6 +62,12 @@ function lastNMonthsRange(months: number): {
   };
 }
 
+function normalizePartKey(partNumber: string) {
+  return String(partNumber ?? "")
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
 export function ProductionVariationTrend({
   grain,
   className = "mb-4",
@@ -74,6 +80,9 @@ export function ProductionVariationTrend({
   const { records } = useDataSource();
   const [metric, setMetric] = useState<ProductionTrendMetric>("production");
   const [monthCompareOpen, setMonthCompareOpen] = useState(false);
+  const [priceByPart, setPriceByPart] = useState<Map<string, number>>(
+    () => new Map(),
+  );
 
   const filters: GlobalFilters = useMemo(() => {
     const base = { ...globalFilters, ...filtersOverride };
@@ -101,13 +110,58 @@ export function ProductionVariationTrend({
   const periodLabel = grain === "day" ? "일" : "월";
   const title =
     lastMonths != null && lastMonths > 0
-      ? `${grainLabel} 생산변동 추이 (최근 ${lastMonths}개월)`
-      : `${grainLabel} 생산변동 추이`;
+      ? `월별 생산변동 추이 (최근 ${lastMonths}개월)`
+      : grain === "day"
+        ? "월별 생산변동 추이"
+        : `${grainLabel} 생산변동 추이`;
   const sectionDescription =
     description ??
     (lastMonths != null && lastMonths > 0
       ? `상단 조회기간과 무관하게 오늘 기준 최근 ${lastMonths}개월을 표시합니다.`
       : undefined);
+
+  const scopedRecords = useMemo(() => {
+    if (invalidRange) return [];
+    return filterRecords(records, filters);
+  }, [filters, invalidRange, records]);
+
+  const partNumbersKey = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of scopedRecords) {
+      const key = normalizePartKey(r.partNumber);
+      if (key) set.add(key);
+    }
+    return [...set].sort().join("\0");
+  }, [scopedRecords]);
+
+  useEffect(() => {
+    if (!partNumbersKey) {
+      setPriceByPart(new Map());
+      return;
+    }
+    const parts = partNumbersKey.split("\0");
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/product-prices/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ partNumbers: parts }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          prices?: Record<string, number>;
+        };
+        if (cancelled || !data.ok || !data.prices) return;
+        setPriceByPart(new Map(Object.entries(data.prices)));
+      } catch {
+        if (!cancelled) setPriceByPart(new Map());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [partNumbersKey]);
 
   const trendsByProduct = useMemo(() => {
     if (invalidRange) return [];
@@ -117,6 +171,7 @@ export function ProductionVariationTrend({
         filters.startDate,
         filters.endDate,
         grain,
+        priceByPart,
       );
     const grommet = build("GROMMET");
     const seal = build("SEAL");
@@ -137,6 +192,10 @@ export function ProductionVariationTrend({
           GROMMET: g?.productionQuantity ?? 0,
           SEAL: s?.productionQuantity ?? 0,
         },
+        amount: {
+          GROMMET: g?.productionAmount ?? 0,
+          SEAL: s?.productionAmount ?? 0,
+        },
         partKinds: {
           GROMMET: g?.partKindCount ?? 0,
           SEAL: s?.partKindCount ?? 0,
@@ -151,7 +210,7 @@ export function ProductionVariationTrend({
         },
       };
     });
-  }, [filters, grain, invalidRange, records]);
+  }, [filters, grain, invalidRange, priceByPart, records]);
 
   /** 일별 추이(대시보드): GROMMET/SEAL 각각 해당 월 요약 */
   const monthSummaries = useMemo(() => {
@@ -162,6 +221,7 @@ export function ProductionVariationTrend({
         filters.startDate,
         filters.endDate,
         "month",
+        priceByPart,
       );
       const row = rows[0];
       if (!row) return null;
@@ -174,6 +234,7 @@ export function ProductionVariationTrend({
         collectLabel,
         partKindCount: row.partKindCount,
         productionQuantity: row.productionQuantity,
+        productionAmount: row.productionAmount,
         avgShot: row.avgShot,
         dailyAvgShots: row.dailyAvgShots,
       };
@@ -182,7 +243,7 @@ export function ProductionVariationTrend({
       GROMMET: toSummary("GROMMET"),
       SEAL: toSummary("SEAL"),
     };
-  }, [filters, grain, invalidRange, records]);
+  }, [filters, grain, invalidRange, priceByPart, records]);
 
   const chart = useMemo(() => {
     const seriesKey =
@@ -196,6 +257,8 @@ export function ProductionVariationTrend({
     const data = trendsByProduct.map((row) => ({
       label: row.label,
       ...row[seriesKey],
+      GROMMET_AMOUNT: row.amount.GROMMET,
+      SEAL_AMOUNT: row.amount.SEAL,
     }));
 
     const avgOf = (values: number[]) => {
@@ -212,6 +275,7 @@ export function ProductionVariationTrend({
         data,
         metricLabel: "생산량",
         formatValue: (v: number) => formatQuantity(v),
+        showAmountSeries: grain === "day",
         stats: [
           { label: "GROMMET 합계", value: formatQuantity(gTotal) },
           { label: "SEAL 합계", value: formatQuantity(sTotal) },
@@ -232,6 +296,7 @@ export function ProductionVariationTrend({
         data,
         metricLabel: "작업품목(품번) 종류",
         formatValue: (v: number) => `${formatNumber(v)}종`,
+        showAmountSeries: false,
         stats: [
           {
             label: `GROMMET ${periodAvgLabel}`,
@@ -260,6 +325,7 @@ export function ProductionVariationTrend({
         data,
         metricLabel: "비가동시간(분)",
         formatValue: (v: number) => formatMinutes(v),
+        showAmountSeries: false,
         stats: [
           { label: "GROMMET 합계", value: formatMinutes(gTotal) },
           { label: "SEAL 합계", value: formatMinutes(sTotal) },
@@ -279,6 +345,7 @@ export function ProductionVariationTrend({
       data,
       metricLabel: "평균 SHOT",
       formatValue: (v: number) => formatNumber(v, 1),
+      showAmountSeries: false,
       stats: [
         {
           label: "GROMMET 평균",
@@ -290,7 +357,7 @@ export function ProductionVariationTrend({
         },
       ],
     };
-  }, [metric, periodAvgLabel, trendsByProduct]);
+  }, [grain, metric, periodAvgLabel, trendsByProduct]);
 
   if (invalidRange) return null;
 
@@ -344,6 +411,7 @@ export function ProductionVariationTrend({
           formatValue={chart.formatValue}
           height={260}
           summaries={monthSummaries}
+          showAmountSeries={chart.showAmountSeries}
         />
       </SectionCard>
 

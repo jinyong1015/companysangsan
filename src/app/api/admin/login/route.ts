@@ -9,7 +9,7 @@ import {
 
 export async function POST(request: Request) {
   try {
-    if (!isAdminPasswordConfigured()) {
+    if (!(await isAdminPasswordConfigured())) {
       return NextResponse.json(
         { ok: false, message: "관리자 비밀번호가 서버에 설정되지 않았습니다." },
         { status: 503 },

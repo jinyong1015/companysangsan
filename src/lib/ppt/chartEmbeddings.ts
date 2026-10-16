@@ -138,12 +138,13 @@ export async function syncDowntimeCompareEmbedding(
   await saveWorkbook(zip, path, wb);
 }
 
-/** 일별 생산 차트 임베딩 — A=일, B=생산금액(없음→0), C=생산수량 */
+/** 일별 생산 차트 임베딩 — A=일, B=생산금액, C=생산수량 */
 export async function syncDailyQtyEmbedding(
   zip: JSZip,
   chartFile: string,
   days: number[],
   quantities: number[],
+  amounts?: number[],
 ): Promise<void> {
   const path = await resolveChartEmbedding(zip, chartFile);
   if (!path) return;
@@ -158,7 +159,7 @@ export async function syncDailyQtyEmbedding(
   for (let i = 0; i < 31; i += 1) {
     const row = i + 2;
     sheet.getCell(row, 1).value = days[i] ?? i + 1;
-    sheet.getCell(row, 2).value = 0; // 금액 데이터 없음
+    sheet.getCell(row, 2).value = amounts?.[i] ?? 0;
     sheet.getCell(row, 3).value = quantities[i] ?? 0;
     // 예전 잘못 쓰이던 D열 잔여값 제거
     sheet.getCell(row, 4).value = null;

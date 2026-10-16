@@ -179,7 +179,6 @@ export default function PartDetailPage() {
         chips={[
           { label: "제품유형", value: part.productType || "-" },
           { label: "조회기간", value: `${rangeStart} ~ ${rangeEnd}` },
-          { label: "생산 설비", value: `${byEquipment.length}대` },
         ]}
       />
       <ResponsiveGrid variant="kpi" className="detail-kpi-grid mb-4">
@@ -190,7 +189,6 @@ export default function PartDetailPage() {
         <KpiCard title="가동률" value={formatPercent(kpi.utilizationRatePercent)} accent="var(--metric-util)" />
         <KpiCard title="비가동시간" value={formatMinutes(kpi.downtimeMinutes)} accent="var(--metric-downtime)" />
         <KpiCard title="고장 건수" value={`${formatNumber(kpi.failureCount)}건`} accent="var(--metric-mttr)" />
-        <KpiCard title="생산 설비 수" value={`${formatNumber(byEquipment.length)}대`} accent="var(--accent)" />
       </ResponsiveGrid>
 
       <SectionCard

@@ -14,6 +14,7 @@ import {
 import {
   BarChart3,
   Boxes,
+  CircleDollarSign,
   Database,
   Factory,
   Grid3x3,
@@ -54,6 +55,7 @@ const MORE_FIXED: Array<{
   Icon?: IconComp;
 }> = [
   { href: "/molds", label: "금형 분석", Icon: Boxes },
+  { href: "/product-prices", label: "제품 단가 관리", Icon: CircleDollarSign },
   { href: "/all-data", label: "전체 DATA", Icon: Database },
 ];
 
@@ -178,10 +180,15 @@ export function GlobalHeader() {
 
   const visible = visibleIndices.map((i) => PRIMARY_MENUS[i]!);
   const overflow = PRIMARY_MENUS.filter((_, i) => !visibleIndices.includes(i));
-  const moreItems = useMemo(
-    () => [...overflow.map((m) => ({ href: m.href, label: m.label })), ...MORE_FIXED],
-    [overflow],
-  );
+  const moreItems = useMemo(() => {
+    const fixed = isAdmin
+      ? MORE_FIXED
+      : MORE_FIXED.filter((m) => m.href !== "/product-prices");
+    return [
+      ...overflow.map((m) => ({ href: m.href, label: m.label })),
+      ...fixed,
+    ];
+  }, [overflow, isAdmin]);
   const moreActive = moreItems.some((m) => isActive(pathname, m.href));
 
   return (

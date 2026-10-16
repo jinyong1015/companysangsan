@@ -10,6 +10,7 @@
     "admin:hash": "node scripts/hash-admin-password.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "exceljs": "^4.4.0",

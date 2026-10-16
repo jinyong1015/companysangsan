@@ -39,12 +39,39 @@ export function MonthlyKpiPptExportButton({
     }
     setBusy(true);
     try {
+      const partNumbers = [
+        ...new Set(
+          records
+            .map((r) => String(r.partNumber ?? "").replace(/\u00a0/g, " ").trim())
+            .filter(Boolean),
+        ),
+      ];
+      let priceByPart = new Map<string, number>();
+      if (partNumbers.length) {
+        try {
+          const res = await fetch("/api/product-prices/lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ partNumbers }),
+          });
+          const data = (await res.json()) as {
+            ok?: boolean;
+            prices?: Record<string, number>;
+          };
+          if (data.ok && data.prices) {
+            priceByPart = new Map(Object.entries(data.prices));
+          }
+        } catch {
+          // 단가 조회 실패 시 금액 0으로 진행
+        }
+      }
       const snapshot = buildMonthlyKpiPptSnapshot({
         yearMonth,
         records,
         filters,
         workPattern,
         equipmentType,
+        priceByPart,
       });
       const blob = await fillMonthlyKpiPpt(snapshot);
       downloadBlob(blob, snapshot.fileName);

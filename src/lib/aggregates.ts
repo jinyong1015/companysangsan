@@ -196,10 +196,11 @@ export function aggregateOperators(
     const day = rows.filter((r) => r.shiftType === "주간").length;
     const night = rows.filter((r) => r.shiftType === "야간").length;
     const total = day + night || 1;
+    const factories = [...new Set(rows.map((r) => r.factory))];
     return {
       id,
       name: first.operatorName,
-      factory: first.factory,
+      factory: factories[0] ?? first.factory,
       shiftMix: `주간 ${Math.round((day / total) * 100)}% · 야간 ${Math.round((night / total) * 100)}%`,
       partCount: new Set(rows.map((r) => r.partId)).size,
       equipmentCount: new Set(rows.map((r) => r.equipmentId)).size,

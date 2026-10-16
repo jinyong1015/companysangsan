@@ -1,5 +1,10 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import {
+  getProductPricesRpcSecret,
+  getSupabaseAnonClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase/client";
 
 const scryptAsync = promisify(scrypt);
 
@@ -44,15 +49,43 @@ function safeEqual(a: Buffer, b: Buffer): boolean {
   return timingSafeEqual(a, b);
 }
 
+async function fetchAdminPasswordHashFromSupabase(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const supabase = getSupabaseAnonClient();
+    const { data, error } = await supabase.rpc("rpc_get_admin_password_hash", {
+      p_secret: getProductPricesRpcSecret(),
+    });
+    if (error || typeof data !== "string" || !data.trim()) return null;
+    return data.trim();
+  } catch {
+    return null;
+  }
+}
+
+function envAdminPasswordHash(): string | null {
+  return process.env.ADMIN_PASSWORD_HASH?.trim() || null;
+}
+
 /**
- * 서버 환경변수만으로 검증한다.
- * - ADMIN_PASSWORD_HASH (권장): scrypt 해시
- * - ADMIN_PASSWORD: 로컬 개발용. 해시가 없을 때만 사용하며 평문 비교 대신 scrypt로 비교
+ * 관리자 비밀번호 해시 조회.
+ * 1) Supabase private.app_config (admin_password_hash)
+ * 2) 환경변수 ADMIN_PASSWORD_HASH (폴백)
+ */
+export async function resolveAdminPasswordHash(): Promise<string | null> {
+  const fromDb = await fetchAdminPasswordHashFromSupabase();
+  if (fromDb) return fromDb;
+  return envAdminPasswordHash();
+}
+
+/**
+ * - Supabase에 저장된 scrypt 해시로 검증 (우선)
+ * - ADMIN_PASSWORD_HASH / ADMIN_PASSWORD 환경변수 폴백
  */
 export async function verifyAdminPassword(password: string): Promise<boolean> {
   if (!password || !password.trim()) return false;
 
-  const configuredHash = process.env.ADMIN_PASSWORD_HASH?.trim();
+  const configuredHash = await resolveAdminPasswordHash();
   if (configuredHash) {
     const parts = parsePasswordHash(configuredHash);
     if (!parts) return false;
@@ -64,14 +97,16 @@ export async function verifyAdminPassword(password: string): Promise<boolean> {
   if (!configuredPassword) return false;
 
   const secret = process.env.ADMIN_SESSION_SECRET ?? "dev-only-admin-session";
-  const salt = createHash("sha256").update(`admin-pw-salt:${secret}`).digest().subarray(0, 16);
+  const salt = createHash("sha256")
+    .update(`admin-pw-salt:${secret}`)
+    .digest()
+    .subarray(0, 16);
   const a = await hashWithSalt(password, salt);
   const b = await hashWithSalt(configuredPassword, salt);
   return safeEqual(a, b);
 }
 
-export function isAdminPasswordConfigured(): boolean {
-  return Boolean(
-    process.env.ADMIN_PASSWORD_HASH?.trim() || process.env.ADMIN_PASSWORD,
-  );
+export async function isAdminPasswordConfigured(): Promise<boolean> {
+  if (await resolveAdminPasswordHash()) return true;
+  return Boolean(process.env.ADMIN_PASSWORD);
 }

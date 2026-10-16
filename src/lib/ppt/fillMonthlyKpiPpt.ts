@@ -22,6 +22,7 @@ import {
   applySlide1,
   applySlide10,
   applySlide11,
+  applySlide12,
   applySlide13,
   applySlide14,
   applySlide15,
@@ -61,6 +62,7 @@ const SLIDE_APPLIERS: Record<number, SlideApplier> = {
   9: applySlide9,
   10: applySlide10,
   11: applySlide11,
+  12: applySlide12,
   13: applySlide13,
   14: applySlide14,
   15: applySlide15,
@@ -190,6 +192,7 @@ async function applySlideCharts(
             xml,
             snapshot.dailyProduction.GROMMET.days,
             snapshot.dailyProduction.GROMMET.quantities,
+            snapshot.dailyProduction.GROMMET.amounts,
           ),
         );
         await syncDailyQtyEmbedding(
@@ -197,6 +200,7 @@ async function applySlideCharts(
           chartFiles[0],
           snapshot.dailyProduction.GROMMET.days,
           snapshot.dailyProduction.GROMMET.quantities,
+          snapshot.dailyProduction.GROMMET.amounts,
         );
       }
       break;
@@ -207,6 +211,7 @@ async function applySlideCharts(
             xml,
             snapshot.dailyProduction.SEAL.days,
             snapshot.dailyProduction.SEAL.quantities,
+            snapshot.dailyProduction.SEAL.amounts,
           ),
         );
         await syncDailyQtyEmbedding(
@@ -214,30 +219,86 @@ async function applySlideCharts(
           chartFiles[0],
           snapshot.dailyProduction.SEAL.days,
           snapshot.dailyProduction.SEAL.quantities,
+          snapshot.dailyProduction.SEAL.amounts,
         );
       }
       break;
+    case 12: {
+      // 월별 생산금액 추이 — 천원 단위 (슬라이드13 생산량과 동일 라벨 정책)
+      const gAmt = gProd.productionAmount.map((v) =>
+        Number.isFinite(v) ? Math.round(v / 1000) : Number.NaN,
+      );
+      const sAmt = sProd.productionAmount.map((v) =>
+        Number.isFinite(v) ? Math.round(v / 1000) : Number.NaN,
+      );
+      // SEAL plot이 위로 쏠리지 않도록 GROMMET과 동일 plot·X축 한 줄
+      const amountTrendOpts = {
+        axisMin: 0,
+        valueDigits: 0,
+        clearDisplayUnits: true,
+        hideLastPointLabel: true,
+        hideZeroValueLabels: true,
+        niceScale: true,
+        labelOnTop: true,
+        alignAmountLayout: true,
+      } as const;
+      if (chartFiles[0]) {
+        await mutateChart(zip, chartFiles[0], (xml) =>
+          applyMonthlyTrendChart(xml, gProd.labels, gAmt, "생산금액", {
+            ...amountTrendOpts,
+            highlightIndex: gProd.queryMonthIndex,
+          }),
+        );
+        await syncMonthlyTrendEmbedding(
+          zip,
+          chartFiles[0],
+          gProd.labels,
+          gAmt,
+          "생산금액",
+        );
+      }
+      if (chartFiles[1]) {
+        await mutateChart(zip, chartFiles[1], (xml) =>
+          applyMonthlyTrendChart(xml, sProd.labels, sAmt, "생산금액", {
+            ...amountTrendOpts,
+            highlightIndex: sProd.queryMonthIndex,
+          }),
+        );
+        await syncMonthlyTrendEmbedding(
+          zip,
+          chartFiles[1],
+          sProd.labels,
+          sAmt,
+          "생산금액",
+        );
+      }
+      break;
+    }
     case 13: {
-      // 실수량(EA) — 천 단위로 나누지 않음 (9,503,400 전체가 보이도록)
+      // 실수량(EA) — 레이아웃·라벨 정책은 슬라이드14와 동일
       const gQty = gProd.productionQuantity.map((v) =>
         Number.isFinite(v) ? Math.round(v) : Number.NaN,
       );
       const sQty = sProd.productionQuantity.map((v) =>
         Number.isFinite(v) ? Math.round(v) : Number.NaN,
       );
+      const qtyTrendOpts = {
+        axisMin: 0,
+        valueDigits: 0,
+        clearDisplayUnits: true,
+        hideLastPointLabel: true,
+        hideZeroValueLabels: true,
+        niceScale: true,
+        // SEAL 축 제목 폰트·위치 통일 + 눈금 겹침 방지 (plot은 완화 버전)
+        unitToEa: true,
+        padLargeAxisLabels: true,
+        labelOnTop: true,
+      } as const;
       if (chartFiles[0]) {
         await mutateChart(zip, chartFiles[0], (xml) =>
           applyMonthlyTrendChart(xml, gProd.labels, gQty, "생산수량", {
-            axisMin: 0,
-            valueDigits: 0,
-            clearDisplayUnits: true,
-            hideLastPointLabel: true,
+            ...qtyTrendOpts,
             highlightIndex: gProd.queryMonthIndex,
-            hideZeroValueLabels: true,
-            niceScale: true,
-            unitToEa: true,
-            padLargeAxisLabels: true,
-            labelOnTop: true,
           }),
         );
         await syncMonthlyTrendEmbedding(
@@ -251,16 +312,8 @@ async function applySlideCharts(
       if (chartFiles[1]) {
         await mutateChart(zip, chartFiles[1], (xml) =>
           applyMonthlyTrendChart(xml, sProd.labels, sQty, "생산수량", {
-            axisMin: 0,
-            valueDigits: 0,
-            clearDisplayUnits: true,
-            hideLastPointLabel: true,
+            ...qtyTrendOpts,
             highlightIndex: sProd.queryMonthIndex,
-            hideZeroValueLabels: true,
-            niceScale: true,
-            unitToEa: true,
-            padLargeAxisLabels: true,
-            labelOnTop: true,
           }),
         );
         await syncMonthlyTrendEmbedding(
@@ -387,51 +440,62 @@ async function applySlideCharts(
       break;
     case 16:
     case 17: {
-      const rows =
-        slideNum === 16
-          ? snapshot.partQtyTop.GROMMET
-          : snapshot.partQtyTop.SEAL;
-      // 상단=생산수량, 하단=생산금액(데이터 없음)
+      const product = slideNum === 16 ? "GROMMET" : "SEAL";
+      const qtyRows = snapshot.partQtyTop[product];
+      const amountRows = snapshot.partAmountTop[product];
+      // 슬라이드 위→아래 / 템플릿 차트 순서에 맞춤 (GROMMET: 금액→수량, SEAL: 수량→금액)
+      const firstIsAmount = slideNum === 16;
+      const first = firstIsAmount ? amountRows : qtyRows;
+      const second = firstIsAmount ? qtyRows : amountRows;
       if (chartFiles[0]) {
         await mutateChart(zip, chartFiles[0], (xml) =>
-          applyRankChart(xml, rows, { maxPoints: 10 }),
+          applyRankChart(xml, first, { maxPoints: 10 }),
         );
-        await syncRankEmbedding(zip, chartFiles[0], rows);
+        await syncRankEmbedding(zip, chartFiles[0], first);
       }
       if (chartFiles[1]) {
         await mutateChart(zip, chartFiles[1], (xml) =>
-          applyRankChart(xml, [], { maxPoints: 10, blank: true }),
+          applyRankChart(xml, second, {
+            maxPoints: 10,
+            blank: second.length === 0,
+          }),
         );
         await syncRankEmbedding(
           zip,
           chartFiles[1],
-          Array.from({ length: 10 }, () => ({ name: "-", value: 0 })),
+          second.length
+            ? second
+            : Array.from({ length: 10 }, () => ({ name: "-", value: 0 })),
         );
       }
       break;
     }
     case 18:
     case 19: {
-      const rows =
-        slideNum === 18
-          ? snapshot.operatorQtyTop.GROMMET
-          : snapshot.operatorQtyTop.SEAL;
-      // 상단=생산수량, 하단=생산금액(데이터 없음)
+      const product = slideNum === 18 ? "GROMMET" : "SEAL";
+      const qtyRows = snapshot.operatorQtyTop[product];
+      const amountRows = snapshot.operatorAmountTop[product];
+      // 템플릿: 상단 콜아웃 수량·금액, 표/차트는 금액 후 수량 순서
       if (chartFiles[0]) {
         await mutateChart(zip, chartFiles[0], (xml) =>
-          applyRankChart(xml, rows, { maxPoints: 10 }),
-        );
-        await syncRankEmbedding(zip, chartFiles[0], rows);
-      }
-      if (chartFiles[1]) {
-        await mutateChart(zip, chartFiles[1], (xml) =>
-          applyRankChart(xml, [], { maxPoints: 10, blank: true }),
+          applyRankChart(xml, amountRows, {
+            maxPoints: 10,
+            blank: amountRows.length === 0,
+          }),
         );
         await syncRankEmbedding(
           zip,
-          chartFiles[1],
-          Array.from({ length: 10 }, () => ({ name: "-", value: 0 })),
+          chartFiles[0],
+          amountRows.length
+            ? amountRows
+            : Array.from({ length: 10 }, () => ({ name: "-", value: 0 })),
         );
+      }
+      if (chartFiles[1]) {
+        await mutateChart(zip, chartFiles[1], (xml) =>
+          applyRankChart(xml, qtyRows, { maxPoints: 10 }),
+        );
+        await syncRankEmbedding(zip, chartFiles[1], qtyRows);
       }
       break;
     }
@@ -532,7 +596,7 @@ export async function fillMonthlyKpiPpt(
     }
   }
 
-  // 금액·재료·검사 슬라이드 제거 (후순위)
+  // 재료·검사 슬라이드 제거 (후순위)
   await removeExcludedSlides(zip);
 
   return zip.generateAsync({

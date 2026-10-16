@@ -12,6 +12,7 @@ import {
   getEquipmentMasterByName,
 } from "@/data/equipmentMaster";
 import { toDateString, todaySeoul } from "@/lib/dates";
+import { operatorIdFrom } from "@/lib/dimensions";
 import { subDays } from "date-fns";
 
 /** ë°ëª¨ì© ìí ì¤ë¹ â ê³µì¥êµ¬ë¶ì equipmentMaster ê³ ì ê° */
@@ -158,7 +159,9 @@ const base: ProductionRecord = {
     shotCount: overrides.shotCount ?? Math.max(1, Math.round(production / 4)),
     defectQuantity: overrides.defectQuantity ?? 0,
     productionQuantity: production,
-    operatorId: overrides.operatorId ?? operator.id,
+    operatorId:
+      overrides.operatorId ??
+      operatorIdFrom(operator.name, overrides.factory),
     operatorName: overrides.operatorName ?? operator.name,
     shiftType: (overrides.shiftType ?? (index % 3 === 0 ? "야간" : "주간")) as ShiftType,
     moldId: overrides.moldId ?? mold.id,

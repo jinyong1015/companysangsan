@@ -1,11 +1,11 @@
 import type JSZip from "jszip";
 
 /**
- * 데이터가 없어 후순위로 미룬 슬라이드 (생산금액·재료·검사).
+ * 데이터가 없어 후순위로 미룬 슬라이드 (재료·검사).
  * 템플릿 원본 번호 기준.
  */
-/** 12=일별금액 등, 20·21=재료, 24·25=검사 — 16(GROMMET 제품별)은 포함 */
-export const EXCLUDED_SLIDE_NUMBERS = [12, 20, 21, 24, 25] as const;
+/** 20·21=재료, 24·25=검사 — 12(월별 생산금액)는 단가 연동 후 포함 */
+export const EXCLUDED_SLIDE_NUMBERS = [20, 21, 24, 25] as const;
 
 /**
  * presentation.xml / rels / Content_Types에서 지정 슬라이드를 제거하고

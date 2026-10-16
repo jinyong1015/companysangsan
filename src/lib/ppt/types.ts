@@ -37,6 +37,8 @@ export type PptProdMonthSummary = {
   yearMonth: string;
   monthNum: number;
   partKindCount: number;
+  /** 단가 등록 품번만 합산 (원) */
+  productionAmount: number;
   productionQuantity: number;
   avgShot: number;
   dailyAvgShots: number;
@@ -96,6 +98,7 @@ export type MonthlyKpiPptSnapshot = {
     ProductType,
     {
       productionQuantity: number[];
+      productionAmount: number[];
       partKindCount: number[];
       avgShot: number[];
       labels: string[];
@@ -108,10 +111,14 @@ export type MonthlyKpiPptSnapshot = {
   >;
   dailyProduction: Record<
     ProductType,
-    { days: number[]; quantities: number[] }
+    { days: number[]; quantities: number[]; amounts: number[] }
   >;
   partQtyTop: Record<ProductType, PptRankRow[]>;
+  /** 제품별 생산금액 TOP 10 (단가 등록 품번만) */
+  partAmountTop: Record<ProductType, PptRankRow[]>;
   operatorQtyTop: Record<ProductType, PptRankRow[]>;
+  /** 작업자별 생산금액 TOP 10 (단가 등록 품번만) */
+  operatorAmountTop: Record<ProductType, PptRankRow[]>;
   efficiency: Record<ProductType, PptEfficiencySummary>;
   dailyTrendPoints: Record<ProductType, MonthlyDashboardPoint[]>;
 };

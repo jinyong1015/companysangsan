@@ -743,6 +743,107 @@ export function fitEfficiencyChartBorders(slideXml: string): string {
   return xml;
 }
 
+/**
+ * 상·하 생산 추이 차트 프레임을 슬라이드14(작업품목 종류)와 동일한 x/폭으로 맞춤.
+ * padLargeAxisLabels로 plot만 우측 이동하던  asymmet리와 템플릿 편차를 보정한다.
+ */
+export function alignStackedTrendChartFrames(slideXml: string): string {
+  // slide14 템플릿 기준 (위=GROMMET, 아래=SEAL)
+  const REF_CHARTS = [
+    { x: -225_779, cx: 9_169_930 },
+    { x: -167_145, cx: 9_002_787 },
+  ] as const;
+  const REF_BORDER = { x: 152_400, cx: 8_900_160 };
+
+  const setXfrm = (
+    block: string,
+    x: number,
+    y: number,
+    cx: number,
+    cy: number,
+  ) =>
+    block
+      .replace(
+        /<a:off x="-?\d+" y="-?\d+"\/>/,
+        `<a:off x="${x}" y="${y}"/>`,
+      )
+      .replace(
+        /(<a:xfrm\b[^>]*>[\s\S]*?)<a:ext cx="\d+" cy="\d+"\/>/,
+        `$1<a:ext cx="${cx}" cy="${cy}"/>`,
+      );
+
+  const charts = [
+    ...slideXml.matchAll(/<p:graphicFrame>[\s\S]*?<\/p:graphicFrame>/g),
+  ]
+    .map((m) => {
+      const block = m[0];
+      if (!/2006\/chart|c:chart/.test(block)) return null;
+      const off = block.match(/<a:off x="(-?\d+)" y="(-?\d+)"\/>/);
+      const ext = block.match(/<a:ext cx="(\d+)" cy="(\d+)"\/>/);
+      if (!off || !ext) return null;
+      return {
+        block,
+        x: Number(off[1]),
+        y: Number(off[2]),
+        cx: Number(ext[1]),
+        cy: Number(ext[2]),
+      };
+    })
+    .filter((f): f is NonNullable<typeof f> => !!f)
+    .sort((a, b) => a.y - b.y);
+
+  let xml = slideXml;
+  for (let i = 0; i < Math.min(charts.length, REF_CHARTS.length); i += 1) {
+    const chart = charts[i]!;
+    const ref = REF_CHARTS[i]!;
+    if (chart.x === ref.x && chart.cx === ref.cx) continue;
+    const next = setXfrm(chart.block, ref.x, chart.y, ref.cx, chart.cy);
+    xml = xml.replace(chart.block, next);
+  }
+
+  // 큰 흰 테두리만 헤더와 같은 폭으로 (슬라이드14와 동일)
+  const borders = [...xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)]
+    .map((m) => m[0])
+    .filter((block) => {
+      if (!/<a:ln\b/.test(block)) return false;
+      const texts = [...block.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((t) =>
+        (t[1] ?? "").trim(),
+      );
+      if (texts.some((t) => t.length > 0)) return false;
+      const ext = block.match(/<a:ext cx="(\d+)" cy="(\d+)"\/>/);
+      if (!ext) return false;
+      return Number(ext[1]) > 2_000_000 && Number(ext[2]) > 1_500_000;
+    })
+    .map((block) => {
+      const off = block.match(/<a:off x="(-?\d+)" y="(-?\d+)"\/>/);
+      const ext = block.match(/<a:ext cx="(\d+)" cy="(\d+)"\/>/);
+      if (!off || !ext) return null;
+      return {
+        block,
+        x: Number(off[1]),
+        y: Number(off[2]),
+        cx: Number(ext[1]),
+        cy: Number(ext[2]),
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => !!b)
+    .sort((a, b) => a.y - b.y);
+
+  for (const border of borders) {
+    if (border.x === REF_BORDER.x && border.cx === REF_BORDER.cx) continue;
+    const next = setXfrm(
+      border.block,
+      REF_BORDER.x,
+      border.y,
+      REF_BORDER.cx,
+      border.cy,
+    );
+    xml = xml.replace(border.block, next);
+  }
+
+  return xml;
+}
+
 /** 좌·우 나란히 있는 차트 프레임의 y·높이를 왼쪽에 맞춤 (0 기준선 정렬) */
 export function alignSideBySideChartFrames(slideXml: string): string {
   const charts = [
@@ -807,6 +908,49 @@ function extractInnerPlotLayout(chartXml: string): {
   const h = Number(m[4]);
   if (![x, y, w, h].every((v) => Number.isFinite(v))) return null;
   return { x, y, w, h };
+}
+
+/** 생산금액 추이 GROMMET(chart7) plot — SEAL이 위로 쏠리지 않도록 동일 적용 */
+export const AMOUNT_TREND_PLOT: ChartPlotLayout = {
+  x: 0.19704875834561009,
+  y: 0.11129450707110443,
+  w: 0.76120121348467806,
+  h: 0.74821697122643938,
+};
+
+/**
+ * 생산금액 SEAL 차트를 GROMMET과 같은 plot 위치로 맞추고
+ * X축 라벨(25년 12월)이 한 줄로 보이도록 wrap을 끈다.
+ */
+export function alignAmountTrendChartLayout(chartXml: string): string {
+  let xml = setPlotAreaInnerLayout(chartXml, AMOUNT_TREND_PLOT);
+  xml = xml.replace(/<c:catAx>([\s\S]*?)<\/c:catAx>/g, (_full, body: string) => {
+    let next = String(body);
+    // 월 라벨 한 줄 유지
+    next = next.replace(
+      /<a:bodyPr[^/]*\/>/,
+      `<a:bodyPr rot="0" spcFirstLastPara="1" vertOverflow="ellipsis" wrap="none" anchor="ctr" anchorCtr="1"/>`,
+    );
+    // GROMMET과 동일 글꼴 크기·굵기
+    next = next.replace(
+      /<a:defRPr[^>]*>/,
+      `<a:defRPr sz="1050" b="1" i="0" u="none" strike="noStrike" kern="1200" baseline="0">`,
+    );
+    return `<c:catAx>${next}</c:catAx>`;
+  });
+  // 단위(천) 제목도 GROMMET 높이로
+  xml = xml.replace(/<c:valAx>([\s\S]*?)<\/c:valAx>/g, (_full, body: string) => {
+    let next = String(body);
+    const titleLayout = `<c:manualLayout><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.063"/><c:y val="0.029"/></c:manualLayout>`;
+    if (/<c:title>[\s\S]*?<c:layout>[\s\S]*?<\/c:layout>/.test(next)) {
+      next = next.replace(
+        /(<c:title>[\s\S]*?<c:layout>)[\s\S]*?(<\/c:layout>)/,
+        `$1${titleLayout}$2`,
+      );
+    }
+    return `<c:valAx>${next}</c:valAx>`;
+  });
+  return xml;
 }
 
 function setPlotAreaInnerLayout(
@@ -1009,40 +1153,62 @@ export function clearChartDisplayUnits(chartXml: string): string {
     .replace(/<c:dispUnitsLst>[\s\S]*?<\/c:dispUnitsLst>/g, "");
 }
 
-/** 차트 축 제목 "단위 (천)" → "단위 (EA)" */
-export function setChartAxisUnitToEa(chartXml: string): string {
-  return chartXml.replace(/<a:t>천<\/a:t>/g, "<a:t>EA</a:t>");
+/** GROMMET 생산량 차트와 동일한 축 제목(단위 EA) — SEAL 템플릿 편차 보정 */
+const QTY_AXIS_TITLE_EA = `<c:title><c:tx><c:rich><a:bodyPr rot="0" spcFirstLastPara="1" vertOverflow="ellipsis" wrap="square" anchor="b" anchorCtr="0"/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="900" b="1" i="0" u="none" strike="noStrike" kern="1200" baseline="0"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:defRPr></a:pPr><a:r><a:rPr lang="ko-KR" altLang="en-US" sz="900" b="1" dirty="0"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></a:rPr><a:t>단위 (EA)</a:t></a:r><a:endParaRPr lang="ko-KR" altLang="en-US" sz="900" b="1" dirty="0"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></a:endParaRPr></a:p></c:rich></c:tx><c:layout><c:manualLayout><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.074"/><c:y val="0.029"/></c:manualLayout></c:layout><c:overlay val="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln><a:effectLst/></c:spPr></c:title>`;
+
+const QTY_VAL_AX_TXPR = `<c:txPr><a:bodyPr rot="0" spcFirstLastPara="1" vertOverflow="ellipsis" wrap="square" anchor="b" anchorCtr="0"/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="900" b="1" i="0" u="none" strike="noStrike" kern="1200" baseline="0"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:defRPr></a:pPr><a:endParaRPr lang="ko-KR"/></a:p></c:txPr>`;
+
+const QTY_CAT_AX_TXPR = `<c:txPr><a:bodyPr rot="-60000000" spcFirstLastPara="1" vertOverflow="ellipsis" vert="horz" wrap="square" anchor="ctr" anchorCtr="1"/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1050" b="1" i="0" u="none" strike="noStrike" kern="1200" baseline="0"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:defRPr></a:pPr><a:endParaRPr lang="ko-KR"/></a:p></c:txPr>`;
+
+function replaceOrInsertTxPr(axisBody: string, txPr: string): string {
+  if (/<c:txPr>[\s\S]*?<\/c:txPr>/.test(axisBody)) {
+    return axisBody.replace(/<c:txPr>[\s\S]*?<\/c:txPr>/, txPr);
+  }
+  if (/<c:crossAx\b/.test(axisBody)) {
+    return axisBody.replace(/(<c:crossAx\b)/, `${txPr}$1`);
+  }
+  return `${axisBody}${txPr}`;
 }
 
-/** 생산량 추이 plot — 큰 EA 눈금·단위 라벨 여유 */
+/**
+ * 차트 축 제목을 "단위 (EA)"로 통일하고 SEAL 축 폰트를 GROMMET과 맞춘다.
+ * SEAL 템플릿은 제목이 아래·크게 잡혀 눈금(80,000,000)과 겹치던 문제를 막는다.
+ */
+export function setChartAxisUnitToEa(chartXml: string): string {
+  let xml = chartXml.replace(
+    /<c:valAx>([\s\S]*?)<\/c:valAx>/g,
+    (_full, body: string) => {
+      let next = body;
+      if (/<c:title>[\s\S]*?<\/c:title>/.test(next)) {
+        next = next.replace(/<c:title>[\s\S]*?<\/c:title>/, QTY_AXIS_TITLE_EA);
+      } else {
+        next = `${QTY_AXIS_TITLE_EA}${next}`;
+      }
+      next = replaceOrInsertTxPr(next, QTY_VAL_AX_TXPR);
+      return `<c:valAx>${next}</c:valAx>`;
+    },
+  );
+  xml = xml.replace(/<c:catAx>([\s\S]*?)<\/c:catAx>/g, (_full, body: string) => {
+    const next = replaceOrInsertTxPr(body, QTY_CAT_AX_TXPR);
+    return `<c:catAx>${next}</c:catAx>`;
+  });
+  return xml;
+}
+
+/** 생산량 추이 plot — 큰 EA 눈금 여유 (과도한 우측 쏠림 방지용으로 완화) */
 export const QTY_TREND_PLOT: ChartPlotLayout = {
-  x: 0.28,
-  y: 0.16,
-  w: 0.68,
-  h: 0.72,
+  x: 0.24,
+  y: 0.14,
+  w: 0.71,
+  h: 0.74,
 };
 
 /**
- * 생산량(EA)처럼 큰 눈금 숫자와 "단위 (EA)"가 겹치지 않도록
- * plot 왼쪽·위 여백을 늘리고 축 제목을 위로 올린다.
+ * 생산량(EA)처럼 큰 눈금 숫자 여유를 위해 plot 왼쪽·위 여백을 늘린다.
+ * (축 제목 "단위 (EA)" 통일은 setChartAxisUnitToEa / unitToEa 옵션 사용)
  */
 export function padValueAxisForLargeLabels(chartXml: string): string {
-  let xml = ensureCategoryLabelPlotSpace(chartXml, QTY_TREND_PLOT);
-  xml = xml.replace(/<c:valAx>[\s\S]*?<\/c:valAx>/g, (block) => {
-    let next = block;
-    // plot 왼쪽(0.28) 근처 — 맨 끝이 아니라 눈금 위에 오도록
-    const titleLayout = `<c:manualLayout><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.16"/><c:y val="0.02"/></c:manualLayout>`;
-    if (/<c:title>[\s\S]*?<c:layout>[\s\S]*?<\/c:layout>/.test(next)) {
-      next = next.replace(
-        /(<c:title>[\s\S]*?<c:layout>)[\s\S]*?(<\/c:layout>)/,
-        `$1${titleLayout}$2`,
-      );
-    } else if (/<c:title>/.test(next)) {
-      next = next.replace(/<c:title>/, `<c:title><c:layout>${titleLayout}</c:layout>`);
-    }
-    return next;
-  });
-  return xml;
+  return ensureCategoryLabelPlotSpace(chartXml, QTY_TREND_PLOT);
 }
 
 /** 데이터 라벨 위치를 점 위(t)로 통일 */
