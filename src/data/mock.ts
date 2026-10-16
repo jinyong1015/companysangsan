@@ -160,7 +160,7 @@ const base: ProductionRecord = {
     productionQuantity: production,
     operatorId: overrides.operatorId ?? operator.id,
     operatorName: overrides.operatorName ?? operator.name,
-    shiftType: (overrides.shiftType ?? (index % 3 === 0 ? "Ã¬ÂÂ¼ÃªÂ°Â" : "Ã¬Â£Â¼ÃªÂ°Â")) as ShiftType,
+    shiftType: (overrides.shiftType ?? (index % 3 === 0 ? "야간" : "주간")) as ShiftType,
     moldId: overrides.moldId ?? mold.id,
     moldNumber: overrides.moldNumber ?? mold.moldNumber,
     startedAt: overrides.startedAt ?? `${overrides.workDate}T07:30:00`,
@@ -221,13 +221,13 @@ function generateDataset(): {
       const shiftModes: ShiftType[] =
         isWeekend
           ? rand() < 0.55
-            ? ["Ã¬Â£Â¼ÃªÂ°Â"]
-            : ["Ã¬ÂÂ¼ÃªÂ°Â"]
+            ? ["주간"]
+            : ["야간"]
           : rand() < 0.55
-            ? ["Ã¬Â£Â¼ÃªÂ°Â", "Ã¬ÂÂ¼ÃªÂ°Â"]
+            ? ["주간", "야간"]
             : rand() < 0.7
-              ? ["Ã¬Â£Â¼ÃªÂ°Â"]
-              : ["Ã¬ÂÂ¼ÃªÂ°Â"];
+              ? ["주간"]
+              : ["야간"];
 
       for (const shiftType of shiftModes) {
         const partPool = PARTS.filter((p) => {
@@ -261,11 +261,11 @@ function generateDataset(): {
             defectQuantity: defect,
             cavity: part.productType === "SEAL" ? 2 : 4,
             startedAt:
-              shiftType === "Ã¬Â£Â¼ÃªÂ°Â"
+              shiftType === "주간"
                 ? `${date}T07:30:00`
                 : `${date}T19:30:00`,
             endedAt:
-              shiftType === "Ã¬Â£Â¼ÃªÂ°Â"
+              shiftType === "주간"
                 ? `${date}T16:30:00`
                 : `${date}T04:30:00`,
           }),
