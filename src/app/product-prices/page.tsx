@@ -29,6 +29,7 @@ type ListResponse = {
   items?: ProductPriceRow[];
   total?: number;
   lastUpload?: ProductPriceUploadSummary | null;
+  uploads?: ProductPriceUploadSummary[];
 };
 
 const ACTION_LABEL: Record<PricePreviewRow["action"], string> = {
@@ -99,6 +100,7 @@ export default function ProductPricesPage() {
   const [lastUpload, setLastUpload] = useState<ProductPriceUploadSummary | null>(
     null,
   );
+  const [uploads, setUploads] = useState<ProductPriceUploadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -125,6 +127,7 @@ export default function ProductPricesPage() {
       setItems([]);
       setTotal(0);
       setLastUpload(null);
+      setUploads([]);
       setLoading(false);
       return;
     }
@@ -148,6 +151,7 @@ export default function ProductPricesPage() {
       setItems(data.items ?? []);
       setTotal(data.total ?? 0);
       setLastUpload(data.lastUpload ?? null);
+      setUploads(data.uploads ?? []);
     } catch {
       pushToast("목록 조회에 실패했습니다.", "error");
     } finally {
@@ -362,6 +366,62 @@ export default function ProductPricesPage() {
               삭제되지 않습니다.
             </p>
             <p>DATA 단가 0은 등록하지 않습니다.</p>
+          </div>
+
+          <div className="price-upload-history">
+            <div className="price-upload-history-head">
+              <h3 className="price-upload-history-title">업로드 이력</h3>
+              <span className="price-upload-history-count">
+                최근 {uploads.length}건
+              </span>
+            </div>
+            {uploads.length === 0 ? (
+              <p className="price-upload-history-empty">
+                아직 업로드 이력이 없습니다.
+              </p>
+            ) : (
+              <div className="price-upload-history-table-wrap">
+                <table className="price-upload-history-table">
+                  <thead>
+                    <tr>
+                      <th>일시</th>
+                      <th>파일명</th>
+                      <th className="num">신규</th>
+                      <th className="num">변경</th>
+                      <th className="num">유지</th>
+                      <th className="num">오류</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploads.map((u) => (
+                      <tr key={u.id}>
+                        <td className="price-upload-history-time">
+                          {formatDateTime(u.uploaded_at)}
+                        </td>
+                        <td
+                          className="price-upload-history-file"
+                          title={u.file_name ?? undefined}
+                        >
+                          {u.file_name?.trim() || "-"}
+                        </td>
+                        <td className="num">
+                          {formatNumber(u.inserted_count)}
+                        </td>
+                        <td className="num">
+                          {formatNumber(u.updated_count)}
+                        </td>
+                        <td className="num">
+                          {formatNumber(u.unchanged_count)}
+                        </td>
+                        <td className="num">
+                          {formatNumber(u.error_count)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 

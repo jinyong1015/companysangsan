@@ -61,13 +61,25 @@ export async function GET(request: Request) {
       lastUpload?: unknown;
     } | null;
 
+    const { data: uploadRows } = await supabase
+      .from("product_price_uploads")
+      .select(
+        "id, uploaded_at, file_name, total_count, inserted_count, updated_count, unchanged_count, error_count",
+      )
+      .order("uploaded_at", { ascending: false })
+      .limit(30);
+
+    const uploads = uploadRows ?? [];
+    const lastUpload = payload?.lastUpload ?? uploads[0] ?? null;
+
     const res = NextResponse.json({
       ok: true,
       items: payload?.items ?? [],
       total: Number(payload?.total ?? 0),
       page,
       pageSize,
-      lastUpload: payload?.lastUpload ?? null,
+      lastUpload,
+      uploads,
     });
     res.cookies.set(
       ADMIN_SESSION_COOKIE,
