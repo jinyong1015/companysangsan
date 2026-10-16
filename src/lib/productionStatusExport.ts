@@ -101,14 +101,14 @@ export function exportGsCode(productType: ProductType | string): string {
 }
 
 /**
- * 설비 구분: 설비명이 IN으로 시작하면 `in`, 그 외 PRESS.
- * 양식 수식(GRADE·1SHOT 중량)이 `$B="in"` 소문자를 기준으로 분기한다.
+ * 설비 구분: 설비명이 IN으로 시작하면 `IN`, 그 외 PRESS.
+ * 양식 수식(GRADE·1SHOT 중량)이 `$B="IN"` 기준으로 분기한다.
  */
 export function exportEquipmentClass(equipmentName: string): string {
   const upper = String(equipmentName ?? "")
     .trim()
     .toUpperCase();
-  if (upper.startsWith("IN")) return "in";
+  if (upper.startsWith("IN")) return "IN";
   return "PRESS";
 }
 
@@ -124,9 +124,9 @@ export function templateLookupFormula(
     case "생산금액(원)":
       return `IF(L${r}="비가동",0,T${r}*J${r})`;
     case "GRADE":
-      return `IF($L${r}="비가동",0,IF($B${r}="in",VLOOKUP($E${r},투입량!$M:$T,3,FALSE),VLOOKUP($E${r},투입량!$D:$I,3,FALSE)))`;
+      return `IF($L${r}="비가동",0,IF($B${r}="IN",VLOOKUP($E${r},투입량!$M:$T,3,FALSE),VLOOKUP($E${r},투입량!$D:$I,3,FALSE)))`;
     case "1SHOT 중량":
-      return `IF($L${r}="비가동",0,IF($B${r}="in",VLOOKUP($E${r},투입량!$M:$T,6,FALSE),VLOOKUP($E${r},투입량!$D:$I,5,FALSE)))`;
+      return `IF($L${r}="비가동",0,IF($B${r}="IN",VLOOKUP($E${r},투입량!$M:$T,6,FALSE),VLOOKUP($E${r},투입량!$D:$I,5,FALSE)))`;
     case "총 사용량(g)":
       return `IF(L${r}="비가동",0,(W${r}*1.1)*H${r})`;
     case "원재료 비용(원)":
@@ -314,7 +314,6 @@ const HEADER_RED = "FFFF0000";
 const FILL_LIGHT_BLUE = "FFDEEBF7"; // accent5 tint0.8 (G.S / 제품유형 G)
 const FILL_LIGHT_GREEN = "FFE2EEDA"; // accent6 tint0.8 (제품유형 S / 비가동)
 const FILL_LIGHT_GOLD = "FFFFF2CC"; // accent4 tint0.8 (평균SHOT / 일일판수)
-const GS_FILL = FILL_LIGHT_BLUE;
 const FONT_WHITE = "FFFFFFFF";
 const FONT_BLACK = "FF000000";
 
@@ -359,22 +358,8 @@ function applyDataCellFill(
   header: ProductionStatusHeader,
   value: unknown,
 ) {
-  if (header === "G.S 구분") {
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: GS_FILL },
-    };
-    cell.font = {
-      name: FONT_NAME,
-      size: 11,
-      bold: true,
-      color: { argb: FONT_BLACK },
-    };
-    return;
-  }
-  if (header === "제품유형") {
-    // 양식 조건부서식: G→연파랑, S→연초록
+  if (header === "G.S 구분" || header === "제품유형") {
+    // G→연파랑, S→연초록 + 굵게
     const code = String(value ?? "").trim().toUpperCase();
     const fill =
       code === "S" ? FILL_LIGHT_GREEN : FILL_LIGHT_BLUE;
@@ -382,6 +367,12 @@ function applyDataCellFill(
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: fill },
+    };
+    cell.font = {
+      name: FONT_NAME,
+      size: 11,
+      bold: true,
+      color: { argb: FONT_BLACK },
     };
     return;
   }
@@ -394,10 +385,22 @@ function applyDataCellFill(
     return;
   }
   if (DATA_FILL_GREEN_COLS.has(header)) {
+    // 비가동 시간 0(또는 비어 있음)은 배경색·굵기 없음
+    const n =
+      typeof value === "number"
+        ? value
+        : Number(String(value ?? "").replace(/,/g, ""));
+    if (!Number.isFinite(n) || n === 0) return;
     cell.fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: FILL_LIGHT_GREEN },
+    };
+    cell.font = {
+      name: FONT_NAME,
+      size: 11,
+      bold: true,
+      color: { argb: FONT_BLACK },
     };
   }
 }
