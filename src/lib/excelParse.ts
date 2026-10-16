@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import type { ErrorCode, ProductionRecord, UploadBatch } from "@/types";
+import { resolveFixedFactory } from "@/data/equipmentMaster";
 import {
   isDowntimeShiftLabel,
   normalizeFactory,
@@ -32,7 +33,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   equipmentName: ["설비명", "설비", "호기", "machine"],
   productType: ["구분3", "제품유형", "제품구분", "유형", "product"],
   partNumber: ["품번", "품명코드", "part"],
-  cavity: ["캐비티", "cavity", "캐비티수"],
+  cavity: ["캐비티", "cavity", "캐비티수", "c/v", "cv", "C/V"],
   shotCount: ["작업판수", "판수", "shot", "샷수"],
   defectQuantity: ["불량수량", "불량", "defect"],
   productionQuantity: ["실적수량", "생산수량", "생산량", "실적"],
@@ -199,10 +200,25 @@ function resolveShiftTypeColumn(
   }
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+/** Date → `YYYY-MM-DD HH:mm:ss` (로컬) — 이후 날짜/시간 파서가 읽기 쉽게 */
+function formatLocalDateTime(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
 function cell(row: unknown[], idx: number | undefined) {
   if (idx == null) return "";
   const v = row[idx];
   if (v == null) return "";
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return formatLocalDateTime(v);
+  }
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return String(v);
+  }
   return String(v).trim();
 }
 
@@ -238,40 +254,94 @@ function excelDateToIso(raw: string): string | null {
   return null;
 }
 
+function toKstDateTimeIso(
+  y: number,
+  month: number,
+  day: number,
+  hh: number,
+  mm: number,
+  ss = 0,
+): string {
+  return `${y}-${pad2(month)}-${pad2(day)}T${pad2(hh)}:${pad2(mm)}:${pad2(ss)}+09:00`;
+}
+
+/**
+ * 시작/종료 시각 파싱.
+ * - `2026-10-14 07:32` / `2026-10-14T07:32` 형태는 셀에 있는 날짜를 그대로 사용
+ *   (야간 종료일이 작업일자와 달라도 유지)
+ * - 시간만 있으면 작업일자(date)에 붙임
+ * - Excel 시리얼(날짜+시간 / 시간만) 지원
+ */
 function excelTimeToIso(date: string | null, raw: string): string | null {
   if (!raw) return null;
-  if (/^#n\/?a$/i.test(raw)) return null;
+  const text = raw.trim();
+  if (!text || /^#n\/?a$/i.test(text)) return null;
 
-  const asNum = Number(raw);
-  if (Number.isFinite(asNum)) {
-    // Excel 시간만(0~1) 또는 날짜+시간 시리얼(예: 46266.315)
-    if (asNum >= 0 && asNum < 1) {
-      if (!date) return null;
-      const totalMinutes = Math.round(asNum * 24 * 60);
-      const hh = String(Math.floor(totalMinutes / 60) % 24).padStart(2, "0");
-      const mm = String(totalMinutes % 60).padStart(2, "0");
-      return `${date}T${hh}:${mm}:00+09:00`;
-    }
-    if (asNum >= 1) {
-      const parsed = XLSX.SSF.parse_date_code(asNum);
-      if (parsed) {
-        const y = parsed.y;
-        const mo = String(parsed.m).padStart(2, "0");
-        const d = String(parsed.d).padStart(2, "0");
-        const hh = String(parsed.H).padStart(2, "0");
-        const mm = String(parsed.M).padStart(2, "0");
-        const ss = String(Math.floor(parsed.S || 0)).padStart(2, "0");
-        return `${y}-${mo}-${d}T${hh}:${mm}:${ss}+09:00`;
+  // 순수 숫자(시리얼)만 Number로 처리. "2026-10-14 07:32" 등은 문자열 경로로.
+  if (/^-?\d+(\.\d+)?$/.test(text.replace(/,/g, ""))) {
+    const asNum = Number(text.replace(/,/g, ""));
+    if (Number.isFinite(asNum)) {
+      if (asNum >= 0 && asNum < 1) {
+        if (!date) return null;
+        const totalMinutes = Math.round(asNum * 24 * 60);
+        const hh = Math.floor(totalMinutes / 60) % 24;
+        const mm = totalMinutes % 60;
+        const parts = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!parts) return null;
+        return toKstDateTimeIso(
+          Number(parts[1]),
+          Number(parts[2]),
+          Number(parts[3]),
+          hh,
+          mm,
+        );
+      }
+      if (asNum >= 1) {
+        const parsed = XLSX.SSF.parse_date_code(asNum);
+        if (parsed) {
+          return toKstDateTimeIso(
+            parsed.y,
+            parsed.m,
+            parsed.d,
+            parsed.H,
+            parsed.M,
+            Math.floor(parsed.S || 0),
+          );
+        }
       }
     }
   }
 
-  if (!date) return null;
-  const m = raw.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if (m) {
-    const ss = (m[3] ?? "00").padStart(2, "0");
-    return `${date}T${m[1]!.padStart(2, "0")}:${m[2]}:${ss}+09:00`;
+  // 날짜+시간 한 셀: 2026-10-14 07:32 / 2026/10/14 7:32:00 / 2026.10.14T07:32
+  const dateTime = text.match(
+    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/,
+  );
+  if (dateTime && dateTime[4] != null) {
+    return toKstDateTimeIso(
+      Number(dateTime[1]),
+      Number(dateTime[2]),
+      Number(dateTime[3]),
+      Number(dateTime[4]),
+      Number(dateTime[5]),
+      Number(dateTime[6] ?? 0),
+    );
   }
+
+  // 요일이 포함된 Date#toString 등에서 시각만 추출
+  const timeOnly = text.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (timeOnly && date) {
+    const parts = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!parts) return null;
+    return toKstDateTimeIso(
+      Number(parts[1]),
+      Number(parts[2]),
+      Number(parts[3]),
+      Number(timeOnly[1]),
+      Number(timeOnly[2]),
+      Number(timeOnly[3] ?? 0),
+    );
+  }
+
   return null;
 }
 
@@ -343,11 +413,12 @@ export async function parseProductionExcel(
     const workDate = excelDateToIso(workDateRaw);
     if (!workDate) errorCodes.push("INVALID_DATE");
 
-    const factoryRaw = cell(row, colMap.factory) || "본사";
-    const factory = normalizeFactory(factoryRaw);
-
     const equipmentName = cell(row, colMap.equipmentName);
     if (!equipmentName) errorCodes.push("REQUIRED_VALUE_MISSING");
+
+    const factoryRaw = cell(row, colMap.factory) || "1공장";
+    const fixedFactory = resolveFixedFactory(equipmentName);
+    const factory = fixedFactory ?? normalizeFactory(factoryRaw);
 
     const productRaw = cell(row, colMap.productType);
     const productType = normalizeProductType(productRaw);

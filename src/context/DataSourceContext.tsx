@@ -9,8 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { resolveFixedFactory } from "@/data/equipmentMaster";
 import { ACTIVE_BATCH, ALL_RECORDS, FILTER_OPTIONS as SEED_FILTER_OPTIONS } from "@/data/mock";
-import { buildFilterOptions, type FilterOption } from "@/lib/dimensions";
+import {
+  buildFilterOptions,
+  coerceFactory,
+  type FilterOption,
+} from "@/lib/dimensions";
 import { idbDel, idbGet, idbSet } from "@/lib/idb";
 import {
   normalizeReasonFlagsAll,
@@ -28,6 +33,18 @@ const SOURCE_KEY = "production-analytics-data-source";
 const IDB_PAYLOAD_KEY = "uploaded-dataset";
 
 export type DataSourceMode = "demo" | "uploaded";
+
+/** 구 저장값 factory "본사" → "1공장", 설비 마스터 공장 고정값 우선 */
+function coerceRecordFactories(
+  records: ProductionRecord[],
+): ProductionRecord[] {
+  return records.map((r) => {
+    const factory =
+      resolveFixedFactory(r.equipmentName) ?? coerceFactory(r.factory);
+    if (factory === r.factory) return r;
+    return { ...r, factory };
+  });
+}
 
 export type PersistedDataset = {
   mode: "uploaded";
@@ -79,7 +96,9 @@ const DEMO_BATCH: UploadBatch = {
   activatedAt: null,
 };
 
-const DEMO_RECORDS = normalizeReasonFlagsAll(ALL_RECORDS);
+const DEMO_RECORDS = coerceRecordFactories(
+  normalizeReasonFlagsAll(ALL_RECORDS),
+);
 
 export function DataSourceProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<DataSourceMode>("demo");
@@ -94,13 +113,15 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
       try {
         const saved = await idbGet<PersistedDataset>(IDB_PAYLOAD_KEY);
         if (!cancelled && saved?.mode === "uploaded" && saved.records?.length) {
-          const normalized = normalizeReasonFlagsAll(saved.records);
+          const normalized = coerceRecordFactories(
+            normalizeReasonFlagsAll(saved.records),
+          );
           setMode("uploaded");
           setRecords(normalized);
           setBatch(saved.batch);
           setSummary(saved.summary);
           localStorage.setItem(SOURCE_KEY, "uploaded");
-          // 예전 규칙으로 저장된 MTTR 플래그 교정 후 재저장
+          // 예전 규칙으로 저장된 MTTR·공장명 교정 후 재저장
           void idbSet(IDB_PAYLOAD_KEY, { ...saved, records: normalized });
         } else {
           const flag =
@@ -135,7 +156,9 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
       batch: UploadBatch;
       summary: UploadSummary;
     }) => {
-      const normalized = normalizeReasonFlagsAll(payload.records);
+      const normalized = coerceRecordFactories(
+        normalizeReasonFlagsAll(payload.records),
+      );
       const next: PersistedDataset = {
         mode: "uploaded",
         records: normalized,

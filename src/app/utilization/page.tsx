@@ -379,7 +379,7 @@ function DetailModal({
     router.push(
       withFromParam(
         withPeriodParams(
-          `/production-data?equipment=${encodeURIComponent(cell.equipmentId)}`,
+          `/all-data?tab=production&equipment=${encodeURIComponent(cell.equipmentId)}`,
           cell.date,
           cell.date,
         ),

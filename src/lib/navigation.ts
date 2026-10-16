@@ -33,8 +33,8 @@ const BACK_BY_SOURCE: Record<
   equipment: { href: "/equipment", label: "설비 분석", icon: Factory },
   production: { href: "/production", label: "생산 분석", icon: BarChart3 },
   "production-data": {
-    href: "/production-data",
-    label: "생산 DATA",
+    href: "/all-data?tab=production",
+    label: "전체 DATA",
     icon: Database,
   },
   operators: { href: "/operators", label: "작업자 분석", icon: Users },

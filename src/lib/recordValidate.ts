@@ -1,4 +1,5 @@
 import type { ErrorCode, ProductionRecord } from "@/types";
+import { resolveFixedFactory } from "@/data/equipmentMaster";
 import {
   isDowntimeShiftLabel,
   normalizeFactory,
@@ -131,11 +132,12 @@ export function revalidateRecord(
     errorCodes.push("INVALID_DATE");
   }
 
-  const factoryRaw = draft.factory.trim() || "본사";
-  const factory = normalizeFactory(factoryRaw);
-
   const equipmentName = draft.equipmentName.trim();
   if (!equipmentName) errorCodes.push("REQUIRED_VALUE_MISSING");
+
+  const factoryRaw = draft.factory.trim() || "1공장";
+  const fixedFactory = resolveFixedFactory(equipmentName);
+  const factory = fixedFactory ?? normalizeFactory(factoryRaw);
 
   const productType = normalizeProductType(draft.productType);
   if (!productType) errorCodes.push("INVALID_PRODUCT_TYPE");

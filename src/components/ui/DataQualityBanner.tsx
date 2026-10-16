@@ -30,7 +30,7 @@ export function DataQualityBanner() {
     );
   }
 
-  const href = `/data-errors?batchId=${batch.id}&startDate=${filters.startDate}&endDate=${filters.endDate}`;
+  const href = `/all-data?tab=errors&batchId=${batch.id}&startDate=${filters.startDate}&endDate=${filters.endDate}`;
 
   return (
     <div className="card mb-4 flex flex-col gap-3 border-[var(--warning)]/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

@@ -14,6 +14,7 @@ import {
 import {
   BarChart3,
   Boxes,
+  Database,
   Factory,
   Grid3x3,
   LayoutDashboard,
@@ -53,8 +54,7 @@ const MORE_FIXED: Array<{
   Icon?: IconComp;
 }> = [
   { href: "/molds", label: "금형 분석", Icon: Boxes },
-  { href: "/production-data", label: "생산 DATA" },
-  { href: "/data-errors", label: "오류 DATA" },
+  { href: "/all-data", label: "전체 DATA", Icon: Database },
 ];
 
 function isActive(pathname: string, href: string) {

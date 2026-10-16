@@ -6,31 +6,50 @@ import type {
   ShiftType,
   UploadBatch,
 } from "@/types";
+import {
+  equipmentIdFromName,
+  getEquipmentMasterById,
+  getEquipmentMasterByName,
+} from "@/data/equipmentMaster";
 import { toDateString, todaySeoul } from "@/lib/dates";
 import { subDays } from "date-fns";
 
-const EQUIPMENT = [
-  { id: "eq-in01", name: "IN-01", factory: "본사" as Factory },
-  { id: "eq-in02", name: "IN-02", factory: "본사" as Factory },
-  { id: "eq-in03", name: "IN-03", factory: "본사" as Factory },
-  { id: "eq-in04", name: "IN-04", factory: "본사" as Factory },
-  { id: "eq-in05", name: "IN-05", factory: "본사" as Factory },
-  { id: "eq-in06", name: "IN-06", factory: "본사" as Factory },
-  { id: "eq-in07", name: "IN-07", factory: "2공장" as Factory },
-  { id: "eq-in08", name: "IN-08", factory: "2공장" as Factory },
-  { id: "eq-in09", name: "IN-09", factory: "2공장" as Factory },
-  { id: "eq-in10", name: "IN-10", factory: "본사" as Factory },
-  { id: "eq-in11", name: "IN-11", factory: "본사" as Factory },
-  { id: "eq-in12", name: "IN-12", factory: "본사" as Factory },
-  { id: "eq-gp011", name: "GP01-1", factory: "본사" as Factory },
-  { id: "eq-gp012", name: "GP01-2", factory: "본사" as Factory },
-  { id: "eq-gp013", name: "GP01-3", factory: "본사" as Factory },
-  { id: "eq-gp021", name: "GP02-1", factory: "2공장" as Factory },
-  { id: "eq-gp022", name: "GP02-2", factory: "2공장" as Factory },
-  { id: "eq-gp023", name: "GP02-3", factory: "2공장" as Factory },
-  { id: "eq-ps01", name: "PS01-1", factory: "본사" as Factory },
-  { id: "eq-ps09", name: "PS09-3", factory: "2공장" as Factory },
-];
+/** ë°ëª¨ì© ìí ì¤ë¹ â ê³µì¥êµ¬ë¶ì equipmentMaster ê³ ì ê° */
+const MOCK_EQUIPMENT_NAMES = [
+  "IN-01",
+  "IN-02",
+  "IN-03",
+  "IN-05",
+  "IN-07",
+  "IN-08",
+  "IN-09",
+  "IN-10",
+  "IN-11",
+  "IN-12",
+  "IN-14",
+  "GP01-1",
+  "GP01-2",
+  "GP01-3",
+  "GP02-1",
+  "GP02-2",
+  "GP02-3",
+  "PS01-1",
+  "PS09-3",
+  "PG01-1",
+  "PG05-1",
+] as const;
+
+const EQUIPMENT = MOCK_EQUIPMENT_NAMES.flatMap((name) => {
+  const m = getEquipmentMasterByName(name);
+  if (!m) return [];
+  return [
+    {
+      id: equipmentIdFromName(m.name),
+      name: m.name,
+      factory: m.factory,
+    },
+  ];
+});
 
 const PARTS = [
   { id: "pt-necc051", partNumber: "NE-CC051", productType: "GROMMET" as ProductType },
@@ -42,12 +61,12 @@ const PARTS = [
 ];
 
 const OPERATORS = [
-  { id: "op-kim", name: "김민수" },
-  { id: "op-lee", name: "이서연" },
-  { id: "op-park", name: "박준호" },
-  { id: "op-choi", name: "최유진" },
-  { id: "op-jung", name: "정하늘" },
-  { id: "op-han", name: "한지훈" },
+  { id: "op-kim", name: "ÃªÂ¹ÂÃ«Â¯Â¼Ã¬ÂÂ" },
+  { id: "op-lee", name: "Ã¬ÂÂ´Ã¬ÂÂÃ¬ÂÂ°" },
+  { id: "op-park", name: "Ã«Â°ÂÃ¬Â¤ÂÃ­ÂÂ¸" },
+  { id: "op-choi", name: "Ã¬ÂµÂÃ¬ÂÂ Ã¬Â§Â" },
+  { id: "op-jung", name: "Ã¬Â ÂÃ­ÂÂÃ«ÂÂ" },
+  { id: "op-han", name: "Ã­ÂÂÃ¬Â§ÂÃ­ÂÂ" },
 ];
 
 const MOLDS = [
@@ -59,14 +78,14 @@ const MOLDS = [
 ];
 
 const REASONS = [
-  "금형교체",
-  "설비이상",
-  "근태변경",
-  "금형세척",
-  "고무이상",
-  "제품이상",
-  "금형교체, 설비이상",
-  "금형세척, 근태변경",
+  "ÃªÂ¸ÂÃ­ÂÂÃªÂµÂÃ¬Â²Â´",
+  "Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ",
+  "ÃªÂ·Â¼Ã­ÂÂÃ«Â³ÂÃªÂ²Â½",
+  "ÃªÂ¸ÂÃ­ÂÂÃ¬ÂÂ¸Ã¬Â²Â",
+  "ÃªÂ³Â Ã«Â¬Â´Ã¬ÂÂ´Ã¬ÂÂ",
+  "Ã¬Â ÂÃ­ÂÂÃ¬ÂÂ´Ã¬ÂÂ",
+  "ÃªÂ¸ÂÃ­ÂÂÃªÂµÂÃ¬Â²Â´, Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ",
+  "ÃªÂ¸ÂÃ­ÂÂÃ¬ÂÂ¸Ã¬Â²Â, ÃªÂ·Â¼Ã­ÂÂÃ«Â³ÂÃªÂ²Â½",
 ];
 
 function mulberry32(seed: number) {
@@ -111,7 +130,7 @@ function buildRecord(
   const operating = elapsed;
   const reasonRaw = overrides.downtimeReasonRaw ?? null;
   const tokens = tokenize(reasonRaw);
-  const isFailure = tokens.includes("설비이상");
+  const isFailure = tokens.includes("Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ");
   const isMttr = isFailure;
   const production = overrides.productionQuantity ?? 1200;
   const errorCodes = overrides.errorCodes ?? [];
@@ -141,7 +160,7 @@ const base: ProductionRecord = {
     productionQuantity: production,
     operatorId: overrides.operatorId ?? operator.id,
     operatorName: overrides.operatorName ?? operator.name,
-    shiftType: (overrides.shiftType ?? (index % 3 === 0 ? "야간" : "주간")) as ShiftType,
+    shiftType: (overrides.shiftType ?? (index % 3 === 0 ? "Ã¬ÂÂ¼ÃªÂ°Â" : "Ã¬Â£Â¼ÃªÂ°Â")) as ShiftType,
     moldId: overrides.moldId ?? mold.id,
     moldNumber: overrides.moldNumber ?? mold.moldNumber,
     startedAt: overrides.startedAt ?? `${overrides.workDate}T07:30:00`,
@@ -170,12 +189,12 @@ const base: ProductionRecord = {
     isFailureCandidate:
       overrides.isFailureCandidate ??
       ((overrides.isAnalysisEligible ?? isEligible) &&
-        tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw).includes("설비이상")),
+        tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw).includes("Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ")),
     isMttrEligible:
       overrides.isMttrEligible ??
       ((overrides.isAnalysisEligible ?? isEligible) &&
         tokenize(overrides.downtimeReasonRaw ?? base.downtimeReasonRaw).includes(
-          "설비이상",
+          "Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ",
         )),
   };
 }
@@ -189,26 +208,26 @@ function generateDataset(): {
   const records: ProductionRecord[] = [];
   let idx = 0;
 
-  // 최근 31일 · 설비별 주/야 교대 포함 (가동률 히트맵용)
+  // Ã¬ÂµÂÃªÂ·Â¼ 31Ã¬ÂÂ¼ ÃÂ· Ã¬ÂÂ¤Ã«Â¹ÂÃ«Â³Â Ã¬Â£Â¼/Ã¬ÂÂ¼ ÃªÂµÂÃ«ÂÂ Ã­ÂÂ¬Ã­ÂÂ¨ (ÃªÂ°ÂÃ«ÂÂÃ«Â¥Â  Ã­ÂÂÃ­ÂÂ¸Ã«Â§ÂµÃ¬ÂÂ©)
   for (let dayOffset = 0; dayOffset < 31; dayOffset++) {
     const date = toDateString(subDays(today, dayOffset));
     const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
     for (const equipment of EQUIPMENT) {
-      // 일부 설비·날짜는 비가동(데이터 없음)
+      // Ã¬ÂÂ¼Ã«Â¶Â Ã¬ÂÂ¤Ã«Â¹ÂÃÂ·Ã«ÂÂ Ã¬Â§ÂÃ«ÂÂ Ã«Â¹ÂÃªÂ°ÂÃ«ÂÂ(Ã«ÂÂ°Ã¬ÂÂ´Ã­ÂÂ° Ã¬ÂÂÃ¬ÂÂ)
       if (rand() < (isWeekend ? 0.35 : 0.08)) continue;
 
       const shiftModes: ShiftType[] =
         isWeekend
           ? rand() < 0.55
-            ? ["주간"]
-            : ["야간"]
+            ? ["Ã¬Â£Â¼ÃªÂ°Â"]
+            : ["Ã¬ÂÂ¼ÃªÂ°Â"]
           : rand() < 0.55
-            ? ["주간", "야간"]
+            ? ["Ã¬Â£Â¼ÃªÂ°Â", "Ã¬ÂÂ¼ÃªÂ°Â"]
             : rand() < 0.7
-              ? ["주간"]
-              : ["야간"];
+              ? ["Ã¬Â£Â¼ÃªÂ°Â"]
+              : ["Ã¬ÂÂ¼ÃªÂ°Â"];
 
       for (const shiftType of shiftModes) {
         const partPool = PARTS.filter((p) => {
@@ -242,11 +261,11 @@ function generateDataset(): {
             defectQuantity: defect,
             cavity: part.productType === "SEAL" ? 2 : 4,
             startedAt:
-              shiftType === "주간"
+              shiftType === "Ã¬Â£Â¼ÃªÂ°Â"
                 ? `${date}T07:30:00`
                 : `${date}T19:30:00`,
             endedAt:
-              shiftType === "주간"
+              shiftType === "Ã¬Â£Â¼ÃªÂ°Â"
                 ? `${date}T16:30:00`
                 : `${date}T04:30:00`,
           }),
@@ -255,7 +274,7 @@ function generateDataset(): {
     }
   }
 
-  // 오류 샘플 소량만 유지
+  // Ã¬ÂÂ¤Ã«Â¥Â Ã¬ÂÂÃ­ÂÂ Ã¬ÂÂÃ«ÂÂÃ«Â§Â Ã¬ÂÂ Ã¬Â§Â
   const errorSpecs: Array<{ codes: ErrorCode[]; patch: Partial<ProductionRecord> }> = [
     ...Array.from({ length: 3 }, () => ({
       codes: ["WORK_TIME_ZERO"] as ErrorCode[],
@@ -299,7 +318,7 @@ function generateDataset(): {
         downtimeReasonRaw:
           spec.codes.includes("DOWNTIME_GT_WORK_TIME") ||
           spec.codes.includes("OPERATING_TIME_NON_POSITIVE")
-            ? "설비이상"
+            ? "Ã¬ÂÂ¤Ã«Â¹ÂÃ¬ÂÂ´Ã¬ÂÂ"
             : null,
       }),
     );
@@ -310,7 +329,7 @@ function generateDataset(): {
 
   const batch: UploadBatch = {
     id: "batch-active-001",
-    originalFileName: "성형작업일보 샘플.xls",
+    originalFileName: "Ã¬ÂÂ±Ã­ÂÂÃ¬ÂÂÃ¬ÂÂÃ¬ÂÂ¼Ã«Â³Â´ Ã¬ÂÂÃ­ÂÂ.xls",
     status: "active",
     sourceRowCount: records.length,
     validRowCount: validCount,
@@ -344,7 +363,19 @@ export function getRecordById(id: string) {
 }
 
 export function getEquipmentById(id: string) {
-  return EQUIPMENT.find((e) => e.id === id);
+  const fromList = EQUIPMENT.find((e) => e.id === id);
+  const master =
+    (fromList ? getEquipmentMasterByName(fromList.name) : undefined) ??
+    getEquipmentMasterById(id);
+  if (!master && !fromList) return undefined;
+  return {
+    id: fromList?.id ?? equipmentIdFromName(master!.name),
+    name: fromList?.name ?? master!.name,
+    factory: master?.factory ?? fromList!.factory,
+    platenSize: master?.platenSize ?? null,
+    capacityTon: master?.capacityTon ?? null,
+    productType: master?.productType ?? null,
+  };
 }
 
 export function getPartById(id: string) {

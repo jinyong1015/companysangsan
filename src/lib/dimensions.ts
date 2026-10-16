@@ -161,7 +161,13 @@ export function normalizeFactory(raw: string): Factory {
   const v = raw.trim();
   if (v.includes("2") || v.includes("구지") || v.includes("제2"))
     return "2공장";
-  return "본사";
+  // 본사 · 1공장 · 기타 → 화면/데이터 모두 1공장으로 통일
+  return "1공장";
+}
+
+/** 저장된 구값(본사)을 포함해 Factory로 교정 */
+export function coerceFactory(value: string | null | undefined): Factory {
+  return normalizeFactory(String(value ?? ""));
 }
 
 export function normalizeProductType(raw: string): ProductType | null {

@@ -568,7 +568,7 @@ function aggregateReliabilityMetrics(
   };
 }
 
-const FACTORY_ORDER: Factory[] = ["본사", "2공장"];
+const FACTORY_ORDER: Factory[] = ["1공장", "2공장"];
 
 export function buildEquipmentReliabilityTable(
   records: ProductionRecord[],

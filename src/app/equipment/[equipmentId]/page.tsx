@@ -15,6 +15,10 @@ import { Factory } from "lucide-react";
 import { WorkPartSelect } from "@/components/ui/WorkPartSelect";
 import { useFilters } from "@/context/FilterContext";
 import { useDataSource } from "@/context/DataSourceContext";
+import {
+  getEquipmentMasterById,
+  getEquipmentMasterByName,
+} from "@/data/equipmentMaster";
 import { getEquipmentById } from "@/data/mock";
 import {
   formatMinutes,
@@ -45,9 +49,18 @@ export default function EquipmentDetailPage() {
     getEquipmentById(params.equipmentId) ??
     (() => {
       const r = records.find((x) => x.equipmentId === params.equipmentId);
-      return r
-        ? { id: r.equipmentId, name: r.equipmentName, factory: r.factory }
-        : null;
+      if (!r) return null;
+      const master =
+        getEquipmentMasterByName(r.equipmentName) ??
+        getEquipmentMasterById(r.equipmentId);
+      return {
+        id: r.equipmentId,
+        name: r.equipmentName,
+        factory: master?.factory ?? r.factory,
+        platenSize: master?.platenSize ?? null,
+        capacityTon: master?.capacityTon ?? null,
+        productType: master?.productType ?? null,
+      };
     })();
 
   const allRows = useMemo(
@@ -142,6 +155,15 @@ export default function EquipmentDetailPage() {
         tone="equipment"
         chips={[
           { label: "공장", value: equipment.factory },
+          { label: "제품유형", value: equipment.productType ?? "-" },
+          {
+            label: "열판사이즈",
+            value: equipment.platenSize ?? "-",
+          },
+          {
+            label: "용량(TON)",
+            value: equipment.capacityTon ?? "-",
+          },
           { label: "기준", value: scopeLabel },
           {
             label: "조회기간",

@@ -10,7 +10,7 @@ import { ChevronDown, RotateCcw } from "lucide-react";
 import { useFilters } from "@/context/FilterContext";
 import type { DatePreset, Factory, ProductType } from "@/types";
 
-const FACTORY_OPTIONS: Array<"전체" | Factory> = ["전체", "본사", "2공장"];
+const FACTORY_OPTIONS: Array<"전체" | Factory> = ["전체", "1공장", "2공장"];
 const PRODUCT_OPTIONS: Array<"전체" | ProductType> = ["전체", "GROMMET", "SEAL"];
 const DATE_OPTIONS: Array<{ key: DatePreset; label: string }> = [
   { key: "today", label: "오늘" },
@@ -117,7 +117,9 @@ export function GlobalFilterSection({
             options={DATE_OPTIONS.map((d) => d.key)}
             value={filters.datePreset}
             onChange={(datePreset) => setFilters({ datePreset })}
-            labels={Object.fromEntries(DATE_OPTIONS.map((d) => [d.key, d.label]))}
+            labels={Object.fromEntries(
+              DATE_OPTIONS.map((d) => [d.key, d.label]),
+            )}
             nowrap
           />
           {showCustomDates ? (

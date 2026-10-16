@@ -108,7 +108,7 @@ export default function UploadResultPage() {
         <Link href="/" className="btn btn-primary">
           월별 KPI로 이동
         </Link>
-        <Link href="/data-errors" className="btn">
+        <Link href="/all-data?tab=errors" className="btn">
           오류 DATA 보기
         </Link>
       </div>

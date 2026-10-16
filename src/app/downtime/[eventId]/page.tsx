@@ -108,7 +108,7 @@ export default function DowntimeEventPage() {
           </p>
         ) : null}
         <div className="mt-4">
-          <Link href="/production-data" className="btn">
+          <Link href="/all-data?tab=production" className="btn">
             원본 DATA 보기
           </Link>
         </div>

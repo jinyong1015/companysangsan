@@ -30,6 +30,8 @@ interface SearchSortBarProps {
   /** 이미 카드 안에 있을 때 외곽 카드 스타일 생략 */
   embedded?: boolean;
   extra?: ReactNode;
+  /** 조회조건 헤더 오른쪽 (Excel 버튼보다 앞에 표시) */
+  headerActions?: ReactNode;
   id?: string;
 }
 
@@ -51,6 +53,7 @@ export function SearchSortBar({
   children,
   embedded = false,
   extra,
+  headerActions,
   id,
 }: SearchSortBarProps) {
   const { pushToast } = useToast();
@@ -179,7 +182,10 @@ export function SearchSortBar({
             <h3 className="query-filter-title">{title}</h3>
             {extra ? <div className="query-filter-extra">{extra}</div> : null}
           </div>
-          <div className="query-filter-actions">{excelBtn}</div>
+          <div className="query-filter-actions">
+            {headerActions}
+            {excelBtn}
+          </div>
         </div>
         <div className="query-filter-body">{toolbar}</div>
         {resultPanel}
@@ -197,7 +203,10 @@ export function SearchSortBar({
           <h2 className="query-filter-title">{title}</h2>
           {extra ? <div className="query-filter-extra">{extra}</div> : null}
         </div>
-        <div className="query-filter-actions">{excelBtn}</div>
+        <div className="query-filter-actions">
+          {headerActions}
+          {excelBtn}
+        </div>
       </div>
       <div className="query-filter-body">{toolbar}</div>
       {resultPanel}

@@ -5,6 +5,7 @@ import type {
   ThemePreference,
 } from "@/types";
 import { resolveDateRange, todaySeoul, toDateString } from "@/lib/dates";
+import { coerceFactory } from "@/lib/dimensions";
 import { startOfMonth } from "date-fns";
 
 const FILTER_KEY = "production-analytics-filters";
@@ -40,6 +41,16 @@ export function loadFilters(): GlobalFilters {
       const range = resolveDateRange(base.datePreset);
       base.startDate = range.startDate;
       base.endDate = range.endDate;
+    }
+    // 구필터 값 "본사" → "1공장"
+    if (base.factory !== "전체") {
+      const legacy = String(base.factory);
+      if (legacy === "본사" || legacy === "1공장" || legacy === "2공장") {
+        base.factory =
+          legacy === "2공장" ? "2공장" : coerceFactory(legacy);
+      } else {
+        base.factory = coerceFactory(legacy);
+      }
     }
     return base;
   } catch {

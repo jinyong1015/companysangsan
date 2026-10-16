@@ -300,7 +300,7 @@ export function EditProductionRecordModal({
               value={form.factory}
               onChange={(e) => patch({ factory: e.target.value })}
             >
-              <option value="본사">본사</option>
+              <option value="1공장">1공장</option>
               <option value="2공장">2공장</option>
             </select>
           </label>

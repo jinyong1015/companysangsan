@@ -7,6 +7,10 @@ import type {
   ProductPerformanceRow,
   ProductionRecord,
 } from "@/types";
+import {
+  getEquipmentMasterById,
+  getEquipmentMasterByName,
+} from "@/data/equipmentMaster";
 import { computeKpi, filterRecords } from "@/lib/metrics";
 
 export function aggregateEquipment(
@@ -22,21 +26,16 @@ export function aggregateEquipment(
   }
   return [...map.entries()].map(([id, rows]) => {
     const first = rows[0]!;
-    const g = rows
-      .filter((r) => r.productType === "GROMMET")
-      .reduce((s, r) => s + r.productionQuantity, 0);
-    const s = rows
-      .filter((r) => r.productType === "SEAL")
-      .reduce((s2, r) => s2 + r.productionQuantity, 0);
-    const total = g + s || 1;
+    const master =
+      getEquipmentMasterByName(first.equipmentName) ??
+      getEquipmentMasterById(id);
     return {
       id,
       name: first.equipmentName,
-      factory: first.factory,
-      productMix: {
-        grommetPercent: (g / total) * 100,
-        sealPercent: (s / total) * 100,
-      },
+      factory: master?.factory ?? first.factory,
+      platenSize: master?.platenSize ?? null,
+      capacityTon: master?.capacityTon ?? null,
+      productType: master?.productType ?? null,
       partCount: new Set(rows.map((r) => r.partId)).size,
       kpi: computeKpi(rows),
     };

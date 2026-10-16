@@ -20,20 +20,37 @@ import {
 import { paginate, sortBy } from "@/lib/metrics";
 import { withFromParam } from "@/lib/navigation";
 import { downloadExcel } from "@/lib/excelParse";
+import { compareEquipmentAnalysisOrder } from "@/lib/utilization";
 
 export default function EquipmentListPage() {
   const { filters, resetGlobal } = useFilters();
   const { records } = useDataSource();
-  const { state, patch } = usePageState("equipment", "utilization", "asc");
+  const { state, patch } = usePageState("equipment-v2", "lineOrder", "asc");
 
   const rows = useMemo(() => {
-    let list = aggregateEquipment(records, filters);
+    // 제품유형 필터는 생산실적 G/S가 아니라 설비 마스터 G/S 기준으로 적용
+    let list = aggregateEquipment(records, {
+      ...filters,
+      productType: "전체",
+    });
+    if (filters.productType !== "전체") {
+      list = list.filter((e) => e.productType === filters.productType);
+    }
     if (state.search.trim()) {
       const q = state.search.toLowerCase();
       list = list.filter(
         (e) =>
           e.name.toLowerCase().includes(q) ||
-          e.factory.includes(q),
+          e.factory.includes(q) ||
+          (e.productType ?? "").toLowerCase().includes(q) ||
+          (e.platenSize ?? "").toLowerCase().includes(q) ||
+          (e.capacityTon ?? "").toLowerCase().includes(q),
+      );
+    }
+    if (state.sort === "lineOrder") {
+      const dir = state.order === "asc" ? 1 : -1;
+      return [...list].sort(
+        (a, b) => compareEquipmentAnalysisOrder(a, b) * dir,
       );
     }
     return sortBy(list, state.sort, state.order, {
@@ -56,7 +73,7 @@ export default function EquipmentListPage() {
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}
-        searchPlaceholder="설비명 또는 주요 품번 검색"
+        searchPlaceholder="설비명·공장·제품유형·열판·용량 검색"
         sort={state.sort}
         onSort={(sort) => patch({ sort })}
         order={state.order}
@@ -64,6 +81,7 @@ export default function EquipmentListPage() {
         pageSize={state.pageSize}
         onPageSize={(pageSize) => patch({ pageSize })}
         sortOptions={[
+          { value: "lineOrder", label: "설비 순서" },
           { value: "production", label: "생산량" },
           { value: "utilization", label: "가동률" },
           { value: "downtime", label: "비가동시간" },
@@ -80,8 +98,9 @@ export default function EquipmentListPage() {
             rows.map((e) => ({
               설비명: e.name,
               공장: e.factory,
-              GROMMET비중: e.productMix.grommetPercent,
-              SEAL비중: e.productMix.sealPercent,
+              제품유형: e.productType ?? "",
+              열판사이즈: e.platenSize ?? "",
+              "용량(TON)": e.capacityTon ?? "",
               생산품번수: e.partCount,
               생산량: e.kpi.productionQuantity,
               불량수량: e.kpi.defectQuantity,
@@ -111,7 +130,9 @@ export default function EquipmentListPage() {
                   <tr>
                     <th>설비명</th>
                     <th>공장</th>
-                    <th>제품유형 구성</th>
+                    <th>제품유형</th>
+                    <th>열판사이즈</th>
+                    <th>용량(TON)</th>
                     <th className="num">생산 품번 수</th>
                     <th className="num">생산량</th>
                     <th className="num">불량수량</th>
@@ -136,10 +157,9 @@ export default function EquipmentListPage() {
                         </Link>
                       </td>
                       <td>{e.factory}</td>
-                      <td>
-                        GROMMET {formatNumber(e.productMix.grommetPercent, 0)}% · SEAL{" "}
-                        {formatNumber(e.productMix.sealPercent, 0)}%
-                      </td>
+                      <td>{e.productType ?? "-"}</td>
+                      <td>{e.platenSize ?? "-"}</td>
+                      <td>{e.capacityTon ?? "-"}</td>
                       <td className="num">{e.partCount}</td>
                       <td className="num">{formatQuantity(e.kpi.productionQuantity)}</td>
                       <td className="num">{formatQuantity(e.kpi.defectQuantity)}</td>

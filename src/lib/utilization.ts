@@ -245,8 +245,8 @@ const EQUIPMENT_PREFIX_RANK: Record<string, number> = {
 };
 
 const FACTORY_SORT_RANK: Record<string, number> = {
-  본사: 0,
   "1공장": 0,
+  본사: 0, // 구 저장값 호환
   "2공장": 1,
 };
 
@@ -292,6 +292,51 @@ export function compareEquipmentDisplayOrder(
 }
 
 /**
+ * 설비분석 기본 정렬 그룹
+ * 1공장 GROMMET → 1공장 SEAL → 2공장 IN → 2공장 PG
+ */
+export function equipmentAnalysisGroupRank(
+  factory: string | undefined,
+  equipmentName: string,
+  productType?: string | null,
+): number {
+  const f = factory === "본사" ? "1공장" : (factory ?? "");
+  const upper = equipmentName.trim().toUpperCase();
+  if (f === "1공장") {
+    if (productType === "SEAL" || upper.startsWith("PS")) return 1;
+    return 0; // GROMMET (GP 등)
+  }
+  if (f === "2공장") {
+    if (upper.startsWith("IN")) return 2;
+    return 3; // PG 등
+  }
+  return 50;
+}
+
+/** 설비분석: 공장·G/S·IN/PG 그룹 후 설비명 순 */
+export function compareEquipmentAnalysisOrder(
+  a: {
+    factory?: string;
+    name?: string;
+    equipmentName?: string;
+    productType?: string | null;
+  },
+  b: {
+    factory?: string;
+    name?: string;
+    equipmentName?: string;
+    productType?: string | null;
+  },
+): number {
+  const an = a.equipmentName ?? a.name ?? "";
+  const bn = b.equipmentName ?? b.name ?? "";
+  const ga = equipmentAnalysisGroupRank(a.factory, an, a.productType);
+  const gb = equipmentAnalysisGroupRank(b.factory, bn, b.productType);
+  if (ga !== gb) return ga - gb;
+  return compareEquipmentNameOrder(an, bn);
+}
+
+/**
  * 엑셀 표기: GP → P, PG → GP (예: GP01-1 → P-01-1, PG05 → GP-05)
  */
 export function formatEquipmentNameForExcel(name: string): string {
@@ -316,7 +361,7 @@ export function isGrommetLineEquipment(
   equipmentName: string,
 ): boolean {
   if (factory === "2공장") return true;
-  if (factory !== "본사") return false;
+  if (factory !== "1공장" && factory !== "본사") return false;
 
   const family = parseGpPgFamily(equipmentName);
   if (family) {

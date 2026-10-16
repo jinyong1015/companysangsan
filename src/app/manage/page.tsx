@@ -352,11 +352,14 @@ export default function ManagePage() {
                 </p>
               </div>
               <div className="manage-panel-links">
-                <Link href="/data-errors" className="manage-inline-link">
+                <Link href="/all-data?tab=errors" className="manage-inline-link">
                   오류 DATA
                   <ArrowRight size={14} aria-hidden />
                 </Link>
-                <Link href="/production-data" className="manage-inline-link">
+                <Link
+                  href="/all-data?tab=production"
+                  className="manage-inline-link"
+                >
                   생산 DATA
                   <ArrowRight size={14} aria-hidden />
                 </Link>

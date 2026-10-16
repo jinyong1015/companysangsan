@@ -1,4 +1,4 @@
-export type Factory = "본사" | "2공장";
+export type Factory = "1공장" | "2공장";
 export type ProductType = "GROMMET" | "SEAL";
 export type ShiftType = "주간" | "야간";
 /** 시간가동률 목표시간 적용용 근무형태 */
@@ -205,7 +205,12 @@ export interface EquipmentRow {
   id: string;
   name: string;
   factory: Factory;
-  productMix: { grommetPercent: number; sealPercent: number };
+  /** 열판 사이즈 (설비 마스터) */
+  platenSize: string | null;
+  /** 용량(TON) (설비 마스터) */
+  capacityTon: string | null;
+  /** G/S 구분 (설비 마스터) */
+  productType: ProductType | null;
   partCount: number;
   kpi: KpiSummary;
 }

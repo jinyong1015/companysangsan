@@ -1393,7 +1393,34 @@ select {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.query-filter-actions .integrated-kind-bar {
+  gap: 8px 10px;
+}
+
+@media (max-width: 900px) {
+  .query-filter-actions .integrated-kind-bar__label {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .query-filter-actions .integrated-kind-bar {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .query-filter-actions .integrated-kind-bar__group {
+    width: 100%;
+  }
+
+  .query-filter-actions .integrated-excel-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .query-filter-action {
@@ -10040,6 +10067,471 @@ select {
   }
 
   .ppt-export-btn__hint {
+    display: none;
+  }
+}
+
+/* 통합 DATA — 데이터 유형 필터 */
+.integrated-kind-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.integrated-kind-bar__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.integrated-kind-bar__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--elevated) 88%, var(--app-bg));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+}
+
+.integrated-kind-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.integrated-kind-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--border) 55%, var(--elevated));
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.integrated-kind-btn__text {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+
+.integrated-kind-btn__count {
+  min-width: 1.75rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--border) 45%, var(--elevated));
+  color: var(--text-secondary);
+}
+
+.integrated-kind-btn:hover:not([data-active="true"]) {
+  background: color-mix(in srgb, var(--accent) 6%, var(--elevated));
+  color: var(--text);
+}
+
+.integrated-kind-btn[data-active="true"] {
+  color: var(--text);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 12%, transparent);
+  transform: translateY(-0.5px);
+}
+
+.integrated-kind-btn[data-tone="all"][data-active="true"] {
+  border-color: color-mix(in srgb, #0070c0 45%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #0070c0 16%, var(--elevated)),
+    var(--elevated)
+  );
+}
+
+.integrated-kind-btn[data-tone="all"][data-active="true"] .integrated-kind-btn__icon {
+  background: #0070c0;
+  color: #fff;
+}
+
+.integrated-kind-btn[data-tone="all"][data-active="true"] .integrated-kind-btn__count {
+  background: color-mix(in srgb, #0070c0 18%, var(--elevated));
+  color: #0070c0;
+}
+
+.integrated-kind-btn[data-tone="ok"][data-active="true"] {
+  border-color: color-mix(in srgb, #70ad47 50%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #70ad47 18%, var(--elevated)),
+    var(--elevated)
+  );
+}
+
+.integrated-kind-btn[data-tone="ok"][data-active="true"] .integrated-kind-btn__icon {
+  background: #70ad47;
+  color: #fff;
+}
+
+.integrated-kind-btn[data-tone="ok"][data-active="true"] .integrated-kind-btn__count {
+  background: color-mix(in srgb, #70ad47 20%, var(--elevated));
+  color: #4f8a2f;
+}
+
+.integrated-kind-btn[data-tone="error"][data-active="true"] {
+  border-color: color-mix(in srgb, #e11d48 45%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #e11d48 14%, var(--elevated)),
+    var(--elevated)
+  );
+}
+
+.integrated-kind-btn[data-tone="error"][data-active="true"] .integrated-kind-btn__icon {
+  background: #e11d48;
+  color: #fff;
+}
+
+.integrated-kind-btn[data-tone="error"][data-active="true"] .integrated-kind-btn__count {
+  background: color-mix(in srgb, #e11d48 16%, var(--elevated));
+  color: #be123c;
+}
+
+[data-theme="dark"] .integrated-kind-btn[data-tone="all"][data-active="true"] .integrated-kind-btn__count {
+  color: #5b9bd5;
+}
+
+[data-theme="dark"] .integrated-kind-btn[data-tone="ok"][data-active="true"] .integrated-kind-btn__count {
+  color: #9fd37a;
+}
+
+[data-theme="dark"] .integrated-kind-btn[data-tone="error"][data-active="true"] .integrated-kind-btn__count {
+  color: #fb7185;
+}
+
+@media (max-width: 640px) {
+  .integrated-kind-bar__group {
+    width: 100%;
+  }
+
+  .integrated-kind-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+    padding-right: 8px;
+  }
+}
+
+/* 통합 DATA — 전체 데이터 엑셀 다운로드 */
+.integrated-excel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, #0070c0 40%, var(--border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, #0070c0 14%, var(--elevated)) 0%,
+      var(--elevated) 55%
+    );
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 1px 0 color-mix(in srgb, #0070c0 12%, transparent);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.integrated-excel-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #0070c0 65%, var(--border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, #0070c0 22%, var(--elevated)) 0%,
+      color-mix(in srgb, #70ad47 10%, var(--elevated)) 100%
+    );
+  box-shadow: 0 4px 14px color-mix(in srgb, #0070c0 18%, transparent);
+  transform: translateY(-1px);
+}
+
+.integrated-excel-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.integrated-excel-btn:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.integrated-excel-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #0070c0;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent);
+}
+
+[data-theme="dark"] .integrated-excel-btn__icon {
+  background: color-mix(in srgb, #0070c0 75%, var(--elevated));
+  border: 1px solid color-mix(in srgb, #5b9bd5 50%, var(--border));
+  box-shadow: none;
+}
+
+.integrated-excel-btn__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.integrated-excel-btn__label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.integrated-excel-btn__hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .integrated-excel-btn {
+    min-height: 40px;
+    padding: 5px 12px 5px 6px;
+    gap: 8px;
+  }
+
+  .integrated-excel-btn__icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+
+  .integrated-excel-btn__hint {
+    display: none;
+  }
+}
+
+/* 전체 DATA — 생산/오류/통합 탭 */
+.all-data-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.all-data-tabs-bar__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.all-data-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--elevated) 88%, var(--app-bg));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+}
+
+.all-data-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 5px 10px 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.all-data-tab__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--border) 55%, var(--elevated));
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.all-data-tab__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.all-data-tab__label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+
+.all-data-tab__hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.all-data-tab__count {
+  min-width: 1.75rem;
+  margin-left: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--border) 45%, var(--elevated));
+  color: var(--text-secondary);
+}
+
+.all-data-tab:hover:not([data-active="true"]) {
+  background: color-mix(in srgb, var(--accent) 6%, var(--elevated));
+  color: var(--text);
+}
+
+.all-data-tab[data-active="true"] {
+  color: var(--text);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 12%, transparent);
+  transform: translateY(-0.5px);
+}
+
+.all-data-tab[data-tone="all"][data-active="true"] {
+  border-color: color-mix(in srgb, #0070c0 45%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #0070c0 16%, var(--elevated)),
+    var(--elevated)
+  );
+}
+
+.all-data-tab[data-tone="all"][data-active="true"] .all-data-tab__icon {
+  background: #0070c0;
+  color: #fff;
+}
+
+.all-data-tab[data-tone="all"][data-active="true"] .all-data-tab__count {
+  background: color-mix(in srgb, #0070c0 18%, var(--elevated));
+  color: #0070c0;
+}
+
+.all-data-tab[data-tone="ok"][data-active="true"] {
+  border-color: color-mix(in srgb, #70ad47 50%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #70ad47 18%, var(--elevated)),
+    var(--elevated)
+  );
+}
+
+.all-data-tab[data-tone="ok"][data-active="true"] .all-data-tab__icon {
+  background: #70ad47;
+  color: #fff;
+}
+
+.all-data-tab[data-tone="ok"][data-active="true"] .all-data-tab__count {
+  background: color-mix(in srgb, #70ad47 20%, var(--elevated));
+  color: #4f8a2f;
+}
+
+.all-data-tab[data-tone="error"][data-active="true"] {
+  border-color: color-mix(in srgb, #e11d48 45%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #e11d48 14%, var(--elevated)),
+    var(--elevated)
+  );
+}
+
+.all-data-tab[data-tone="error"][data-active="true"] .all-data-tab__icon {
+  background: #e11d48;
+  color: #fff;
+}
+
+.all-data-tab[data-tone="error"][data-active="true"] .all-data-tab__count {
+  background: color-mix(in srgb, #e11d48 16%, var(--elevated));
+  color: #be123c;
+}
+
+[data-theme="dark"] .all-data-tab[data-tone="all"][data-active="true"] .all-data-tab__count {
+  color: #5b9bd5;
+}
+
+[data-theme="dark"] .all-data-tab[data-tone="ok"][data-active="true"] .all-data-tab__count {
+  color: #9fd37a;
+}
+
+[data-theme="dark"] .all-data-tab[data-tone="error"][data-active="true"] .all-data-tab__count {
+  color: #fb7185;
+}
+
+@media (max-width: 640px) {
+  .all-data-tabs {
+    width: 100%;
+  }
+
+  .all-data-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .all-data-tab__hint {
     display: none;
   }
 }
