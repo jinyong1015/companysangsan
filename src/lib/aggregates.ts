@@ -63,6 +63,9 @@ export function aggregateEquipment(
     const eqRows =
       byId.get(id) ?? byName.get(master.name.trim().toUpperCase()) ?? [];
     seen.add(id);
+    const partNumbers = [
+      ...new Set(eqRows.map((r) => r.partNumber).filter(Boolean)),
+    ];
     rows.push({
       id,
       name: master.name,
@@ -70,7 +73,8 @@ export function aggregateEquipment(
       platenSize: master.platenSize,
       capacityTon: master.capacityTon,
       productType: master.productType,
-      partCount: new Set(eqRows.map((r) => r.partId)).size,
+      partCount: partNumbers.length,
+      partNumbers,
       kpi: computeKpi(eqRows),
     });
   }
@@ -88,6 +92,9 @@ export function aggregateEquipment(
     ) {
       continue;
     }
+    const partNumbers = [
+      ...new Set(eqRows.map((r) => r.partNumber).filter(Boolean)),
+    ];
     rows.push({
       id,
       name: first.equipmentName,
@@ -95,7 +102,8 @@ export function aggregateEquipment(
       platenSize: master?.platenSize ?? null,
       capacityTon: master?.capacityTon ?? null,
       productType: master?.productType ?? null,
-      partCount: new Set(eqRows.map((r) => r.partId)).size,
+      partCount: partNumbers.length,
+      partNumbers,
       kpi: computeKpi(eqRows),
     });
   }

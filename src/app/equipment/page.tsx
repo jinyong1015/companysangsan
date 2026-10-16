@@ -38,7 +38,8 @@ export default function EquipmentListPage() {
           e.factory.includes(q) ||
           (e.productType ?? "").toLowerCase().includes(q) ||
           (e.platenSize ?? "").toLowerCase().includes(q) ||
-          (e.capacityTon ?? "").toLowerCase().includes(q),
+          (e.capacityTon ?? "").toLowerCase().includes(q) ||
+          e.partNumbers.some((p) => p.toLowerCase().includes(q)),
       );
     }
     if (state.sort === "lineOrder") {
@@ -67,7 +68,7 @@ export default function EquipmentListPage() {
       <SearchSortBar
         search={state.search}
         onSearch={(search) => patch({ search })}
-        searchPlaceholder="설비명·공장·제품유형·열판·용량 검색"
+        searchPlaceholder="설비명·품번·공장·제품유형·열판·용량 검색"
         sort={state.sort}
         onSort={(sort) => patch({ sort })}
         order={state.order}

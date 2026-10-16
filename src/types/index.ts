@@ -212,6 +212,8 @@ export interface EquipmentRow {
   /** G/S 구분 (설비 마스터) */
   productType: ProductType | null;
   partCount: number;
+  /** 조회조건 내 작업 품번 (검색용) */
+  partNumbers: string[];
   kpi: KpiSummary;
 }
 
