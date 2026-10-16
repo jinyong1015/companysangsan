@@ -8,38 +8,99 @@ import type {
   ProductionRecord,
 } from "@/types";
 import {
+  EQUIPMENT_MASTER,
+  equipmentIdFromName,
   getEquipmentMasterById,
   getEquipmentMasterByName,
 } from "@/data/equipmentMaster";
 import { computeKpi, filterRecords } from "@/lib/metrics";
 
+/**
+ * 설비 마스터를 기준으로 목록을 구성한다.
+ * 조회기간·실적이 없어도 마스터 설비는 모두 보이며, KPI는 필터에 맞는 실적만 반영한다.
+ */
 export function aggregateEquipment(
   records: ProductionRecord[],
   filters: GlobalFilters,
 ): EquipmentRow[] {
-  const filtered = filterRecords(records, filters);
-  const map = new Map<string, ProductionRecord[]>();
+  // 제품유형은 마스터 G/S로 걸러야 하므로 실적 productType 필터는 제외
+  const filtered = filterRecords(records, {
+    ...filters,
+    productType: "전체",
+  });
+  const byId = new Map<string, ProductionRecord[]>();
+  const byName = new Map<string, ProductionRecord[]>();
   for (const r of filtered) {
-    const list = map.get(r.equipmentId) ?? [];
-    list.push(r);
-    map.set(r.equipmentId, list);
+    const idList = byId.get(r.equipmentId) ?? [];
+    idList.push(r);
+    byId.set(r.equipmentId, idList);
+    const key = r.equipmentName.trim().toUpperCase();
+    const nameList = byName.get(key) ?? [];
+    nameList.push(r);
+    byName.set(key, nameList);
   }
-  return [...map.entries()].map(([id, rows]) => {
-    const first = rows[0]!;
+
+  const rows: EquipmentRow[] = [];
+  const seen = new Set<string>();
+
+  for (const master of EQUIPMENT_MASTER) {
+    if (filters.factory !== "전체" && master.factory !== filters.factory) {
+      continue;
+    }
+    if (
+      filters.productType !== "전체" &&
+      master.productType !== filters.productType
+    ) {
+      continue;
+    }
+    const id = equipmentIdFromName(master.name);
+    if (
+      filters.equipmentIds.length > 0 &&
+      !filters.equipmentIds.includes(id)
+    ) {
+      continue;
+    }
+    const eqRows =
+      byId.get(id) ?? byName.get(master.name.trim().toUpperCase()) ?? [];
+    seen.add(id);
+    rows.push({
+      id,
+      name: master.name,
+      factory: master.factory,
+      platenSize: master.platenSize,
+      capacityTon: master.capacityTon,
+      productType: master.productType,
+      partCount: new Set(eqRows.map((r) => r.partId)).size,
+      kpi: computeKpi(eqRows),
+    });
+  }
+
+  // 마스터에 없는 실적 설비도 목록에 유지
+  for (const [id, eqRows] of byId) {
+    if (seen.has(id)) continue;
+    const first = eqRows[0]!;
     const master =
       getEquipmentMasterByName(first.equipmentName) ??
       getEquipmentMasterById(id);
-    return {
+    if (
+      filters.productType !== "전체" &&
+      (master?.productType ?? first.productType) !== filters.productType
+    ) {
+      continue;
+    }
+    rows.push({
       id,
       name: first.equipmentName,
       factory: master?.factory ?? first.factory,
       platenSize: master?.platenSize ?? null,
       capacityTon: master?.capacityTon ?? null,
       productType: master?.productType ?? null,
-      partCount: new Set(rows.map((r) => r.partId)).size,
-      kpi: computeKpi(rows),
-    };
-  });
+      partCount: new Set(eqRows.map((r) => r.partId)).size,
+      kpi: computeKpi(eqRows),
+    });
+  }
+
+  return rows;
 }
 
 export function aggregateParts(

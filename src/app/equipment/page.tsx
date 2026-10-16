@@ -28,14 +28,8 @@ export default function EquipmentListPage() {
   const { state, patch } = usePageState("equipment-v2", "lineOrder", "asc");
 
   const rows = useMemo(() => {
-    // 제품유형 필터는 생산실적 G/S가 아니라 설비 마스터 G/S 기준으로 적용
-    let list = aggregateEquipment(records, {
-      ...filters,
-      productType: "전체",
-    });
-    if (filters.productType !== "전체") {
-      list = list.filter((e) => e.productType === filters.productType);
-    }
+    // 마스터 기준 목록(실적 없어도 표시) + 제품유형은 마스터 G/S
+    let list = aggregateEquipment(records, filters);
     if (state.search.trim()) {
       const q = state.search.toLowerCase();
       list = list.filter(
